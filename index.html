@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<meta name="theme-color" content="#2F6B4F" />
+<link rel="manifest" href="manifest.json" />
+<link rel="apple-touch-icon" href="icon-192.png" />
+<title>EikoVida Pedidos</title>
+
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+
+<style>
+  :root{
+    --verde:#2F6B4F; --verde-esc:#245239; --dourado:#C9A227; --whats:#25D366;
+    --bg:#f4f4f2; --card:#ffffff; --borda:#e7e5e1; --txt:#2b2b2b; --cinza:#8a8a85;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  body{font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--txt)}
+  button{font-family:inherit;cursor:pointer;border:none}
+  input,select{font-family:inherit;font-size:16px}
+  .hide{display:none!important}
+
+  /* ---------- LOGIN ---------- */
+  #login{position:fixed;inset:0;background:linear-gradient(135deg,var(--verde),var(--verde-esc));display:flex;align-items:center;justify-content:center;padding:24px;z-index:100}
+  #login .box{background:#fff;border-radius:20px;padding:28px 22px;width:100%;max-width:360px;text-align:center}
+  #login .logo{width:60px;height:60px;border-radius:50%;background:var(--verde);color:#F5E9C8;display:flex;align-items:center;justify-content:center;font-size:30px;font-weight:900;margin:0 auto 12px}
+  #login h1{font-size:20px;margin-bottom:4px}
+  #login p{color:var(--cinza);font-size:13px;margin-bottom:18px}
+  #login input{width:100%;padding:13px;border:1px solid var(--borda);border-radius:12px;margin-bottom:12px}
+  #login button{width:100%;padding:13px;background:var(--verde);color:#fff;border-radius:12px;font-weight:700;font-size:15px}
+
+  /* ---------- APP ---------- */
+  header{position:sticky;top:0;background:var(--verde);color:#fff;padding:12px 16px;display:flex;align-items:center;gap:10px;z-index:20;box-shadow:0 2px 8px rgba(0,0,0,.12)}
+  header .logo{width:32px;height:32px;border-radius:50%;background:var(--dourado);color:#333;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:15px}
+  header .titulo{font-weight:700;font-size:17px;line-height:1.1}
+  header .sub{font-size:11px;opacity:.85}
+  header .live{margin-left:auto;display:flex;align-items:center;gap:5px;font-size:11px;font-weight:600;background:rgba(255,255,255,.15);padding:4px 9px;border-radius:20px}
+  header .dot{width:7px;height:7px;border-radius:50%;background:#7CFC9A;animation:pulse 1.6s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+  main{max-width:900px;margin:0 auto;padding:14px 14px 90px}
+  h2.tit{font-size:16px;margin-bottom:12px;font-weight:800}
+  .card{background:var(--card);border:1px solid var(--borda);border-radius:14px;padding:14px;margin-bottom:12px}
+  label.lb{font-size:11px;font-weight:700;color:var(--cinza);text-transform:uppercase;letter-spacing:.4px}
+  .inp{width:100%;padding:12px;border:1px solid var(--borda);border-radius:11px;background:#fff;margin-top:5px}
+  .btn{padding:12px 14px;border-radius:11px;font-weight:700;font-size:14px;display:inline-flex;align-items:center;justify-content:center;gap:6px}
+  .btn-v{background:var(--verde);color:#fff}
+  .btn-o{background:var(--dourado);color:#333}
+  .btn-w{background:var(--whats);color:#fff}
+  .btn-g{background:#fff;border:1px solid var(--borda);color:var(--txt)}
+  .btn-r{background:#fde8e8;color:#d33}
+  .row{display:flex;gap:8px}
+
+  /* produtos no pedido */
+  .pitem{background:#fff;border:1px solid var(--borda);border-radius:11px;padding:10px;display:flex;align-items:center;gap:10px;margin-bottom:8px}
+  .pitem .nome{flex:1;min-width:0}
+  .pitem .nome b{display:block;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .pitem .nome small{color:var(--cinza);font-size:12px}
+  .qtd{display:flex;align-items:center;gap:8px}
+  .qbtn{width:32px;height:32px;border-radius:9px;font-size:18px;font-weight:700;display:flex;align-items:center;justify-content:center}
+  .qbtn.mais{background:var(--verde);color:#fff}
+  .qbtn.menos{background:#eee;color:#333}
+  .qnum{min-width:20px;text-align:center;font-weight:800}
+
+  /* barra total fixa */
+  #barraTotal{position:fixed;bottom:64px;left:0;right:0;background:#fff;border-top:1px solid var(--borda);padding:10px 14px;z-index:15}
+  #barraTotal .in{max-width:900px;margin:0 auto}
+
+  /* KPIs central */
+  .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
+  .kpi{background:#fff;border:1px solid var(--borda);border-radius:12px;padding:12px}
+  .kpi small{font-size:11px;color:var(--cinza)}
+  .kpi b{display:block;font-size:18px;color:var(--verde);margin-top:2px}
+
+  /* pedido card */
+  .ped{background:#fff;border:1px solid var(--borda);border-radius:12px;margin-bottom:10px;overflow:hidden}
+  .ped .top{padding:12px 14px;display:flex;align-items:center;gap:10px;cursor:pointer}
+  .ped .cli{flex:1;min-width:0}
+  .ped .cli b{display:block;font-size:14px}
+  .ped .cli small{color:var(--cinza);font-size:12px}
+  .ped .tot{font-weight:800;color:var(--verde);font-size:14px}
+  .badge{font-size:10px;font-weight:700;padding:3px 8px;border-radius:20px;white-space:nowrap}
+  .b-aberto{background:#fef3c7;color:#b45309}
+  .b-enviado{background:#dcfce7;color:#15803d}
+  .ped .det{padding:0 14px 14px;border-top:1px solid #f0f0ee;padding-top:10px}
+  .ped .det .li{display:flex;justify-content:space-between;font-size:13px;padding:2px 0}
+  .novo{box-shadow:inset 4px 0 0 var(--dourado);background:#fffdf5}
+  .tagnovo{font-size:9px;font-weight:800;color:#fff;background:var(--dourado);padding:2px 6px;border-radius:20px;margin-left:6px}
+
+  .lista-cli{background:#fff;border:1px solid var(--borda);border-radius:12px;padding:12px;display:flex;align-items:center;gap:10px;margin-bottom:8px}
+  .lista-cli .info{flex:1;min-width:0}
+  .lista-cli .info b{font-size:14px}
+  .lista-cli .info small{display:block;color:var(--cinza);font-size:12px}
+  .icbtn{width:36px;height:36px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:15px}
+
+  .vazio{text-align:center;color:var(--cinza);padding:40px 20px}
+  .vazio .em{font-size:36px;opacity:.4}
+
+  /* nav inferior */
+  nav{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--borda);display:flex;z-index:18}
+  nav button{flex:1;padding:9px 4px;background:none;display:flex;flex-direction:column;align-items:center;gap:2px;color:var(--cinza);font-size:10px;font-weight:600}
+  nav button.on{color:var(--verde)}
+  nav button .ic{font-size:20px}
+
+  #toast{position:fixed;bottom:78px;left:50%;transform:translateX(-50%);background:#2b2b2b;color:#fff;font-size:13px;padding:9px 16px;border-radius:20px;z-index:50;opacity:0;transition:opacity .25s;pointer-events:none}
+  #toast.show{opacity:1}
+
+  #instalar{position:fixed;bottom:74px;right:14px;background:var(--dourado);color:#333;padding:10px 14px;border-radius:24px;font-weight:700;font-size:13px;box-shadow:0 4px 12px rgba(0,0,0,.2);z-index:30;display:flex;align-items:center;gap:6px}
+
+  @media(min-width:900px){
+    main{padding-top:18px}
+    .kpis{grid-template-columns:repeat(3,1fr)}
+  }
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login">
+  <div class="box">
+    <div class="logo">E</div>
+    <h1>EikoVida Pedidos</h1>
+    <p>Atacado · óleos vegetais</p>
+    <input id="nomeVendedor" placeholder="Seu nome (vendedor)" />
+    <button onclick="entrar()">Entrar</button>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app" class="hide">
+  <header>
+    <div class="logo">E</div>
+    <div>
+      <div class="titulo">EikoVida Pedidos</div>
+      <div class="sub" id="subHeader">Atacado</div>
+    </div>
+    <div class="live"><span class="dot"></span> Ao vivo</div>
+  </header>
+
+  <main id="conteudo"></main>
+
+  <div id="barraTotal" class="hide"></div>
+
+  <nav>
+    <button data-v="novo" onclick="irPara('novo')"><span class="ic">＋</span>Pedido</button>
+    <button data-v="central" onclick="irPara('central')"><span class="ic">📋</span>Central</button>
+    <button data-v="clientes" onclick="irPara('clientes')"><span class="ic">👥</span>Clientes</button>
+    <button data-v="produtos" onclick="irPara('produtos')"><span class="ic">📦</span>Produtos</button>
+  </nav>
+
+  <button id="instalar" class="hide" onclick="instalarApp()">⬇ Instalar app</button>
+  <div id="toast"></div>
+</div>
+
+<script>
+/* ====== CONFIG FIREBASE ====== */
+const firebaseConfig = {
+  apiKey: "AIzaSyCzl-w2jUWYGvMD2t5JfeW2l0iGjZt8cRw",
+  authDomain: "eiko-vida-app.firebaseapp.com",
+  databaseURL: "https://eiko-vida-app-default-rtdb.firebaseio.com",
+  projectId: "eiko-vida-app",
+  storageBucket: "eiko-vida-app.firebasestorage.app",
+  messagingSenderId: "805340801526",
+  appId: "1:805340801526:web:50e800c3a5ada35594ffd7"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+/* WhatsApp da central de pedidos (empresa) */
+const WHATS_EMPRESA = "558141410577";
+
+/* ====== ESTADO ====== */
+let produtos = [], clientes = [], pedidos = [];
+let vendedor = "";
+let viewAtual = "novo";
+let carrinho = {};       // produtoId -> qtd
+let clienteSel = "";
+let destaqueId = null;
+let pedidoAberto = null;
+
+/* seed inicial de produtos (gravado no banco se estiver vazio) */
+const SEED = [
+  { nome:"Óleo de Ojon Batana 120ml", varejo:159.90, atacado:95.00 },
+  { nome:"Óleo de Pequi Extra Virgem 120ml", varejo:89.90, atacado:54.00 },
+  { nome:"Óleo de Rosa Mosqueta", varejo:0, atacado:42.00 },
+  { nome:"Óleo de Rícino", varejo:0, atacado:28.00 },
+  { nome:"Óleo de Alecrim", varejo:0, atacado:30.00 },
+  { nome:"Óleo de Semente de Abóbora", varejo:0, atacado:33.00 },
+  { nome:"Óleo de Abacate", varejo:0, atacado:35.00 },
+  { nome:"Óleo de Copaíba", varejo:0, atacado:38.00 },
+  { nome:"Óleo de Semente de Uva", varejo:0, atacado:32.00 }
+];
+
+/* ====== UTILS ====== */
+const brl = (v)=> (Number(v)||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
+const hora = (iso)=> new Date(iso).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
+const dataBr = (iso)=> new Date(iso).toLocaleDateString("pt-BR");
+const soDig = (s)=> (s||"").replace(/\D/g,"");
+const esc = (s)=> (s||"").replace(/[<>&"]/g,c=>({ "<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;"}[c]));
+function toast(m){ const t=document.getElementById("toast"); t.textContent=m; t.classList.add("show"); setTimeout(()=>t.classList.remove("show"),2200); }
+
+/* ====== LOGIN ====== */
+function entrar(){
+  const n = document.getElementById("nomeVendedor").value.trim();
+  if(!n){ toast("Digite seu nome"); return; }
+  vendedor = n;
+  try{ localStorage.setItem("eiko_vendedor", n); }catch(e){}
+  document.getElementById("login").classList.add("hide");
+  document.getElementById("app").classList.remove("hide");
+  iniciar();
+}
+
+/* ====== FIREBASE LISTENERS ====== */
+function iniciar(){
+  document.getElementById("subHeader").textContent = "Vendedor: " + vendedor;
+
+  db.ref("produtos").on("value",(snap)=>{
+    produtos = toArr(snap.val());
+    if(produtos.length === 0){ semearProdutos(); }
+    if(viewAtual==="produtos"||viewAtual==="novo") render();
+  });
+  db.ref("clientes").on("value",(snap)=>{
+    clientes = toArr(snap.val());
+    if(viewAtual==="clientes"||viewAtual==="novo") render();
+  });
+  db.ref("pedidos").on("value",(snap)=>{
+    pedidos = toArr(snap.val()).sort((a,b)=> new Date(b.data)-new Date(a.data));
+    if(viewAtual==="central") render();
+  });
+
+  // pedido novo entrando (destaque na central)
+  db.ref("pedidos").on("child_added",(snap)=>{
+    const p = snap.val();
+    if(p && p.data && (Date.now()-new Date(p.data).getTime()) < 8000){
+      destaqueId = snap.key;
+      if(viewAtual==="central") render();
+      setTimeout(()=>{ destaqueId=null; if(viewAtual==="central") render(); }, 4000);
+    }
+  });
+
+  // desktop começa na central; celular no pedido
+  irPara(window.innerWidth >= 900 ? "central" : "novo");
+}
+function toArr(obj){ if(!obj) return []; return Object.keys(obj).map(k=>({id:k, ...obj[k]})); }
+function semearProdutos(){
+  const updates = {};
+  SEED.forEach(p=>{ const k = db.ref("produtos").push().key; updates[k]=p; });
+  db.ref("produtos").update(updates);
+}
+
+/* ====== NAVEGAÇÃO ====== */
+function irPara(v){
+  viewAtual = v;
+  document.querySelectorAll("nav button").forEach(b=> b.classList.toggle("on", b.dataset.v===v));
+  render();
+}
+
+/* ====== RENDER ====== */
+function render(){
+  const c = document.getElementById("conteudo");
+  const barra = document.getElementById("barraTotal");
+  barra.classList.add("hide");
+  if(viewAtual==="novo"){ c.innerHTML = viewNovo(); renderBarra(); }
+  else if(viewAtual==="central"){ c.innerHTML = viewCentral(); }
+  else if(viewAtual==="clientes"){ c.innerHTML = viewClientes(); }
+  else if(viewAtual==="produtos"){ c.innerHTML = viewProdutos(); }
+}
+
+/* ---------- NOVO PEDIDO ---------- */
+function viewNovo(){
+  const opts = clientes.map(c=>`<option value="${c.id}" ${c.id===clienteSel?"selected":""}>${esc(c.nome)}${c.cidade?" — "+esc(c.cidade):""}</option>`).join("");
+  const prods = produtos.map(p=>{
+    const q = carrinho[p.id]||0;
+    const ctrl = q===0
+      ? `<button class="qbtn mais" onclick="addItem('${p.id}',1)">＋</button>`
+      : `<div class="qtd"><button class="qbtn menos" onclick="addItem('${p.id}',-1)">−</button><span class="qnum">${q}</span><button class="qbtn mais" onclick="addItem('${p.id}',1)">＋</button></div>`;
+    return `<div class="pitem"><div class="nome"><b>${esc(p.nome)}</b><small>${brl(p.atacado)} atacado</small></div>${ctrl}</div>`;
+  }).join("");
+  return `
+    <h2 class="tit">Novo pedido</h2>
+    <div class="card">
+      <label class="lb">Cliente</label>
+      <select class="inp" onchange="clienteSel=this.value">
+        <option value="">Selecione…</option>${opts}
+      </select>
+      ${clientes.length===0?`<div style="margin-top:8px"><button class="btn btn-g" onclick="irPara('clientes')">+ Cadastrar primeiro cliente</button></div>`:""}
+    </div>
+    <label class="lb" style="margin-left:2px">Produtos</label>
+    <div style="margin-top:6px">${prods||'<div class="vazio">Nenhum produto</div>'}</div>
+  `;
+}
+function addItem(id,d){
+  const q=(carrinho[id]||0)+d;
+  if(q<=0) delete carrinho[id]; else carrinho[id]=q;
+  render();
+}
+function renderBarra(){
+  const linhas = Object.entries(carrinho);
+  if(linhas.length===0) return;
+  const total = linhas.reduce((s,[id,q])=>{ const p=produtos.find(x=>x.id===id); return s + (p?p.atacado:0)*q; },0);
+  const qtd = linhas.reduce((s,[,q])=>s+q,0);
+  const barra = document.getElementById("barraTotal");
+  barra.classList.remove("hide");
+  barra.innerHTML = `<div class="in">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <span style="color:var(--cinza);font-size:13px">${qtd} item(s)</span>
+      <span style="font-size:20px;font-weight:800;color:var(--verde)">${brl(total)}</span>
+    </div>
+    <div class="row">
+      <button class="btn btn-g" style="flex:1" onclick="finalizar(false)">✓ Salvar</button>
+      <button class="btn btn-w" style="flex:1" onclick="finalizar(true)">Salvar + WhatsApp</button>
+    </div>
+  </div>`;
+}
+function finalizar(enviar){
+  if(!clienteSel){ toast("Escolha um cliente"); return; }
+  const linhas = Object.entries(carrinho);
+  if(linhas.length===0){ toast("Adicione produtos"); return; }
+  const cli = clientes.find(c=>c.id===clienteSel);
+  const itens = linhas.map(([id,qtd])=>{ const p=produtos.find(x=>x.id===id); return {nome:p.nome, qtd, preco:p.atacado}; });
+  const total = itens.reduce((s,i)=>s+i.qtd*i.preco,0);
+  const pedido = { cliente:cli.nome, cidade:cli.cidade||"", whats:cli.whatsapp||"", vendedor, itens, total, data:new Date().toISOString(), status:"aberto" };
+  db.ref("pedidos").push(pedido);
+  if(enviar){
+    const alvo = soDig(cli.whatsapp) ? ("55"+soDig(cli.whatsapp).replace(/^55/,"")) : WHATS_EMPRESA;
+    window.open(`https://wa.me/${alvo}?text=${encodeURIComponent(textoPedido(pedido))}`,"_blank");
+  }
+  carrinho={}; clienteSel="";
+  toast("Pedido enviado!");
+  render();
+}
+function textoPedido(o){
+  let t = "*PEDIDO EIKOVIDA*\n";
+  t += "Cliente: "+o.cliente+"\n";
+  if(o.cidade) t += "Cidade: "+o.cidade+"\n";
+  t += "Vendedor: "+o.vendedor+"\n\n";
+  o.itens.forEach(i=> t += i.qtd+"x "+i.nome+" — "+brl(i.qtd*i.preco)+"\n");
+  t += "\n*TOTAL: "+brl(o.total)+"*";
+  return t;
+}
+
+/* ---------- CENTRAL (escritório) ---------- */
+function viewCentral(){
+  const hoje = new Date().toDateString();
+  const hj = pedidos.filter(p=> new Date(p.data).toDateString()===hoje);
+  const fat = pedidos.reduce((s,p)=>s+p.total,0);
+  const abertos = pedidos.filter(p=>p.status==="aberto").length;
+  const kpis = `<div class="kpis">
+    <div class="kpi"><small>Pedidos hoje</small><b>${hj.length}</b></div>
+    <div class="kpi"><small>Faturamento</small><b>${brl(fat)}</b></div>
+    <div class="kpi"><small>Em aberto</small><b style="color:${abertos?'#b45309':'var(--verde)'}">${abertos}</b></div>
+  </div>`;
+  if(pedidos.length===0) return `<h2 class="tit">Central de pedidos</h2>${kpis}<div class="vazio"><div class="em">📋</div><div>Nenhum pedido ainda.</div></div>`;
+  const lista = pedidos.map(o=>{
+    const nv = o.id===destaqueId;
+    const det = o.id===pedidoAberto ? `<div class="det">
+        ${o.itens.map(i=>`<div class="li"><span>${i.qtd}x ${esc(i.nome)}</span><span>${brl(i.qtd*i.preco)}</span></div>`).join("")}
+        <div class="row" style="margin-top:10px">
+          <button class="btn btn-g" style="flex:1" onclick="copiarPed('${o.id}')">Copiar</button>
+          <button class="btn btn-w" style="flex:1" onclick="whatsPed('${o.id}')">WhatsApp</button>
+          <button class="btn btn-v" onclick="toggleStatus('${o.id}')">✓</button>
+          <button class="btn btn-r" onclick="excluirPed('${o.id}')">🗑</button>
+        </div></div>` : "";
+    return `<div class="ped ${nv?'novo':''}">
+      <div class="top" onclick="abrirPed('${o.id}')">
+        <div class="cli"><b>${esc(o.cliente)}${nv?'<span class="tagnovo">NOVO</span>':''}</b>
+          <small>${esc(o.cidade||"")} · ${o.itens.reduce((s,i)=>s+i.qtd,0)} un · ${o.vendedor?esc(o.vendedor)+" · ":""}${hora(o.data)}</small></div>
+        <div class="tot">${brl(o.total)}</div>
+        <span class="badge ${o.status==='enviado'?'b-enviado':'b-aberto'}">${o.status}</span>
+      </div>${det}</div>`;
+  }).join("");
+  return `<h2 class="tit">Central de pedidos</h2>${kpis}${lista}`;
+}
+function abrirPed(id){ pedidoAberto = (pedidoAberto===id?null:id); render(); }
+function toggleStatus(id){ const p=pedidos.find(x=>x.id===id); db.ref("pedidos/"+id+"/status").set(p.status==="aberto"?"enviado":"aberto"); }
+function excluirPed(id){ if(confirm("Excluir este pedido?")) db.ref("pedidos/"+id).remove(); }
+function copiarPed(id){ const o=pedidos.find(x=>x.id===id); navigator.clipboard?.writeText(textoPedido(o)); toast("Copiado"); }
+function whatsPed(id){ const o=pedidos.find(x=>x.id===id); const alvo=soDig(o.whats)?("55"+soDig(o.whats).replace(/^55/,"")):WHATS_EMPRESA; window.open(`https://wa.me/${alvo}?text=${encodeURIComponent(textoPedido(o))}`,"_blank"); }
+
+/* ---------- CLIENTES ---------- */
+let editCli = null;
+function viewClientes(){
+  const f = editCli || {nome:"",whatsapp:"",cidade:"",obs:""};
+  const form = `<div class="card">
+    <div style="font-weight:700;font-size:14px;margin-bottom:8px">${editCli?"✎ Editar cliente":"+ Novo cliente"}</div>
+    <input class="inp" id="cNome" placeholder="Nome / Loja *" value="${esc(f.nome)}" />
+    <div class="row" style="margin-top:8px">
+      <input class="inp" id="cWhats" placeholder="WhatsApp (DDD+nº)" value="${esc(f.whatsapp)}" />
+      <input class="inp" id="cCidade" placeholder="Cidade" value="${esc(f.cidade)}" />
+    </div>
+    <input class="inp" id="cObs" placeholder="Observação" value="${esc(f.obs)}" style="margin-top:8px" />
+    <div class="row" style="margin-top:10px">
+      <button class="btn btn-v" style="flex:1" onclick="salvarCli()">${editCli?"Salvar alterações":"Adicionar"}</button>
+      ${editCli?`<button class="btn btn-g" onclick="editCli=null;render()">✕</button>`:""}
+    </div>
+  </div>`;
+  const lista = clientes.length===0
+    ? `<div class="vazio"><div class="em">👥</div><div>Cadastre seus clientes.</div></div>`
+    : clientes.map(c=>`<div class="lista-cli"><div class="info"><b>${esc(c.nome)}</b><small>${[esc(c.cidade),esc(c.whatsapp)].filter(Boolean).join(" · ")}</small></div>
+        <button class="icbtn btn-g" onclick="editarCli('${c.id}')">✎</button>
+        <button class="icbtn btn-r" onclick="excluirCli('${c.id}')">🗑</button></div>`).join("");
+  return `<h2 class="tit">Clientes</h2>${form}${lista}`;
+}
+function salvarCli(){
+  const o = { nome:document.getElementById("cNome").value.trim(), whatsapp:document.getElementById("cWhats").value.trim(),
+    cidade:document.getElementById("cCidade").value.trim(), obs:document.getElementById("cObs").value.trim() };
+  if(!o.nome){ toast("Informe o nome"); return; }
+  if(editCli){ db.ref("clientes/"+editCli.id).update(o); editCli=null; }
+  else db.ref("clientes").push(o);
+  toast("Cliente salvo"); render();
+}
+function editarCli(id){ editCli = clientes.find(c=>c.id===id); render(); }
+function excluirCli(id){ if(confirm("Excluir cliente?")) db.ref("clientes/"+id).remove(); }
+
+/* ---------- PRODUTOS ---------- */
+function viewProdutos(){
+  const add = `<div class="card">
+    <div class="row">
+      <input class="inp" id="pNome" placeholder="Produto novo" style="flex:2" />
+      <input class="inp" id="pAtac" placeholder="R$ atacado" inputmode="decimal" style="flex:1" />
+      <button class="btn btn-v" onclick="addProduto()">＋</button>
+    </div>
+  </div>`;
+  const lista = produtos.map(p=>`<div class="card" style="padding:12px">
+    <div style="display:flex;align-items:center;gap:8px">
+      <b style="flex:1;font-size:14px">${esc(p.nome)}</b>
+      <button class="icbtn btn-r" onclick="excluirProd('${p.id}')">🗑</button>
+    </div>
+    <div class="row" style="margin-top:8px;align-items:flex-end">
+      <div style="flex:1"><small style="color:var(--cinza);font-size:11px">Varejo</small><div style="color:var(--cinza)">${p.varejo?brl(p.varejo):"—"}</div></div>
+      <div style="flex:1"><small style="color:var(--dourado);font-size:11px;font-weight:700">ATACADO</small>
+        <input class="inp" type="number" value="${p.atacado||''}" onblur="setAtacado('${p.id}',this.value)" style="border-color:var(--dourado);font-weight:700;padding:8px" /></div>
+    </div>
+  </div>`).join("");
+  return `<h2 class="tit">Produtos</h2>${add}${lista||'<div class="vazio">Carregando…</div>'}`;
+}
+function addProduto(){
+  const nome=document.getElementById("pNome").value.trim();
+  const atac=parseFloat(document.getElementById("pAtac").value)||0;
+  if(!nome){ toast("Informe o nome"); return; }
+  db.ref("produtos").push({nome, varejo:0, atacado:atac});
+  toast("Produto adicionado");
+}
+function setAtacado(id,v){ db.ref("produtos/"+id+"/atacado").set(parseFloat(v)||0); }
+function excluirProd(id){ if(confirm("Excluir produto?")) db.ref("produtos/"+id).remove(); }
+
+/* ====== PWA ====== */
+let deferredPrompt=null;
+window.addEventListener("beforeinstallprompt",(e)=>{ e.preventDefault(); deferredPrompt=e; document.getElementById("instalar").classList.remove("hide"); });
+function instalarApp(){ if(!deferredPrompt) return; deferredPrompt.prompt(); deferredPrompt.userChoice.then(()=>{ deferredPrompt=null; document.getElementById("instalar").classList.add("hide"); }); }
+window.addEventListener("appinstalled",()=> document.getElementById("instalar").classList.add("hide"));
+
+if("serviceWorker" in navigator){ window.addEventListener("load",()=> navigator.serviceWorker.register("sw.js").catch(()=>{})); }
+
+/* auto-login se já entrou antes */
+try{ const v=localStorage.getItem("eiko_vendedor"); if(v){ document.getElementById("nomeVendedor").value=v; } }catch(e){}
+</script>
+</body>
+</html>
