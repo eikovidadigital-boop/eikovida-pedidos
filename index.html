@@ -8,7 +8,6 @@
 <link rel="apple-touch-icon" href="icon-192.png" />
 <title>EikoVida Pedidos</title>
 
-<!-- Firebase -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 
@@ -20,41 +19,48 @@
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
   body{font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--txt)}
   button{font-family:inherit;cursor:pointer;border:none}
-  input,select{font-family:inherit;font-size:16px}
+  input,select,textarea{font-family:inherit;font-size:16px}
   .hide{display:none!important}
 
-  /* ---------- LOGIN ---------- */
   #login{position:fixed;inset:0;background:linear-gradient(135deg,var(--verde),var(--verde-esc));display:flex;align-items:center;justify-content:center;padding:24px;z-index:100}
   #login .box{background:#fff;border-radius:20px;padding:28px 22px;width:100%;max-width:360px;text-align:center}
-  #login .logo{width:60px;height:60px;border-radius:50%;background:var(--verde);color:#F5E9C8;display:flex;align-items:center;justify-content:center;font-size:30px;font-weight:900;margin:0 auto 12px}
+  #login .logo{width:64px;height:64px;border-radius:50%;background:var(--verde);color:#F5E9C8;display:flex;align-items:center;justify-content:center;font-size:30px;font-weight:900;margin:0 auto 12px;overflow:hidden}
+  #login .logo img{width:100%;height:100%;object-fit:contain}
   #login h1{font-size:20px;margin-bottom:4px}
   #login p{color:var(--cinza);font-size:13px;margin-bottom:18px}
   #login input{width:100%;padding:13px;border:1px solid var(--borda);border-radius:12px;margin-bottom:12px}
   #login button{width:100%;padding:13px;background:var(--verde);color:#fff;border-radius:12px;font-weight:700;font-size:15px}
 
-  /* ---------- APP ---------- */
   header{position:sticky;top:0;background:var(--verde);color:#fff;padding:12px 16px;display:flex;align-items:center;gap:10px;z-index:20;box-shadow:0 2px 8px rgba(0,0,0,.12)}
-  header .logo{width:32px;height:32px;border-radius:50%;background:var(--dourado);color:#333;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:15px}
+  header .logo{width:34px;height:34px;border-radius:50%;background:var(--dourado);color:#333;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:15px;overflow:hidden}
+  header .logo img{width:100%;height:100%;object-fit:contain}
   header .titulo{font-weight:700;font-size:17px;line-height:1.1}
   header .sub{font-size:11px;opacity:.85}
   header .live{margin-left:auto;display:flex;align-items:center;gap:5px;font-size:11px;font-weight:600;background:rgba(255,255,255,.15);padding:4px 9px;border-radius:20px}
   header .dot{width:7px;height:7px;border-radius:50%;background:#7CFC9A;animation:pulse 1.6s infinite}
   @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
 
-  main{max-width:900px;margin:0 auto;padding:14px 14px 90px}
+  main{max-width:900px;margin:0 auto;padding:14px 14px 96px}
   h2.tit{font-size:16px;margin-bottom:12px;font-weight:800}
   .card{background:var(--card);border:1px solid var(--borda);border-radius:14px;padding:14px;margin-bottom:12px}
   label.lb{font-size:11px;font-weight:700;color:var(--cinza);text-transform:uppercase;letter-spacing:.4px}
   .inp{width:100%;padding:12px;border:1px solid var(--borda);border-radius:11px;background:#fff;margin-top:5px}
+  textarea.inp{resize:vertical;min-height:44px}
   .btn{padding:12px 14px;border-radius:11px;font-weight:700;font-size:14px;display:inline-flex;align-items:center;justify-content:center;gap:6px}
   .btn-v{background:var(--verde);color:#fff}
   .btn-o{background:var(--dourado);color:#333}
   .btn-w{background:var(--whats);color:#fff}
   .btn-g{background:#fff;border:1px solid var(--borda);color:var(--txt)}
   .btn-r{background:#fde8e8;color:#d33}
+  .btn-sm{padding:8px 10px;font-size:13px}
   .row{display:flex;gap:8px}
 
-  /* produtos no pedido */
+  .chips{display:flex;gap:7px;overflow-x:auto;padding:2px 0 8px;-webkit-overflow-scrolling:touch}
+  .chip{white-space:nowrap;padding:7px 13px;border-radius:20px;font-size:13px;font-weight:600;background:#fff;border:1px solid var(--borda);color:var(--cinza)}
+  .chip.on{background:var(--verde);color:#fff;border-color:var(--verde)}
+  .chip-x{display:inline-flex;align-items:center;gap:6px;background:#eef3ef;color:var(--verde);border:1px solid #d5e4da;padding:6px 10px;border-radius:20px;font-size:13px;font-weight:600}
+  .chip-x span{cursor:pointer;font-weight:800;opacity:.6}
+
   .pitem{background:#fff;border:1px solid var(--borda);border-radius:11px;padding:10px;display:flex;align-items:center;gap:10px;margin-bottom:8px}
   .pitem .nome{flex:1;min-width:0}
   .pitem .nome b{display:block;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -65,17 +71,14 @@
   .qbtn.menos{background:#eee;color:#333}
   .qnum{min-width:20px;text-align:center;font-weight:800}
 
-  /* barra total fixa */
   #barraTotal{position:fixed;bottom:64px;left:0;right:0;background:#fff;border-top:1px solid var(--borda);padding:10px 14px;z-index:15}
   #barraTotal .in{max-width:900px;margin:0 auto}
 
-  /* KPIs central */
   .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
   .kpi{background:#fff;border:1px solid var(--borda);border-radius:12px;padding:12px}
   .kpi small{font-size:11px;color:var(--cinza)}
   .kpi b{display:block;font-size:18px;color:var(--verde);margin-top:2px}
 
-  /* pedido card */
   .ped{background:#fff;border:1px solid var(--borda);border-radius:12px;margin-bottom:10px;overflow:hidden}
   .ped .top{padding:12px 14px;display:flex;align-items:center;gap:10px;cursor:pointer}
   .ped .cli{flex:1;min-width:0}
@@ -85,21 +88,22 @@
   .badge{font-size:10px;font-weight:700;padding:3px 8px;border-radius:20px;white-space:nowrap}
   .b-aberto{background:#fef3c7;color:#b45309}
   .b-enviado{background:#dcfce7;color:#15803d}
+  .b-cat{background:#eef3ef;color:var(--verde)}
   .ped .det{padding:0 14px 14px;border-top:1px solid #f0f0ee;padding-top:10px}
   .ped .det .li{display:flex;justify-content:space-between;font-size:13px;padding:2px 0}
+  .ped .pag{font-size:12px;color:var(--cinza);margin-top:6px}
   .novo{box-shadow:inset 4px 0 0 var(--dourado);background:#fffdf5}
   .tagnovo{font-size:9px;font-weight:800;color:#fff;background:var(--dourado);padding:2px 6px;border-radius:20px;margin-left:6px}
 
-  .lista-cli{background:#fff;border:1px solid var(--borda);border-radius:12px;padding:12px;display:flex;align-items:center;gap:10px;margin-bottom:8px}
+  .lista-cli{background:#fff;border:1px solid var(--borda);border-radius:12px;padding:12px;display:flex;align-items:center;gap:10px;margin-bottom:8px;cursor:pointer}
   .lista-cli .info{flex:1;min-width:0}
   .lista-cli .info b{font-size:14px}
   .lista-cli .info small{display:block;color:var(--cinza);font-size:12px}
-  .icbtn{width:36px;height:36px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:15px}
+  .icbtn{width:36px;height:36px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
 
   .vazio{text-align:center;color:var(--cinza);padding:40px 20px}
   .vazio .em{font-size:36px;opacity:.4}
 
-  /* nav inferior */
   nav{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--borda);display:flex;z-index:18}
   nav button{flex:1;padding:9px 4px;background:none;display:flex;flex-direction:column;align-items:center;gap:2px;color:var(--cinza);font-size:10px;font-weight:600}
   nav button.on{color:var(--verde)}
@@ -110,18 +114,15 @@
 
   #instalar{position:fixed;bottom:74px;right:14px;background:var(--dourado);color:#333;padding:10px 14px;border-radius:24px;font-weight:700;font-size:13px;box-shadow:0 4px 12px rgba(0,0,0,.2);z-index:30;display:flex;align-items:center;gap:6px}
 
-  @media(min-width:900px){
-    main{padding-top:18px}
-    .kpis{grid-template-columns:repeat(3,1fr)}
-  }
+  .catbox{background:#f8f8f6;border:1px dashed var(--borda);border-radius:12px;padding:12px;margin-bottom:12px}
+  .catbox .hd{display:flex;justify-content:space-between;align-items:center;font-weight:700;font-size:13px;cursor:pointer}
 </style>
 </head>
 <body>
 
-<!-- LOGIN -->
 <div id="login">
   <div class="box">
-    <div class="logo">E</div>
+    <div class="logo" id="loginLogo">E</div>
     <h1>EikoVida Pedidos</h1>
     <p>Atacado · óleos vegetais</p>
     <input id="nomeVendedor" placeholder="Seu nome (vendedor)" />
@@ -129,10 +130,9 @@
   </div>
 </div>
 
-<!-- APP -->
 <div id="app" class="hide">
   <header>
-    <div class="logo">E</div>
+    <div class="logo" id="headerLogo">E</div>
     <div>
       <div class="titulo">EikoVida Pedidos</div>
       <div class="sub" id="subHeader">Atacado</div>
@@ -141,7 +141,6 @@
   </header>
 
   <main id="conteudo"></main>
-
   <div id="barraTotal" class="hide"></div>
 
   <nav>
@@ -168,202 +167,190 @@ const firebaseConfig = {
 };
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
-
-/* WhatsApp da central de pedidos (empresa) */
 const WHATS_EMPRESA = "558141410577";
 
 /* ====== ESTADO ====== */
-let produtos = [], clientes = [], pedidos = [];
-let vendedor = "";
-let viewAtual = "novo";
-let carrinho = {};       // produtoId -> qtd
-let clienteSel = "";
-let destaqueId = null;
-let pedidoAberto = null;
+let produtos=[], clientes=[], pedidos=[], catCliente=[], catProduto=[];
+let vendedor="", viewAtual="novo";
+let carrinho={}, clienteSel="", pagamentoSel="", obsPedido="";
+let destaqueId=null, pedidoAberto=null;
+let filtroCli="", filtroProd="", filtroProdPedido="";
+let editCli=null, clienteDetalhe=null, showCatCli=false, showCatProd=false;
 
-/* seed inicial de produtos (gravado no banco se estiver vazio) */
+const PAGAMENTOS = ["À vista","PIX","Dinheiro","Boleto 7 dias","Boleto 14 dias","Boleto 21 dias","Boleto 28 dias","Boleto 30 dias","Boleto 30/60","Boleto 30/60/90","Cartão de crédito","Cheque"];
+
 const SEED = [
-  { nome:"Óleo de Ojon Batana 120ml", varejo:159.90, atacado:95.00 },
-  { nome:"Óleo de Pequi Extra Virgem 120ml", varejo:89.90, atacado:54.00 },
-  { nome:"Óleo de Rosa Mosqueta", varejo:0, atacado:42.00 },
-  { nome:"Óleo de Rícino", varejo:0, atacado:28.00 },
-  { nome:"Óleo de Alecrim", varejo:0, atacado:30.00 },
-  { nome:"Óleo de Semente de Abóbora", varejo:0, atacado:33.00 },
-  { nome:"Óleo de Abacate", varejo:0, atacado:35.00 },
-  { nome:"Óleo de Copaíba", varejo:0, atacado:38.00 },
-  { nome:"Óleo de Semente de Uva", varejo:0, atacado:32.00 }
+  { nome:"Óleo de Ojon Batana 120ml", varejo:159.90, atacado:95.00, categoria:"Cabelo" },
+  { nome:"Óleo de Pequi Extra Virgem 120ml", varejo:89.90, atacado:54.00, categoria:"Culinária" },
+  { nome:"Óleo de Rosa Mosqueta", varejo:0, atacado:42.00, categoria:"Pele" },
+  { nome:"Óleo de Rícino", varejo:0, atacado:28.00, categoria:"Cabelo" },
+  { nome:"Óleo de Alecrim", varejo:0, atacado:30.00, categoria:"Cabelo" },
+  { nome:"Óleo de Semente de Abóbora", varejo:0, atacado:33.00, categoria:"Pele" },
+  { nome:"Óleo de Abacate", varejo:0, atacado:35.00, categoria:"Pele" },
+  { nome:"Óleo de Copaíba", varejo:0, atacado:38.00, categoria:"Pele" },
+  { nome:"Óleo de Semente de Uva", varejo:0, atacado:32.00, categoria:"Pele" }
 ];
 
 /* ====== UTILS ====== */
-const brl = (v)=> (Number(v)||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
-const hora = (iso)=> new Date(iso).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
-const dataBr = (iso)=> new Date(iso).toLocaleDateString("pt-BR");
-const soDig = (s)=> (s||"").replace(/\D/g,"");
-const esc = (s)=> (s||"").replace(/[<>&"]/g,c=>({ "<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;"}[c]));
-function toast(m){ const t=document.getElementById("toast"); t.textContent=m; t.classList.add("show"); setTimeout(()=>t.classList.remove("show"),2200); }
+const brl=(v)=>(Number(v)||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
+const hora=(iso)=>new Date(iso).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"});
+const dataBr=(iso)=>new Date(iso).toLocaleDateString("pt-BR");
+const soDig=(s)=>(s||"").replace(/\D/g,"");
+const esc=(s)=>(s||"").toString().replace(/[<>&"]/g,c=>({ "<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;"}[c]));
+function toast(m){const t=document.getElementById("toast");t.textContent=m;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),2200);}
+
+/* ====== LOGO (troca sozinho se existir logo.png no repositório) ====== */
+function tentarLogo(){
+  const img=new Image();
+  img.onload=()=>{
+    document.getElementById("loginLogo").innerHTML='<img src="logo.png" alt="logo">';
+    document.getElementById("headerLogo").innerHTML='<img src="logo.png" alt="logo">';
+  };
+  img.src="logo.png";
+}
 
 /* ====== LOGIN ====== */
 function entrar(){
-  const n = document.getElementById("nomeVendedor").value.trim();
-  if(!n){ toast("Digite seu nome"); return; }
-  vendedor = n;
-  try{ localStorage.setItem("eiko_vendedor", n); }catch(e){}
+  const n=document.getElementById("nomeVendedor").value.trim();
+  if(!n){toast("Digite seu nome");return;}
+  vendedor=n;
+  try{localStorage.setItem("eiko_vendedor",n);}catch(e){}
   document.getElementById("login").classList.add("hide");
   document.getElementById("app").classList.remove("hide");
   iniciar();
 }
 
-/* ====== FIREBASE LISTENERS ====== */
+/* ====== FIREBASE ====== */
 function iniciar(){
-  document.getElementById("subHeader").textContent = "Vendedor: " + vendedor;
-
-  db.ref("produtos").on("value",(snap)=>{
-    produtos = toArr(snap.val());
-    if(produtos.length === 0){ semearProdutos(); }
-    if(viewAtual==="produtos"||viewAtual==="novo") render();
-  });
-  db.ref("clientes").on("value",(snap)=>{
-    clientes = toArr(snap.val());
-    if(viewAtual==="clientes"||viewAtual==="novo") render();
-  });
-  db.ref("pedidos").on("value",(snap)=>{
-    pedidos = toArr(snap.val()).sort((a,b)=> new Date(b.data)-new Date(a.data));
-    if(viewAtual==="central") render();
-  });
-
-  // pedido novo entrando (destaque na central)
-  db.ref("pedidos").on("child_added",(snap)=>{
-    const p = snap.val();
-    if(p && p.data && (Date.now()-new Date(p.data).getTime()) < 8000){
-      destaqueId = snap.key;
-      if(viewAtual==="central") render();
-      setTimeout(()=>{ destaqueId=null; if(viewAtual==="central") render(); }, 4000);
+  document.getElementById("subHeader").textContent="Vendedor: "+vendedor;
+  db.ref("produtos").on("value",s=>{produtos=toArr(s.val());if(produtos.length===0)semear();if(["produtos","novo"].includes(viewAtual))render();});
+  db.ref("clientes").on("value",s=>{clientes=toArr(s.val());if(["clientes","novo"].includes(viewAtual))render();});
+  db.ref("categorias_cliente").on("value",s=>{catCliente=toArr(s.val());if(viewAtual==="clientes")render();});
+  db.ref("categorias_produto").on("value",s=>{catProduto=toArr(s.val());if(["produtos","novo"].includes(viewAtual))render();});
+  db.ref("pedidos").on("value",s=>{pedidos=toArr(s.val()).sort((a,b)=>new Date(b.data)-new Date(a.data));if(["central","clientes"].includes(viewAtual))render();});
+  db.ref("pedidos").on("child_added",s=>{
+    const p=s.val();
+    if(p&&p.data&&(Date.now()-new Date(p.data).getTime())<8000){
+      destaqueId=s.key; if(viewAtual==="central")render();
+      setTimeout(()=>{destaqueId=null;if(viewAtual==="central")render();},4000);
     }
   });
-
-  // desktop começa na central; celular no pedido
-  irPara(window.innerWidth >= 900 ? "central" : "novo");
+  irPara(window.innerWidth>=900?"central":"novo");
 }
-function toArr(obj){ if(!obj) return []; return Object.keys(obj).map(k=>({id:k, ...obj[k]})); }
-function semearProdutos(){
-  const updates = {};
-  SEED.forEach(p=>{ const k = db.ref("produtos").push().key; updates[k]=p; });
-  db.ref("produtos").update(updates);
-}
+function toArr(o){return o?Object.keys(o).map(k=>({id:k,...o[k]})):[];}
+function semear(){const u={};SEED.forEach(p=>{u[db.ref("produtos").push().key]=p;});db.ref("produtos").update(u);}
 
-/* ====== NAVEGAÇÃO ====== */
-function irPara(v){
-  viewAtual = v;
-  document.querySelectorAll("nav button").forEach(b=> b.classList.toggle("on", b.dataset.v===v));
-  render();
-}
+/* ====== NAV ====== */
+function irPara(v){viewAtual=v;clienteDetalhe=null;editCli=null;document.querySelectorAll("nav button").forEach(b=>b.classList.toggle("on",b.dataset.v===v));render();}
 
-/* ====== RENDER ====== */
 function render(){
-  const c = document.getElementById("conteudo");
-  const barra = document.getElementById("barraTotal");
-  barra.classList.add("hide");
-  if(viewAtual==="novo"){ c.innerHTML = viewNovo(); renderBarra(); }
-  else if(viewAtual==="central"){ c.innerHTML = viewCentral(); }
-  else if(viewAtual==="clientes"){ c.innerHTML = viewClientes(); }
-  else if(viewAtual==="produtos"){ c.innerHTML = viewProdutos(); }
+  const c=document.getElementById("conteudo");
+  document.getElementById("barraTotal").classList.add("hide");
+  if(viewAtual==="novo"){c.innerHTML=viewNovo();renderBarra();}
+  else if(viewAtual==="central")c.innerHTML=viewCentral();
+  else if(viewAtual==="clientes")c.innerHTML=clienteDetalhe?viewClienteDetalhe():viewClientes();
+  else if(viewAtual==="produtos")c.innerHTML=viewProdutos();
 }
 
-/* ---------- NOVO PEDIDO ---------- */
+/* ====== NOVO PEDIDO ====== */
 function viewNovo(){
-  const opts = clientes.map(c=>`<option value="${c.id}" ${c.id===clienteSel?"selected":""}>${esc(c.nome)}${c.cidade?" — "+esc(c.cidade):""}</option>`).join("");
-  const prods = produtos.map(p=>{
-    const q = carrinho[p.id]||0;
-    const ctrl = q===0
-      ? `<button class="qbtn mais" onclick="addItem('${p.id}',1)">＋</button>`
-      : `<div class="qtd"><button class="qbtn menos" onclick="addItem('${p.id}',-1)">−</button><span class="qnum">${q}</span><button class="qbtn mais" onclick="addItem('${p.id}',1)">＋</button></div>`;
-    return `<div class="pitem"><div class="nome"><b>${esc(p.nome)}</b><small>${brl(p.atacado)} atacado</small></div>${ctrl}</div>`;
+  const opts=clientes.map(c=>`<option value="${c.id}" ${c.id===clienteSel?"selected":""}>${esc(c.nome)}${c.cidade?" — "+esc(c.cidade):""}</option>`).join("");
+  const cli=clientes.find(c=>c.id===clienteSel);
+  const catBadge=cli&&cli.categoria?`<span class="badge b-cat" style="margin-top:6px;display:inline-block">${esc(cli.categoria)}</span>`:"";
+  const pagList=PAGAMENTOS.map(p=>`<option value="${p}">`).join("");
+  const cats=[...new Set(produtos.map(p=>p.categoria).filter(Boolean))];
+  const chips=`<div class="chips"><button class="chip ${filtroProdPedido===""?"on":""}" onclick="filtroProdPedido='';render()">Todos</button>`
+    + cats.map(ct=>`<button class="chip ${filtroProdPedido===ct?"on":""}" onclick="filtroProdPedido='${esc(ct)}';render()">${esc(ct)}</button>`).join("") + `</div>`;
+  const lista=produtos.filter(p=>!filtroProdPedido||p.categoria===filtroProdPedido);
+  const prods=lista.map(p=>{
+    const q=carrinho[p.id]||0;
+    const ctrl=q===0?`<button class="qbtn mais" onclick="addItem('${p.id}',1)">＋</button>`
+      :`<div class="qtd"><button class="qbtn menos" onclick="addItem('${p.id}',-1)">−</button><span class="qnum">${q}</span><button class="qbtn mais" onclick="addItem('${p.id}',1)">＋</button></div>`;
+    return `<div class="pitem"><div class="nome"><b>${esc(p.nome)}</b><small>${brl(p.atacado)} atacado${p.categoria?" · "+esc(p.categoria):""}</small></div>${ctrl}</div>`;
   }).join("");
   return `
     <h2 class="tit">Novo pedido</h2>
     <div class="card">
       <label class="lb">Cliente</label>
-      <select class="inp" onchange="clienteSel=this.value">
-        <option value="">Selecione…</option>${opts}
-      </select>
-      ${clientes.length===0?`<div style="margin-top:8px"><button class="btn btn-g" onclick="irPara('clientes')">+ Cadastrar primeiro cliente</button></div>`:""}
+      <select class="inp" onchange="clienteSel=this.value;render()"><option value="">Selecione…</option>${opts}</select>
+      ${catBadge}
+      ${clientes.length===0?`<div style="margin-top:8px"><button class="btn btn-g btn-sm" onclick="irPara('clientes')">+ Cadastrar primeiro cliente</button></div>`:""}
+    </div>
+    <div class="card">
+      <label class="lb">Condição de pagamento</label>
+      <input class="inp" list="pgs" placeholder="Ex: À vista, Boleto 30/60…" value="${esc(pagamentoSel)}" oninput="pagamentoSel=this.value" />
+      <datalist id="pgs">${pagList}</datalist>
+      <label class="lb" style="margin-top:10px;display:block">Observação / prazo de entrega</label>
+      <textarea class="inp" placeholder="Ex: entregar até sexta, cliente pega na loja…" oninput="obsPedido=this.value">${esc(obsPedido)}</textarea>
     </div>
     <label class="lb" style="margin-left:2px">Produtos</label>
+    ${cats.length?chips:""}
     <div style="margin-top:6px">${prods||'<div class="vazio">Nenhum produto</div>'}</div>
   `;
 }
-function addItem(id,d){
-  const q=(carrinho[id]||0)+d;
-  if(q<=0) delete carrinho[id]; else carrinho[id]=q;
-  render();
-}
+function addItem(id,d){const q=(carrinho[id]||0)+d;if(q<=0)delete carrinho[id];else carrinho[id]=q;render();}
 function renderBarra(){
-  const linhas = Object.entries(carrinho);
-  if(linhas.length===0) return;
-  const total = linhas.reduce((s,[id,q])=>{ const p=produtos.find(x=>x.id===id); return s + (p?p.atacado:0)*q; },0);
-  const qtd = linhas.reduce((s,[,q])=>s+q,0);
-  const barra = document.getElementById("barraTotal");
-  barra.classList.remove("hide");
-  barra.innerHTML = `<div class="in">
+  const linhas=Object.entries(carrinho);if(linhas.length===0)return;
+  const total=linhas.reduce((s,[id,q])=>{const p=produtos.find(x=>x.id===id);return s+(p?p.atacado:0)*q;},0);
+  const qtd=linhas.reduce((s,[,q])=>s+q,0);
+  const b=document.getElementById("barraTotal");b.classList.remove("hide");
+  b.innerHTML=`<div class="in">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
       <span style="color:var(--cinza);font-size:13px">${qtd} item(s)</span>
-      <span style="font-size:20px;font-weight:800;color:var(--verde)">${brl(total)}</span>
-    </div>
+      <span style="font-size:20px;font-weight:800;color:var(--verde)">${brl(total)}</span></div>
     <div class="row">
       <button class="btn btn-g" style="flex:1" onclick="finalizar(false)">✓ Salvar</button>
       <button class="btn btn-w" style="flex:1" onclick="finalizar(true)">Salvar + WhatsApp</button>
-    </div>
-  </div>`;
+    </div></div>`;
 }
 function finalizar(enviar){
-  if(!clienteSel){ toast("Escolha um cliente"); return; }
-  const linhas = Object.entries(carrinho);
-  if(linhas.length===0){ toast("Adicione produtos"); return; }
-  const cli = clientes.find(c=>c.id===clienteSel);
-  const itens = linhas.map(([id,qtd])=>{ const p=produtos.find(x=>x.id===id); return {nome:p.nome, qtd, preco:p.atacado}; });
-  const total = itens.reduce((s,i)=>s+i.qtd*i.preco,0);
-  const pedido = { cliente:cli.nome, cidade:cli.cidade||"", whats:cli.whatsapp||"", vendedor, itens, total, data:new Date().toISOString(), status:"aberto" };
+  if(!clienteSel){toast("Escolha um cliente");return;}
+  const linhas=Object.entries(carrinho);if(linhas.length===0){toast("Adicione produtos");return;}
+  const cli=clientes.find(c=>c.id===clienteSel);
+  const itens=linhas.map(([id,qtd])=>{const p=produtos.find(x=>x.id===id);return{nome:p.nome,qtd,preco:p.atacado};});
+  const total=itens.reduce((s,i)=>s+i.qtd*i.preco,0);
+  const pedido={clienteId:clienteSel,cliente:cli.nome,cidade:cli.cidade||"",whats:cli.whatsapp||"",categoria:cli.categoria||"",vendedor,itens,total,pagamento:pagamentoSel||"",obs:obsPedido||"",data:new Date().toISOString(),status:"aberto"};
   db.ref("pedidos").push(pedido);
-  if(enviar){
-    const alvo = soDig(cli.whatsapp) ? ("55"+soDig(cli.whatsapp).replace(/^55/,"")) : WHATS_EMPRESA;
-    window.open(`https://wa.me/${alvo}?text=${encodeURIComponent(textoPedido(pedido))}`,"_blank");
-  }
-  carrinho={}; clienteSel="";
-  toast("Pedido enviado!");
-  render();
+  if(enviar){const alvo=soDig(cli.whatsapp)?("55"+soDig(cli.whatsapp).replace(/^55/,"")):WHATS_EMPRESA;window.open(`https://wa.me/${alvo}?text=${encodeURIComponent(textoPedido(pedido))}`,"_blank");}
+  carrinho={};clienteSel="";pagamentoSel="";obsPedido="";filtroProdPedido="";
+  toast("Pedido enviado!");render();
 }
 function textoPedido(o){
-  let t = "*PEDIDO EIKOVIDA*\n";
-  t += "Cliente: "+o.cliente+"\n";
-  if(o.cidade) t += "Cidade: "+o.cidade+"\n";
-  t += "Vendedor: "+o.vendedor+"\n\n";
-  o.itens.forEach(i=> t += i.qtd+"x "+i.nome+" — "+brl(i.qtd*i.preco)+"\n");
-  t += "\n*TOTAL: "+brl(o.total)+"*";
+  let t="*PEDIDO EIKOVIDA*\n";
+  t+="Cliente: "+o.cliente+"\n";
+  if(o.cidade)t+="Cidade: "+o.cidade+"\n";
+  t+="Vendedor: "+o.vendedor+"\n";
+  if(o.pagamento)t+="Pagamento: "+o.pagamento+"\n";
+  t+="\n";
+  o.itens.forEach(i=>t+=i.qtd+"x "+i.nome+" — "+brl(i.qtd*i.preco)+"\n");
+  t+="\n*TOTAL: "+brl(o.total)+"*";
+  if(o.obs)t+="\n\nObs: "+o.obs;
   return t;
 }
 
-/* ---------- CENTRAL (escritório) ---------- */
+/* ====== CENTRAL ====== */
 function viewCentral(){
-  const hoje = new Date().toDateString();
-  const hj = pedidos.filter(p=> new Date(p.data).toDateString()===hoje);
-  const fat = pedidos.reduce((s,p)=>s+p.total,0);
-  const abertos = pedidos.filter(p=>p.status==="aberto").length;
-  const kpis = `<div class="kpis">
+  const hoje=new Date().toDateString();
+  const hj=pedidos.filter(p=>new Date(p.data).toDateString()===hoje);
+  const fat=pedidos.reduce((s,p)=>s+p.total,0);
+  const abertos=pedidos.filter(p=>p.status==="aberto").length;
+  const kpis=`<div class="kpis">
     <div class="kpi"><small>Pedidos hoje</small><b>${hj.length}</b></div>
     <div class="kpi"><small>Faturamento</small><b>${brl(fat)}</b></div>
-    <div class="kpi"><small>Em aberto</small><b style="color:${abertos?'#b45309':'var(--verde)'}">${abertos}</b></div>
-  </div>`;
-  if(pedidos.length===0) return `<h2 class="tit">Central de pedidos</h2>${kpis}<div class="vazio"><div class="em">📋</div><div>Nenhum pedido ainda.</div></div>`;
-  const lista = pedidos.map(o=>{
-    const nv = o.id===destaqueId;
-    const det = o.id===pedidoAberto ? `<div class="det">
+    <div class="kpi"><small>Em aberto</small><b style="color:${abertos?'#b45309':'var(--verde)'}">${abertos}</b></div></div>`;
+  if(pedidos.length===0)return `<h2 class="tit">Central de pedidos</h2>${kpis}<div class="vazio"><div class="em">📋</div><div>Nenhum pedido ainda.</div></div>`;
+  const lista=pedidos.map(o=>{
+    const nv=o.id===destaqueId;
+    const det=o.id===pedidoAberto?`<div class="det">
         ${o.itens.map(i=>`<div class="li"><span>${i.qtd}x ${esc(i.nome)}</span><span>${brl(i.qtd*i.preco)}</span></div>`).join("")}
+        ${o.pagamento?`<div class="pag">💳 ${esc(o.pagamento)}</div>`:""}
+        ${o.obs?`<div class="pag">📝 ${esc(o.obs)}</div>`:""}
         <div class="row" style="margin-top:10px">
-          <button class="btn btn-g" style="flex:1" onclick="copiarPed('${o.id}')">Copiar</button>
-          <button class="btn btn-w" style="flex:1" onclick="whatsPed('${o.id}')">WhatsApp</button>
-          <button class="btn btn-v" onclick="toggleStatus('${o.id}')">✓</button>
-          <button class="btn btn-r" onclick="excluirPed('${o.id}')">🗑</button>
-        </div></div>` : "";
+          <button class="btn btn-g btn-sm" style="flex:1" onclick="copiarPed('${o.id}')">Copiar</button>
+          <button class="btn btn-w btn-sm" style="flex:1" onclick="whatsPed('${o.id}')">WhatsApp</button>
+          <button class="btn btn-v btn-sm" onclick="toggleStatus('${o.id}')">✓</button>
+          <button class="btn btn-r btn-sm" onclick="excluirPed('${o.id}')">🗑</button>
+        </div></div>`:"";
     return `<div class="ped ${nv?'novo':''}">
       <div class="top" onclick="abrirPed('${o.id}')">
         <div class="cli"><b>${esc(o.cliente)}${nv?'<span class="tagnovo">NOVO</span>':''}</b>
@@ -374,89 +361,157 @@ function viewCentral(){
   }).join("");
   return `<h2 class="tit">Central de pedidos</h2>${kpis}${lista}`;
 }
-function abrirPed(id){ pedidoAberto = (pedidoAberto===id?null:id); render(); }
-function toggleStatus(id){ const p=pedidos.find(x=>x.id===id); db.ref("pedidos/"+id+"/status").set(p.status==="aberto"?"enviado":"aberto"); }
-function excluirPed(id){ if(confirm("Excluir este pedido?")) db.ref("pedidos/"+id).remove(); }
-function copiarPed(id){ const o=pedidos.find(x=>x.id===id); navigator.clipboard?.writeText(textoPedido(o)); toast("Copiado"); }
-function whatsPed(id){ const o=pedidos.find(x=>x.id===id); const alvo=soDig(o.whats)?("55"+soDig(o.whats).replace(/^55/,"")):WHATS_EMPRESA; window.open(`https://wa.me/${alvo}?text=${encodeURIComponent(textoPedido(o))}`,"_blank"); }
+function abrirPed(id){pedidoAberto=(pedidoAberto===id?null:id);render();}
+function toggleStatus(id){const p=pedidos.find(x=>x.id===id);db.ref("pedidos/"+id+"/status").set(p.status==="aberto"?"enviado":"aberto");}
+function excluirPed(id){if(confirm("Excluir este pedido?"))db.ref("pedidos/"+id).remove();}
+function copiarPed(id){const o=pedidos.find(x=>x.id===id);navigator.clipboard?.writeText(textoPedido(o));toast("Copiado");}
+function whatsPed(id){const o=pedidos.find(x=>x.id===id);const alvo=soDig(o.whats)?("55"+soDig(o.whats).replace(/^55/,"")):WHATS_EMPRESA;window.open(`https://wa.me/${alvo}?text=${encodeURIComponent(textoPedido(o))}`,"_blank");}
 
-/* ---------- CLIENTES ---------- */
-let editCli = null;
+/* ====== CLIENTES ====== */
 function viewClientes(){
-  const f = editCli || {nome:"",whatsapp:"",cidade:"",obs:""};
-  const form = `<div class="card">
+  const f=editCli||{nome:"",categoria:"",cnpj:"",whatsapp:"",email:"",cidade:"",endereco:"",obs:""};
+  const catOpts=catCliente.map(c=>`<option value="${esc(c.nome)}" ${f.categoria===c.nome?"selected":""}>${esc(c.nome)}</option>`).join("");
+  const catManage=`<div class="catbox">
+    <div class="hd" onclick="showCatCli=!showCatCli;render()"><span>🏷️ Categorias de cliente</span><span>${showCatCli?"▲":"▼"}</span></div>
+    ${showCatCli?`<div style="margin-top:10px">
+      <div class="row"><input class="inp" id="novaCatCli" placeholder="Nova categoria (ex: Farmácia)" style="margin-top:0"/><button class="btn btn-v" onclick="addCatCli()">＋</button></div>
+      <div class="chips" style="margin-top:10px;flex-wrap:wrap">${catCliente.map(c=>`<span class="chip-x">${esc(c.nome)}<span onclick="delCatCli('${c.id}')">✕</span></span>`).join("")||'<small style="color:var(--cinza)">Nenhuma ainda</small>'}</div>
+    </div>`:""}
+  </div>`;
+  const form=`<div class="card">
     <div style="font-weight:700;font-size:14px;margin-bottom:8px">${editCli?"✎ Editar cliente":"+ Novo cliente"}</div>
-    <input class="inp" id="cNome" placeholder="Nome / Loja *" value="${esc(f.nome)}" />
-    <div class="row" style="margin-top:8px">
-      <input class="inp" id="cWhats" placeholder="WhatsApp (DDD+nº)" value="${esc(f.whatsapp)}" />
-      <input class="inp" id="cCidade" placeholder="Cidade" value="${esc(f.cidade)}" />
-    </div>
-    <input class="inp" id="cObs" placeholder="Observação" value="${esc(f.obs)}" style="margin-top:8px" />
+    <input class="inp" id="cNome" placeholder="Nome / Loja *" value="${esc(f.nome)}"/>
+    <select class="inp" id="cCat"><option value="">Categoria…</option>${catOpts}</select>
+    <div class="row" style="margin-top:8px"><input class="inp" id="cCnpj" placeholder="CNPJ" value="${esc(f.cnpj)}" style="margin-top:0"/><input class="inp" id="cWhats" placeholder="WhatsApp" value="${esc(f.whatsapp)}" style="margin-top:0"/></div>
+    <input class="inp" id="cEmail" placeholder="E-mail" value="${esc(f.email)}" style="margin-top:8px"/>
+    <div class="row" style="margin-top:8px"><input class="inp" id="cCidade" placeholder="Cidade" value="${esc(f.cidade)}" style="margin-top:0"/><input class="inp" id="cEnd" placeholder="Endereço" value="${esc(f.endereco)}" style="margin-top:0"/></div>
+    <input class="inp" id="cObs" placeholder="Observação" value="${esc(f.obs)}" style="margin-top:8px"/>
     <div class="row" style="margin-top:10px">
       <button class="btn btn-v" style="flex:1" onclick="salvarCli()">${editCli?"Salvar alterações":"Adicionar"}</button>
       ${editCli?`<button class="btn btn-g" onclick="editCli=null;render()">✕</button>`:""}
-    </div>
-  </div>`;
-  const lista = clientes.length===0
-    ? `<div class="vazio"><div class="em">👥</div><div>Cadastre seus clientes.</div></div>`
-    : clientes.map(c=>`<div class="lista-cli"><div class="info"><b>${esc(c.nome)}</b><small>${[esc(c.cidade),esc(c.whatsapp)].filter(Boolean).join(" · ")}</small></div>
-        <button class="icbtn btn-g" onclick="editarCli('${c.id}')">✎</button>
-        <button class="icbtn btn-r" onclick="excluirCli('${c.id}')">🗑</button></div>`).join("");
-  return `<h2 class="tit">Clientes</h2>${form}${lista}`;
+    </div></div>`;
+  const cats=[...new Set(clientes.map(c=>c.categoria).filter(Boolean))];
+  const chips=cats.length?`<div class="chips"><button class="chip ${filtroCli===""?"on":""}" onclick="filtroCli='';render()">Todos</button>`
+    +cats.map(ct=>`<button class="chip ${filtroCli===ct?"on":""}" onclick="filtroCli='${esc(ct)}';render()">${esc(ct)}</button>`).join("")+`</div>`:"";
+  const lista=clientes.filter(c=>!filtroCli||c.categoria===filtroCli);
+  const html=lista.length===0
+    ? `<div class="vazio"><div class="em">👥</div><div>Nenhum cliente aqui.</div></div>`
+    : lista.map(c=>`<div class="lista-cli" onclick="verCliente('${c.id}')"><div class="info"><b>${esc(c.nome)}</b>
+        <small>${[esc(c.cidade),esc(c.whatsapp)].filter(Boolean).join(" · ")}</small></div>
+        ${c.categoria?`<span class="badge b-cat">${esc(c.categoria)}</span>`:""}
+        <button class="icbtn btn-g" onclick="event.stopPropagation();editarCli('${c.id}')">✎</button></div>`).join("");
+  return `<h2 class="tit">Clientes</h2>${catManage}${form}${chips}${html}`;
 }
+function addCatCli(){const n=document.getElementById("novaCatCli").value.trim();if(!n)return;db.ref("categorias_cliente").push({nome:n});toast("Categoria criada");}
+function delCatCli(id){if(confirm("Excluir categoria?"))db.ref("categorias_cliente/"+id).remove();}
 function salvarCli(){
-  const o = { nome:document.getElementById("cNome").value.trim(), whatsapp:document.getElementById("cWhats").value.trim(),
-    cidade:document.getElementById("cCidade").value.trim(), obs:document.getElementById("cObs").value.trim() };
-  if(!o.nome){ toast("Informe o nome"); return; }
-  if(editCli){ db.ref("clientes/"+editCli.id).update(o); editCli=null; }
-  else db.ref("clientes").push(o);
-  toast("Cliente salvo"); render();
+  const o={nome:val("cNome"),categoria:val("cCat"),cnpj:val("cCnpj"),whatsapp:val("cWhats"),email:val("cEmail"),cidade:val("cCidade"),endereco:val("cEnd"),obs:val("cObs")};
+  if(!o.nome){toast("Informe o nome");return;}
+  if(editCli){db.ref("clientes/"+editCli.id).update(o);editCli=null;}else db.ref("clientes").push(o);
+  toast("Cliente salvo");render();
 }
-function editarCli(id){ editCli = clientes.find(c=>c.id===id); render(); }
-function excluirCli(id){ if(confirm("Excluir cliente?")) db.ref("clientes/"+id).remove(); }
+function val(id){const e=document.getElementById(id);return e?e.value.trim():"";}
+function editarCli(id){editCli=clientes.find(c=>c.id===id);clienteDetalhe=null;render();}
+function excluirCli(id){if(confirm("Excluir cliente?")){db.ref("clientes/"+id).remove();clienteDetalhe=null;render();}}
+function verCliente(id){clienteDetalhe=id;render();}
 
-/* ---------- PRODUTOS ---------- */
-function viewProdutos(){
-  const add = `<div class="card">
-    <div class="row">
-      <input class="inp" id="pNome" placeholder="Produto novo" style="flex:2" />
-      <input class="inp" id="pAtac" placeholder="R$ atacado" inputmode="decimal" style="flex:1" />
-      <button class="btn btn-v" onclick="addProduto()">＋</button>
+function viewClienteDetalhe(){
+  const c=clientes.find(x=>x.id===clienteDetalhe);
+  if(!c){clienteDetalhe=null;return viewClientes();}
+  const hist=pedidos.filter(p=>p.clienteId===clienteDetalhe||p.cliente===c.nome);
+  const totalComprado=hist.reduce((s,p)=>s+p.total,0);
+  const dados=[
+    c.categoria?["Categoria",c.categoria]:null,
+    c.cnpj?["CNPJ",c.cnpj]:null,
+    c.whatsapp?["WhatsApp",c.whatsapp]:null,
+    c.email?["E-mail",c.email]:null,
+    c.cidade?["Cidade",c.cidade]:null,
+    c.endereco?["Endereço",c.endereco]:null,
+    c.obs?["Obs",c.obs]:null
+  ].filter(Boolean).map(a=>`<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:14px;border-bottom:1px solid #f0f0ee"><span style="color:var(--cinza)">${a[0]}</span><span style="text-align:right;max-width:60%">${esc(a[1])}</span></div>`).join("");
+  const histHtml=hist.length===0?`<div class="vazio" style="padding:24px"><div>Sem pedidos ainda.</div></div>`
+    :hist.map(o=>`<div class="ped"><div class="top" onclick="abrirPedHist('${o.id}')">
+        <div class="cli"><b>${dataBr(o.data)} · ${hora(o.data)}</b><small>${o.itens.reduce((s,i)=>s+i.qtd,0)} un${o.pagamento?" · "+esc(o.pagamento):""}</small></div>
+        <div class="tot">${brl(o.total)}</div>
+        <span class="badge ${o.status==='enviado'?'b-enviado':'b-aberto'}">${o.status}</span></div>
+        ${o.id===pedidoAberto?`<div class="det">${o.itens.map(i=>`<div class="li"><span>${i.qtd}x ${esc(i.nome)}</span><span>${brl(i.qtd*i.preco)}</span></div>`).join("")}</div>`:""}
+      </div>`).join("");
+  return `
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
+      <button class="btn btn-g btn-sm" onclick="clienteDetalhe=null;render()">← Voltar</button>
+      <h2 class="tit" style="margin:0;flex:1">${esc(c.nome)}</h2>
     </div>
+    <div class="card">${dados||'<small style="color:var(--cinza)">Sem dados extras.</small>'}
+      <div class="row" style="margin-top:12px">
+        <button class="btn btn-g btn-sm" style="flex:1" onclick="editarCli('${c.id}')">✎ Editar</button>
+        <button class="btn btn-r btn-sm" style="flex:1" onclick="excluirCli('${c.id}')">🗑 Excluir</button>
+      </div>
+    </div>
+    <div class="kpis" style="grid-template-columns:1fr 1fr">
+      <div class="kpi"><small>Pedidos</small><b>${hist.length}</b></div>
+      <div class="kpi"><small>Total comprado</small><b>${brl(totalComprado)}</b></div>
+    </div>
+    <label class="lb" style="margin-left:2px">Histórico de pedidos</label>
+    <div style="margin-top:8px">${histHtml}</div>
+  `;
+}
+function abrirPedHist(id){pedidoAberto=(pedidoAberto===id?null:id);render();}
+
+/* ====== PRODUTOS ====== */
+function viewProdutos(){
+  const catOpts=catProduto.map(c=>`<option value="${esc(c.nome)}">${esc(c.nome)}</option>`).join("");
+  const catManage=`<div class="catbox">
+    <div class="hd" onclick="showCatProd=!showCatProd;render()"><span>🏷️ Categorias de produto</span><span>${showCatProd?"▲":"▼"}</span></div>
+    ${showCatProd?`<div style="margin-top:10px">
+      <div class="row"><input class="inp" id="novaCatProd" placeholder="Nova categoria (ex: Cabelo)" style="margin-top:0"/><button class="btn btn-v" onclick="addCatProd()">＋</button></div>
+      <div class="chips" style="margin-top:10px;flex-wrap:wrap">${catProduto.map(c=>`<span class="chip-x">${esc(c.nome)}<span onclick="delCatProd('${c.id}')">✕</span></span>`).join("")||'<small style="color:var(--cinza)">Nenhuma ainda</small>'}</div>
+    </div>`:""}
   </div>`;
-  const lista = produtos.map(p=>`<div class="card" style="padding:12px">
+  const add=`<div class="card">
+    <input class="inp" id="pNome" placeholder="Produto novo" style="margin-top:0"/>
+    <div class="row" style="margin-top:8px">
+      <select class="inp" id="pCat" style="margin-top:0"><option value="">Categoria…</option>${catOpts}</select>
+      <input class="inp" id="pAtac" placeholder="R$ atacado" inputmode="decimal" style="margin-top:0;max-width:120px"/>
+      <button class="btn btn-v" onclick="addProduto()">＋</button>
+    </div></div>`;
+  const cats=[...new Set(produtos.map(p=>p.categoria).filter(Boolean))];
+  const chips=cats.length?`<div class="chips"><button class="chip ${filtroProd===""?"on":""}" onclick="filtroProd='';render()">Todos</button>`
+    +cats.map(ct=>`<button class="chip ${filtroProd===ct?"on":""}" onclick="filtroProd='${esc(ct)}';render()">${esc(ct)}</button>`).join("")+`</div>`:"";
+  const lista=produtos.filter(p=>!filtroProd||p.categoria===filtroProd).map(p=>`<div class="card" style="padding:12px">
     <div style="display:flex;align-items:center;gap:8px">
       <b style="flex:1;font-size:14px">${esc(p.nome)}</b>
-      <button class="icbtn btn-r" onclick="excluirProd('${p.id}')">🗑</button>
-    </div>
+      ${p.categoria?`<span class="badge b-cat">${esc(p.categoria)}</span>`:""}
+      <button class="icbtn btn-r" onclick="excluirProd('${p.id}')">🗑</button></div>
     <div class="row" style="margin-top:8px;align-items:flex-end">
       <div style="flex:1"><small style="color:var(--cinza);font-size:11px">Varejo</small><div style="color:var(--cinza)">${p.varejo?brl(p.varejo):"—"}</div></div>
       <div style="flex:1"><small style="color:var(--dourado);font-size:11px;font-weight:700">ATACADO</small>
-        <input class="inp" type="number" value="${p.atacado||''}" onblur="setAtacado('${p.id}',this.value)" style="border-color:var(--dourado);font-weight:700;padding:8px" /></div>
-    </div>
-  </div>`).join("");
-  return `<h2 class="tit">Produtos</h2>${add}${lista||'<div class="vazio">Carregando…</div>'}`;
+        <input class="inp" type="number" value="${p.atacado||''}" onblur="setAtacado('${p.id}',this.value)" style="border-color:var(--dourado);font-weight:700;padding:8px;margin-top:2px"/></div>
+      <button class="btn btn-g btn-sm" onclick="mudarCatProd('${p.id}')">🏷️</button>
+    </div></div>`).join("");
+  return `<h2 class="tit">Produtos</h2>${catManage}${add}${chips}${lista||'<div class="vazio">Carregando…</div>'}`;
 }
-function addProduto(){
-  const nome=document.getElementById("pNome").value.trim();
-  const atac=parseFloat(document.getElementById("pAtac").value)||0;
-  if(!nome){ toast("Informe o nome"); return; }
-  db.ref("produtos").push({nome, varejo:0, atacado:atac});
-  toast("Produto adicionado");
+function addCatProd(){const n=document.getElementById("novaCatProd").value.trim();if(!n)return;db.ref("categorias_produto").push({nome:n});toast("Categoria criada");}
+function delCatProd(id){if(confirm("Excluir categoria?"))db.ref("categorias_produto/"+id).remove();}
+function addProduto(){const nome=val("pNome"),cat=val("pCat"),atac=parseFloat(document.getElementById("pAtac").value)||0;if(!nome){toast("Informe o nome");return;}db.ref("produtos").push({nome,varejo:0,atacado:atac,categoria:cat});toast("Produto adicionado");}
+function setAtacado(id,v){db.ref("produtos/"+id+"/atacado").set(parseFloat(v)||0);}
+function excluirProd(id){if(confirm("Excluir produto?"))db.ref("produtos/"+id).remove();}
+function mudarCatProd(id){
+  const nomes=catProduto.map(c=>c.nome);
+  if(nomes.length===0){toast("Crie categorias primeiro");showCatProd=true;render();return;}
+  const atual=produtos.find(p=>p.id===id);
+  const nova=prompt("Categoria do produto:\n"+nomes.join(", "),atual.categoria||"");
+  if(nova!==null)db.ref("produtos/"+id+"/categoria").set(nova.trim());
 }
-function setAtacado(id,v){ db.ref("produtos/"+id+"/atacado").set(parseFloat(v)||0); }
-function excluirProd(id){ if(confirm("Excluir produto?")) db.ref("produtos/"+id).remove(); }
 
 /* ====== PWA ====== */
 let deferredPrompt=null;
-window.addEventListener("beforeinstallprompt",(e)=>{ e.preventDefault(); deferredPrompt=e; document.getElementById("instalar").classList.remove("hide"); });
-function instalarApp(){ if(!deferredPrompt) return; deferredPrompt.prompt(); deferredPrompt.userChoice.then(()=>{ deferredPrompt=null; document.getElementById("instalar").classList.add("hide"); }); }
-window.addEventListener("appinstalled",()=> document.getElementById("instalar").classList.add("hide"));
+window.addEventListener("beforeinstallprompt",e=>{e.preventDefault();deferredPrompt=e;document.getElementById("instalar").classList.remove("hide");});
+function instalarApp(){if(!deferredPrompt)return;deferredPrompt.prompt();deferredPrompt.userChoice.then(()=>{deferredPrompt=null;document.getElementById("instalar").classList.add("hide");});}
+window.addEventListener("appinstalled",()=>document.getElementById("instalar").classList.add("hide"));
+if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));}
 
-if("serviceWorker" in navigator){ window.addEventListener("load",()=> navigator.serviceWorker.register("sw.js").catch(()=>{})); }
-
-/* auto-login se já entrou antes */
-try{ const v=localStorage.getItem("eiko_vendedor"); if(v){ document.getElementById("nomeVendedor").value=v; } }catch(e){}
+try{const v=localStorage.getItem("eiko_vendedor");if(v)document.getElementById("nomeVendedor").value=v;}catch(e){}
+tentarLogo();
 </script>
 </body>
 </html>
