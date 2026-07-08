@@ -203,8 +203,14 @@ function toast(m){const t=document.getElementById("toast");t.textContent=m;t.cla
 function tentarLogo(){
   const img=new Image();
   img.onload=()=>{
-    document.getElementById("loginLogo").innerHTML='<img src="logo.png" alt="logo">';
-    document.getElementById("headerLogo").innerHTML='<img src="logo.png" alt="logo">';
+    const ll=document.getElementById("loginLogo");
+    ll.innerHTML='<img src="logo.png" alt="logo">';
+    ll.style.background="transparent"; ll.style.borderRadius="0";
+    ll.style.width="150px"; ll.style.height="auto";
+    const hl=document.getElementById("headerLogo");
+    hl.innerHTML='<img src="simbolo.png" alt="logo">';
+    hl.style.background="transparent"; hl.style.borderRadius="0";
+    hl.style.width="40px"; hl.style.height="34px";
   };
   img.src="logo.png";
 }
