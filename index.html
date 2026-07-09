@@ -117,6 +117,15 @@
 
   .catbox{background:#f8f8f6;border:1px dashed var(--borda);border-radius:12px;padding:12px;margin-bottom:12px}
   .catbox .hd{display:flex;justify-content:space-between;align-items:center;font-weight:700;font-size:13px;cursor:pointer}
+
+  .totbar{background:#fff7e6;border:1px solid #f0e2c0;border-radius:10px;padding:8px 12px;display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+  .totbar span{font-size:12px;color:var(--cinza)}
+  .totbar b{color:var(--verde);font-size:15px}
+  .subabas{display:flex;background:#eef0ee;border-radius:11px;padding:4px;gap:4px}
+  .subaba{flex:1;padding:9px;border-radius:8px;background:transparent;font-weight:700;font-size:13px;color:var(--cinza)}
+  .subaba.on{background:var(--verde);color:#fff}
+  .fgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .fgrid .lb{margin-bottom:0}
 </style>
 </head>
 <body>
@@ -173,12 +182,16 @@ const WHATS_EMPRESA = "558141410577";
 /* ====== ESTADO ====== */
 let produtos=[], clientes=[], pedidos=[], catCliente=[], catProduto=[];
 let vendedor="", viewAtual="novo";
-let carrinho={}, clienteSel="", pagamentoSel="", obsPedido="";
+let carrinho={}, clienteSel="";
+let subAbaPedido="cab", buscaItem=false, buscaItemTxt="", filtroItemCat="";
+let ped={status:"Pedido",consumidorFinal:false,dataEmissao:new Date().toISOString().slice(0,10),dataFat:"",previsao:"",cond:"",forma:"",tabela:"",descTipo:"desc",descPerc:"",obsCli:"",obsEmp:"",ordemCompra:"",transportadora:""};
 let destaqueId=null, pedidoAberto=null;
 let filtroCli="", filtroProd="", filtroProdPedido="";
 let editCli=null, clienteDetalhe=null, showCatCli=false, showCatProd=false;
 
-const PAGAMENTOS = ["À vista","PIX","Dinheiro","Boleto 7 dias","Boleto 14 dias","Boleto 21 dias","Boleto 28 dias","Boleto 30 dias","Boleto 30/60","Boleto 30/60/90","Cartão de crédito","Cheque"];
+const CONDICOES = ["À vista","À vista PIX (sem desconto)","À vista espécie (5% desc)","7","7/14","7/14/21","7/14/21/28","14","14/21","14/21/28","21","21/28","28","0/7","0/21","0/28"];
+const FORMAS = ["Boleto","Cartão de Crédito","PIX","Voucher"];
+const STATUS_PED = ["Pedido","Orçamento","Bonificação","Troca"];
 
 const SEED = [
   { nome:"Óleo de Ojon Batana 120ml", varejo:159.90, atacado:95.00, categoria:"Cabelo" },
@@ -258,78 +271,180 @@ function render(){
 }
 
 /* ====== NOVO PEDIDO ====== */
+function calcTotais(){
+  const bruto=Object.entries(carrinho).reduce((s,[id,q])=>{const p=produtos.find(x=>x.id===id);return s+(p?p.atacado:0)*q;},0);
+  const perc=parseFloat(ped.descPerc)||0;
+  const total=ped.descTipo==="desc"?bruto*(1-perc/100):bruto*(1+perc/100);
+  const qtd=Object.values(carrinho).reduce((s,q)=>s+q,0);
+  return {bruto,total,qtd,perc};
+}
+function upd(campo,valor){ped[campo]=valor;}
+
 function viewNovo(){
+  const {bruto,total}=calcTotais();
+  const nItens=Object.keys(carrinho).length;
+  const abas=`<div class="subabas">
+    <button class="subaba ${subAbaPedido==='cab'?'on':''}" onclick="subAbaPedido='cab';buscaItem=false;render()">CABEÇALHO</button>
+    <button class="subaba ${subAbaPedido==='itens'?'on':''}" onclick="subAbaPedido='itens';render()">ITENS${nItens?` (${nItens})`:''}</button>
+  </div>`;
+  const topo=`<div class="totbar"><span>Tot. Produtos</span><b>${brl(bruto)}</b></div>`;
+  let corpo="";
+  if(subAbaPedido==="cab") corpo=viewCabecalho();
+  else corpo = buscaItem?viewBuscaItem():viewItens();
+  return `${topo}${abas}<div style="margin-top:12px">${corpo}</div>`;
+}
+
+function viewCabecalho(){
   const opts=clientes.map(c=>`<option value="${c.id}" ${c.id===clienteSel?"selected":""}>${esc(c.nome)}${c.cidade?" — "+esc(c.cidade):""}</option>`).join("");
   const cli=clientes.find(c=>c.id===clienteSel);
-  const catBadge=cli&&cli.categoria?`<span class="badge b-cat" style="margin-top:6px;display:inline-block">${esc(cli.categoria)}</span>`:"";
-  const pagList=PAGAMENTOS.map(p=>`<option value="${p}">`).join("");
+  const stOpts=STATUS_PED.map(s=>`<option ${ped.status===s?"selected":""}>${s}</option>`).join("");
+  const condOpts=`<option value="">Selecione…</option>`+CONDICOES.map(c=>`<option ${ped.cond===c?"selected":""}>${esc(c)}</option>`).join("");
+  const formaOpts=`<option value="">Selecione…</option>`+FORMAS.map(f=>`<option ${ped.forma===f?"selected":""}>${esc(f)}</option>`).join("");
+  const catBadge=cli&&cli.categoria?`<span class="badge b-cat" style="display:inline-block;margin-top:4px">${esc(cli.categoria)}</span>`:"";
+  return `
+    <div class="card">
+      <div class="fgrid">
+        <div><label class="lb">Empresa</label><input class="inp" value="EIKO VIDA" readonly style="background:#f4f4f2"/></div>
+      </div>
+      <label class="lb" style="margin-top:10px;display:block">Cliente *</label>
+      <select class="inp" onchange="clienteSel=this.value;render()"><option value="">Selecione…</option>${opts}</select>
+      ${catBadge}
+      ${clientes.length===0?`<div style="margin-top:8px"><button class="btn btn-g btn-sm" onclick="irPara('clientes')">+ Cadastrar cliente</button></div>`:""}
+      <label style="display:flex;align-items:center;gap:8px;margin-top:12px;font-size:14px">
+        <input type="checkbox" ${ped.consumidorFinal?"checked":""} onchange="upd('consumidorFinal',this.checked)" style="width:18px;height:18px"/> É consumidor final</label>
+    </div>
+
+    <div class="card">
+      <div class="fgrid">
+        <div><label class="lb">Status</label><select class="inp" onchange="upd('status',this.value)">${stOpts}</select></div>
+        <div><label class="lb">Data emissão</label><input class="inp" type="date" value="${ped.dataEmissao}" onchange="upd('dataEmissao',this.value)"/></div>
+      </div>
+      <div class="fgrid" style="margin-top:10px">
+        <div><label class="lb">Previsão entrega</label><input class="inp" type="date" value="${ped.previsao}" onchange="upd('previsao',this.value)"/></div>
+        <div><label class="lb">Data faturamento</label><input class="inp" type="date" value="${ped.dataFat}" onchange="upd('dataFat',this.value)"/></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <label class="lb">Condição de pagamento *</label>
+      <select class="inp" onchange="upd('cond',this.value)">${condOpts}</select>
+      <label class="lb" style="margin-top:10px;display:block">Forma de pagamento</label>
+      <select class="inp" onchange="upd('forma',this.value)">${formaOpts}</select>
+      <label class="lb" style="margin-top:10px;display:block">Desconto / Acréscimo</label>
+      <div class="fgrid">
+        <select class="inp" onchange="upd('descTipo',this.value)">
+          <option value="desc" ${ped.descTipo==='desc'?'selected':''}>Desconto</option>
+          <option value="acre" ${ped.descTipo==='acre'?'selected':''}>Acréscimo</option>
+        </select>
+        <input class="inp" type="number" placeholder="% percentual" value="${ped.descPerc}" oninput="upd('descPerc',this.value)" onchange="renderBarra()"/>
+      </div>
+    </div>
+
+    <div class="card">
+      <label class="lb">Observação para o Cliente</label>
+      <textarea class="inp" oninput="upd('obsCli',this.value)">${esc(ped.obsCli)}</textarea>
+      <label class="lb" style="margin-top:10px;display:block">Observação para a Empresa</label>
+      <textarea class="inp" oninput="upd('obsEmp',this.value)">${esc(ped.obsEmp)}</textarea>
+      <div class="fgrid" style="margin-top:10px">
+        <div><label class="lb">Ordem de compra</label><input class="inp" value="${esc(ped.ordemCompra)}" oninput="upd('ordemCompra',this.value)"/></div>
+        <div><label class="lb">Transportadora</label><input class="inp" value="${esc(ped.transportadora)}" oninput="upd('transportadora',this.value)"/></div>
+      </div>
+    </div>
+  `;
+}
+
+function viewItens(){
+  const linhas=Object.entries(carrinho);
+  if(linhas.length===0)
+    return `<div class="vazio"><div class="em">🛒</div><div>Nenhum item no pedido.</div></div>
+      <button class="btn btn-o" style="width:100%" onclick="buscaItem=true;render()">＋ Novo Item</button>`;
+  const itens=linhas.map(([id,q])=>{
+    const p=produtos.find(x=>x.id===id); if(!p) return "";
+    return `<div class="pitem"><div class="nome"><b>${esc(p.nome)}</b><small>${q} × ${brl(p.atacado)} = <b style="color:var(--verde)">${brl(q*p.atacado)}</b></small></div>
+      <div class="qtd"><button class="qbtn menos" onclick="addItem('${p.id}',-1)">−</button><span class="qnum">${q}</span><button class="qbtn mais" onclick="addItem('${p.id}',1)">＋</button></div></div>`;
+  }).join("");
+  return `${itens}<button class="btn btn-o" style="width:100%;margin-top:6px" onclick="buscaItem=true;render()">＋ Novo Item</button>`;
+}
+
+function viewBuscaItem(){
   const cats=[...new Set(produtos.map(p=>p.categoria).filter(Boolean))];
-  const chips=`<div class="chips"><button class="chip ${filtroProdPedido===""?"on":""}" onclick="filtroProdPedido='';render()">Todos</button>`
-    + cats.map(ct=>`<button class="chip ${filtroProdPedido===ct?"on":""}" onclick="filtroProdPedido='${esc(ct)}';render()">${esc(ct)}</button>`).join("") + `</div>`;
-  const lista=produtos.filter(p=>!filtroProdPedido||p.categoria===filtroProdPedido);
+  const chips=cats.length?`<div class="chips"><button class="chip ${filtroItemCat===''?'on':''}" onclick="filtroItemCat='';render()">todas</button>`
+    +cats.map(ct=>`<button class="chip ${filtroItemCat===ct?'on':''}" onclick="filtroItemCat='${esc(ct)}';render()">${esc(ct)}</button>`).join("")+`</div>`:"";
+  const termo=buscaItemTxt.toLowerCase();
+  const lista=produtos.filter(p=>(!filtroItemCat||p.categoria===filtroItemCat) &&
+    (!termo || (p.nome||"").toLowerCase().includes(termo) || (p.codigo||"").toLowerCase().includes(termo) || (p.codbarras||"").toLowerCase().includes(termo)));
   const prods=lista.map(p=>{
     const q=carrinho[p.id]||0;
     const ctrl=q===0?`<button class="qbtn mais" onclick="addItem('${p.id}',1)">＋</button>`
       :`<div class="qtd"><button class="qbtn menos" onclick="addItem('${p.id}',-1)">−</button><span class="qnum">${q}</span><button class="qbtn mais" onclick="addItem('${p.id}',1)">＋</button></div>`;
-    return `<div class="pitem"><div class="nome"><b>${esc(p.nome)}</b><small>${brl(p.atacado)} atacado${p.categoria?" · "+esc(p.categoria):""}</small></div>${ctrl}</div>`;
+    return `<div class="pitem"><div class="nome"><b>${esc(p.nome)}</b><small>${p.codigo?"Ref: "+esc(p.codigo)+" · ":""}${brl(p.atacado)}${p.estoque!=null?" · Est: "+p.estoque:""}</small></div>${ctrl}</div>`;
   }).join("");
   return `
-    <h2 class="tit">Novo pedido</h2>
-    <div class="card">
-      <label class="lb">Cliente</label>
-      <select class="inp" onchange="clienteSel=this.value;render()"><option value="">Selecione…</option>${opts}</select>
-      ${catBadge}
-      ${clientes.length===0?`<div style="margin-top:8px"><button class="btn btn-g btn-sm" onclick="irPara('clientes')">+ Cadastrar primeiro cliente</button></div>`:""}
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+      <button class="btn btn-g btn-sm" onclick="buscaItem=false;render()">← Voltar</button>
+      <b style="flex:1">Novo Item — ${lista.length} produto(s)</b>
     </div>
-    <div class="card">
-      <label class="lb">Condição de pagamento</label>
-      <input class="inp" list="pgs" placeholder="Ex: À vista, Boleto 30/60…" value="${esc(pagamentoSel)}" oninput="pagamentoSel=this.value" />
-      <datalist id="pgs">${pagList}</datalist>
-      <label class="lb" style="margin-top:10px;display:block">Observação / prazo de entrega</label>
-      <textarea class="inp" placeholder="Ex: entregar até sexta, cliente pega na loja…" oninput="obsPedido=this.value">${esc(obsPedido)}</textarea>
-    </div>
-    <label class="lb" style="margin-left:2px">Produtos</label>
-    ${cats.length?chips:""}
-    <div style="margin-top:6px">${prods||'<div class="vazio">Nenhum produto</div>'}</div>
+    <div class="relbusca"><input class="inp" placeholder="código / nome / cód. barras" value="${esc(buscaItemTxt)}" oninput="buscaItemTxt=this.value;render()" style="margin-top:0"/></div>
+    ${chips}
+    <div style="margin-top:6px">${prods||'<div class="vazio">Nenhum produto encontrado</div>'}</div>
   `;
 }
+
 function addItem(id,d){const q=(carrinho[id]||0)+d;if(q<=0)delete carrinho[id];else carrinho[id]=q;render();}
+
 function renderBarra(){
-  const linhas=Object.entries(carrinho);if(linhas.length===0)return;
-  const total=linhas.reduce((s,[id,q])=>{const p=produtos.find(x=>x.id===id);return s+(p?p.atacado:0)*q;},0);
-  const qtd=linhas.reduce((s,[,q])=>s+q,0);
+  const {total,qtd,perc}=calcTotais();
+  if(qtd===0)return;
   const b=document.getElementById("barraTotal");b.classList.remove("hide");
+  const descTxt=perc>0?`<span style="font-size:11px;color:var(--cinza)"> (${ped.descTipo==='desc'?'-':'+'}${perc}%)</span>`:"";
   b.innerHTML=`<div class="in">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-      <span style="color:var(--cinza);font-size:13px">${qtd} item(s)</span>
+      <span style="color:var(--cinza);font-size:13px">${qtd} item(s)${descTxt}</span>
       <span style="font-size:20px;font-weight:800;color:var(--verde)">${brl(total)}</span></div>
     <div class="row">
       <button class="btn btn-g" style="flex:1" onclick="finalizar(false)">✓ Salvar</button>
       <button class="btn btn-w" style="flex:1" onclick="finalizar(true)">Salvar + WhatsApp</button>
     </div></div>`;
 }
+
 function finalizar(enviar){
-  if(!clienteSel){toast("Escolha um cliente");return;}
-  const linhas=Object.entries(carrinho);if(linhas.length===0){toast("Adicione produtos");return;}
+  if(!clienteSel){toast("Escolha um cliente");subAbaPedido="cab";render();return;}
+  if(!ped.cond){toast("Escolha a condição de pagamento");subAbaPedido="cab";render();return;}
+  const linhas=Object.entries(carrinho);
+  if(linhas.length===0){toast("Adicione itens");subAbaPedido="itens";render();return;}
   const cli=clientes.find(c=>c.id===clienteSel);
-  const itens=linhas.map(([id,qtd])=>{const p=produtos.find(x=>x.id===id);return{nome:p.nome,qtd,preco:p.atacado};});
-  const total=itens.reduce((s,i)=>s+i.qtd*i.preco,0);
-  const pedido={clienteId:clienteSel,cliente:cli.nome,cidade:cli.cidade||"",whats:cli.whatsapp||"",categoria:cli.categoria||"",vendedor,itens,total,pagamento:pagamentoSel||"",obs:obsPedido||"",data:new Date().toISOString(),status:"aberto"};
+  const itens=linhas.map(([id,qtd])=>{const p=produtos.find(x=>x.id===id);return{nome:p.nome,codigo:p.codigo||"",qtd,preco:p.atacado};});
+  const {bruto,total}=calcTotais();
+  const pedido={
+    clienteId:clienteSel,cliente:cli.nome,cidade:cli.cidade||"",whats:cli.whatsapp||"",categoria:cli.categoria||"",
+    vendedor,itens,bruto,total,
+    status:"aberto",tipo:ped.status,cond:ped.cond,forma:ped.forma,
+    descTipo:ped.descTipo,descPerc:parseFloat(ped.descPerc)||0,
+    consumidorFinal:ped.consumidorFinal,dataEmissao:ped.dataEmissao,dataFat:ped.dataFat,previsao:ped.previsao,
+    obsCli:ped.obsCli,obsEmp:ped.obsEmp,ordemCompra:ped.ordemCompra,transportadora:ped.transportadora,
+    data:new Date().toISOString()
+  };
   db.ref("pedidos").push(pedido);
   if(enviar){const alvo=soDig(cli.whatsapp)?("55"+soDig(cli.whatsapp).replace(/^55/,"")):WHATS_EMPRESA;window.open(`https://wa.me/${alvo}?text=${encodeURIComponent(textoPedido(pedido))}`,"_blank");}
-  carrinho={};clienteSel="";pagamentoSel="";obsPedido="";filtroProdPedido="";
+  // reset
+  carrinho={};clienteSel="";subAbaPedido="cab";buscaItem=false;buscaItemTxt="";filtroItemCat="";
+  ped={status:"Pedido",consumidorFinal:false,dataEmissao:new Date().toISOString().slice(0,10),dataFat:"",previsao:"",cond:"",forma:"",tabela:"",descTipo:"desc",descPerc:"",obsCli:"",obsEmp:"",ordemCompra:"",transportadora:""};
   toast("Pedido enviado!");render();
 }
+
 function textoPedido(o){
   let t="*PEDIDO EIKOVIDA*\n";
+  if(o.tipo&&o.tipo!=="Pedido")t+="["+o.tipo+"]\n";
   t+="Cliente: "+o.cliente+"\n";
   if(o.cidade)t+="Cidade: "+o.cidade+"\n";
   t+="Vendedor: "+o.vendedor+"\n";
-  if(o.pagamento)t+="Pagamento: "+o.pagamento+"\n";
+  if(o.cond)t+="Cond. pagto: "+o.cond+"\n";
+  if(o.forma)t+="Forma: "+o.forma+"\n";
   t+="\n";
   o.itens.forEach(i=>t+=i.qtd+"x "+i.nome+" — "+brl(i.qtd*i.preco)+"\n");
+  if(o.descPerc>0)t+="\n"+(o.descTipo==="desc"?"Desconto":"Acréscimo")+": "+o.descPerc+"%";
   t+="\n*TOTAL: "+brl(o.total)+"*";
-  if(o.obs)t+="\n\nObs: "+o.obs;
+  if(o.obsCli)t+="\n\nObs: "+o.obsCli;
   return t;
 }
 
@@ -348,7 +463,7 @@ function viewCentral(){
     const nv=o.id===destaqueId;
     const det=o.id===pedidoAberto?`<div class="det">
         ${o.itens.map(i=>`<div class="li"><span>${i.qtd}x ${esc(i.nome)}</span><span>${brl(i.qtd*i.preco)}</span></div>`).join("")}
-        ${o.pagamento?`<div class="pag">💳 ${esc(o.pagamento)}</div>`:""}
+        ${o.cond?`<div class="pag">💳 ${esc(o.cond)}${o.forma?" · "+esc(o.forma):""}</div>`:""}${o.tipo&&o.tipo!=="Pedido"?`<div class="pag">🏷️ ${esc(o.tipo)}</div>`:""}
         ${o.obs?`<div class="pag">📝 ${esc(o.obs)}</div>`:""}
         <div class="row" style="margin-top:10px">
           <button class="btn btn-g btn-sm" style="flex:1" onclick="copiarPed('${o.id}')">Copiar</button>
@@ -436,7 +551,7 @@ function viewClienteDetalhe(){
   ].filter(Boolean).map(a=>`<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:14px;border-bottom:1px solid #f0f0ee"><span style="color:var(--cinza)">${a[0]}</span><span style="text-align:right;max-width:60%">${esc(a[1])}</span></div>`).join("");
   const histHtml=hist.length===0?`<div class="vazio" style="padding:24px"><div>Sem pedidos ainda.</div></div>`
     :hist.map(o=>`<div class="ped"><div class="top" onclick="abrirPedHist('${o.id}')">
-        <div class="cli"><b>${dataBr(o.data)} · ${hora(o.data)}</b><small>${o.itens.reduce((s,i)=>s+i.qtd,0)} un${o.pagamento?" · "+esc(o.pagamento):""}</small></div>
+        <div class="cli"><b>${dataBr(o.data)} · ${hora(o.data)}</b><small>${o.itens.reduce((s,i)=>s+i.qtd,0)} un${o.cond?" · "+esc(o.cond):""}</small></div>
         <div class="tot">${brl(o.total)}</div>
         <span class="badge ${o.status==='enviado'?'b-enviado':'b-aberto'}">${o.status}</span></div>
         ${o.id===pedidoAberto?`<div class="det">${o.itens.map(i=>`<div class="li"><span>${i.qtd}x ${esc(i.nome)}</span><span>${brl(i.qtd*i.preco)}</span></div>`).join("")}</div>`:""}
