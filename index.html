@@ -127,6 +127,9 @@
   .fgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
   .fgrid .lb{margin-bottom:0}
   .editpen{color:var(--dourado);font-size:18px;font-weight:700;padding:0 4px}
+  .thumb{width:48px;height:48px;border-radius:9px;background:#f4f4f2;display:flex;align-items:center;justify-content:center;font-size:22px;overflow:hidden;flex-shrink:0}
+  .thumb img{width:100%;height:100%;object-fit:contain}
+  .relbusca{margin-bottom:10px}
 </style>
 </head>
 <body>
@@ -159,6 +162,7 @@
     <button data-v="central" onclick="irPara('central')"><span class="ic">📋</span>Central</button>
     <button data-v="clientes" onclick="irPara('clientes')"><span class="ic">👥</span>Clientes</button>
     <button data-v="produtos" onclick="irPara('produtos')"><span class="ic">📦</span>Produtos</button>
+    <button data-v="tabelas" onclick="irPara('tabelas')"><span class="ic">💲</span>Tabelas</button>
   </nav>
 
   <button id="instalar" class="hide" onclick="instalarApp()">⬇ Instalar app</button>
@@ -190,22 +194,57 @@ let ped={status:"Pedido",consumidorFinal:false,dataEmissao:new Date().toISOStrin
 let destaqueId=null, pedidoAberto=null;
 let filtroCli="", filtroProd="", filtroProdPedido="";
 let editCli=null, clienteDetalhe=null, showCatCli=false, showCatProd=false;
+let prodEdit=null, filtroProdTxt="", tabEdit=null;
 
 const CONDICOES = ["À vista","À vista PIX (sem desconto)","À vista espécie (5% desc)","7","7/14","7/14/21","7/14/21/28","14","14/21","14/21/28","21","21/28","28","0/7","0/21","0/28"];
 const FORMAS = ["Boleto","Cartão de Crédito","PIX","Voucher"];
 const STATUS_PED = ["Pedido","Orçamento","Bonificação","Troca"];
 
-const SEED = [
-  { nome:"Óleo de Ojon Batana 120ml", varejo:159.90, atacado:95.00, categoria:"Cabelo" },
-  { nome:"Óleo de Pequi Extra Virgem 120ml", varejo:89.90, atacado:54.00, categoria:"Culinária" },
-  { nome:"Óleo de Rosa Mosqueta", varejo:0, atacado:42.00, categoria:"Pele" },
-  { nome:"Óleo de Rícino", varejo:0, atacado:28.00, categoria:"Cabelo" },
-  { nome:"Óleo de Alecrim", varejo:0, atacado:30.00, categoria:"Cabelo" },
-  { nome:"Óleo de Semente de Abóbora", varejo:0, atacado:33.00, categoria:"Pele" },
-  { nome:"Óleo de Abacate", varejo:0, atacado:35.00, categoria:"Pele" },
-  { nome:"Óleo de Copaíba", varejo:0, atacado:38.00, categoria:"Pele" },
-  { nome:"Óleo de Semente de Uva", varejo:0, atacado:32.00, categoria:"Pele" }
+const CATALOGO = [
+  {codigo:"CH001",nome:"COLAGENO HIDROLISADO 60 CAPS",atacado:19.5,varejo:19.5,categoria:"Encapsulados",marca:"EIKO VIDA",embalagem:"UN/1",imagem:"https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_31010760.png",estoque:"",codbarras:""},
+  {codigo:"100101",nome:"HIGIENIZADOR PARA MÃOS ÁLCOOL GEL 100ML",atacado:1.99,varejo:1.99,categoria:"Álcool",marca:"EIKO VIDA",embalagem:"UN/1",imagem:"https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_17714431.png",estoque:"",codbarras:""},
+  {codigo:"300102",nome:"MASCARA CAPILAR VEGANA DE COCO 300ML",atacado:18.5,varejo:18.5,categoria:"Cosméticos",marca:"EIKO VIDA",embalagem:"UN/1",imagem:"https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_17714429.png",estoque:"",codbarras:""},
+  {codigo:"700101",nome:"ÓLEO DE ABACATE 120ml",atacado:22.0,varejo:22.0,categoria:"Óleos 120ml",marca:"EIKO VIDA",embalagem:"UN/1",imagem:"https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_17714428.png",estoque:"",codbarras:""},
+  {codigo:"700130",nome:"ÓLEO DE ABACATE 30ML",atacado:7.0,varejo:7.0,categoria:"Óleos 30ml",marca:"EIKO VIDA",embalagem:"UN/1",imagem:"https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_40289699.png",estoque:"",codbarras:""},
+  {codigo:"700119",nome:"ÓLEO DE AÇAFRÃO 120ml",atacado:27.3,varejo:27.3,categoria:"Óleos 120ml",marca:"EIKO VIDA",embalagem:"UN/1",imagem:"https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_27610794.png",estoque:"",codbarras:""},
+  {codigo:"700131",nome:"ÓLEO DE AÇAFRÃO 30ML",atacado:8.0,varejo:8.0,categoria:"Óleos 30ml",marca:"EIKO VIDA",embalagem:"UN/1",imagem:"https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_40289772.png",estoque:"",codbarras:""},
+  {codigo:"700102",nome:"ÓLEO DE ALECRIM 120ml",atacado:29.5,varejo:29.5,categoria:"Óleos 120ml",marca:"EIKO VIDA",embalagem:"UN/1",imagem:"https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_17714427.png",estoque:"",codbarras:""},
+  {codigo:"700132",nome:"ÓLEO DE ALECRIM 30ML",atacado:8.5,varejo:8.5,categoria:"Óleos 30ml",marca:"EIKO VIDA",embalagem:"UN/1",imagem:"https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_40289780.png",estoque:"",codbarras:""},
+  {codigo:"700103",nome:"ÓLEO DE ANDIROBA 120ml",atacado:31.5,varejo:31.5,categoria:"Óleos 120ml",marca:"EIKO VIDA",embalagem:"UN/1",imagem:"https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_17714426.png",estoque:"",codbarras:""},
+  {codigo:"700139",nome:"ÓLEO DE ANDIROBA 30ML",atacado:10.0,varejo:10.0,categoria:"Óleos 30ml",marca:"EIKO VIDA",embalagem:"UN/1",imagem:"https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_40414488.png",estoque:"",codbarras:""},
+  {codigo:"700126",nome:"ÓLEO DE CÁRTAMO 120ML",atacado:24.5,varejo:24.5,categoria:"Óleos 120ml",marca:"EIKO VIDA",embalagem:"UN/1",imagem:"https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_30312823.png",estoque:"",codbarras:""},
+  {codigo:"700145",nome:"ÓLEO DE CÁRTAMO 30ML",atacado:7.0,varejo:7.0,categoria:"Óleos 30ml",marca:"EIKO VIDA",embalagem:"UN/1",imagem:"https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_40415576.png",estoque:"",codbarras:""},
+  {codigo:"700104",nome:"ÓLEO DE COCO EXTRA VIRGEM 100ml",atacado:8.5,varejo:8.5,categoria:"Óleo de Coco",marca:"EIKO VIDA",embalagem:"UN/1",imagem:"https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_17714425.png",estoque:"",codbarras:""},
+  {codigo:"700105",nome:"ÓLEO DE COCO EXTRA VIRGEM 200ml",atacado:13.9,varejo:13.9,categoria:"Óleo de Coco",marca:"EIKO VIDA",embalagem:"UN/1",imagem:"https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_17714424.png",estoque:"",codbarras:""},
+  {codigo:"700106",nome:"ÓLEO DE COCO EXTRA VIRGEM 500ml",atacado:31.5,varejo:31.5,categoria:"Óleo de Coco",marca:"EIKO VIDA",embalagem:"UN/1",imagem:"https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_17714423.png",estoque:"",codbarras:""},
+  {codigo:"700107",nome:"ÓLEO DE COCO EXTRA VIRGEM SPRAY 100ml",atacado:9.5,varejo:9.5,categoria:"Óleo de Coco",marca:"EIKO VIDA",embalagem:"UN/1",imagem:"https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_17714422.png",estoque:"",codbarras:""},
+  {codigo:"700117",nome:"ÓLEO DE COCO VIRGEM 1 LITRO",atacado:39.75,varejo:39.75,categoria:"Óleo de Coco",marca:"EIKO VIDA",embalagem:"UN/1",imagem:"https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_20357099.png",estoque:"",codbarras:""},
+  {codigo:"700108",nome:"ÓLEO DE COPAÍBA 120ml",atacado:42.0,varejo:42.0,categoria:"Óleos 120ml",marca:"EIKO VIDA",embalagem:"UN/1",imagem:"https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_17714421.png",estoque:"",codbarras:""},
+  {codigo:"700137",nome:"ÓLEO DE COPAIBA 30ML",atacado:12.0,varejo:12.0,categoria:"Óleos 30ml",marca:"EIKO VIDA",embalagem:"UN/1",imagem:"https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_40414341.png",estoque:"",codbarras:""},
+  {codigo:"700109",nome:"ÓLEO DE GERGELIM 120ml",atacado:15.2,varejo:15.2,categoria:"Óleos 120ml",marca:"EIKO VIDA",embalagem:"UN/1",imagem:"https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_17714420.png",estoque:"",codbarras:""},
+  {codigo:"700140",nome:"ÓLEO DE GERGELIM 30ML",atacado:7.0,varejo:7.0,categoria:"Óleos 30ml",marca:"EIKO VIDA",embalagem:"UN/1",imagem:"https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_40415533.png",estoque:"",codbarras:""},
+  {codigo:"700110",nome:"ÓLEO DE GIRASSOL 120ml",atacado:16.5,varejo:16.5,categoria:"Óleos 120ml",marca:"EIKO VIDA",embalagem:"UN/1",imagem:"https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_17714419.png",estoque:"",codbarras:""},
+  {codigo:"700141",nome:"ÓLEO DE GIRASSOL 30ML",atacado:6.0,varejo:6.0,categoria:"Óleos 30ml",marca:"EIKO VIDA",embalagem:"UN/1",imagem:"https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_40415541.png",estoque:"",codbarras:""},
+  {codigo:"700111",nome:"ÓLEO DE LIMÃO 120ml",atacado:18.5,varejo:18.5,categoria:"Óleos 120ml",marca:"EIKO VIDA",embalagem:"UN/1",imagem:"https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_17714418.png",estoque:"",codbarras:""},
+  {codigo:"700142",nome:"ÓLEO DE LIMÃO 30ML",atacado:7.0,varejo:7.0,categoria:"Óleos 30ml",marca:"EIKO VIDA",embalagem:"UN/1",imagem:"https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_40415567.png",estoque:"",codbarras:""},
+  {codigo:"700120",nome:"ÓLEO DE LINHAÇA DOURADA 120ML",atacado:24.0,varejo:24.0,categoria:"Óleos 120ml",marca:"EIKO VIDA",embalagem:"UN/1",imagem:"https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_30821854.png",estoque:"",codbarras:""},
+  {codigo:"700143",nome:"ÓLEO DE LINHAÇA DOURADA 30ML",atacado:7.0,varejo:7.0,categoria:"Óleos 30ml",marca:"EIKO VIDA",embalagem:"UN/1",imagem:"https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_40415569.png",estoque:"",codbarras:""},
+  {codigo:"700127",nome:"ÓLEO DE OJON 120ML",atacado:32.5,varejo:32.5,categoria:"Óleos 120ml",marca:"EIKO VIDA",embalagem:"UN/1",imagem:"https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_35194797.png",estoque:"",codbarras:""},
+  {codigo:"700133",nome:"ÓLEO DE OJON 30ML",atacado:9.0,varejo:9.0,categoria:"Óleos 30ml",marca:"EIKO VIDA",embalagem:"UN/1",imagem:"https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_40289807.png",estoque:"",codbarras:""},
+  {codigo:"700112",nome:"ÓLEO DE PEQUI 120ML",atacado:30.0,varejo:30.0,categoria:"Óleos 120ml",marca:"EIKO VIDA",embalagem:"UN/1",imagem:"https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_17714417.png",estoque:"",codbarras:""},
+  {codigo:"700144",nome:"ÓLEO DE PEQUI 30ML",atacado:9.0,varejo:9.0,categoria:"Óleos 30ml",marca:"EIKO VIDA",embalagem:"UN/1",imagem:"https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_40415574.png",estoque:"",codbarras:""},
+  {codigo:"700113",nome:"ÓLEO DE RICINO 120ml",atacado:16.5,varejo:16.5,categoria:"Óleos 120ml",marca:"EIKO VIDA",embalagem:"UN/1",imagem:"https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_17714416.png",estoque:"",codbarras:""},
+  {codigo:"700134",nome:"ÓLEO DE RICINO 30ML",atacado:5.0,varejo:5.0,categoria:"Óleos 30ml",marca:"EIKO VIDA",embalagem:"UN/1",imagem:"https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_40289825.png",estoque:"",codbarras:""},
+  {codigo:"700114",nome:"ÓLEO DE ROSA MOSQUETA 120ml",atacado:27.5,varejo:27.5,categoria:"Óleos 120ml",marca:"EIKO VIDA",embalagem:"UN/1",imagem:"https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_17714415.png",estoque:"",codbarras:""},
+  {codigo:"700135",nome:"ÓLEO DE ROSA MOSQUETA 30ML",atacado:7.0,varejo:7.0,categoria:"Óleos 30ml",marca:"EIKO VIDA",embalagem:"UN/1",imagem:"https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_40289832.png",estoque:"",codbarras:""},
+  {codigo:"700118",nome:"ÓLEO DE SEMENTE DE ABOBORA 120ML",atacado:42.0,varejo:42.0,categoria:"Óleos 120ml",marca:"EIKO VIDA",embalagem:"UN/1",imagem:"https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_21396805.png",estoque:"",codbarras:""},
+  {codigo:"700136",nome:"ÓLEO DE SEMENTE DE ABOBORA 30ML",atacado:12.0,varejo:12.0,categoria:"Óleos 30ml",marca:"EIKO VIDA",embalagem:"UN/1",imagem:"https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_40289837.png",estoque:"",codbarras:""},
+  {codigo:"700115",nome:"ÓLEO DE SEMENTE DE UVA 120ml",atacado:24.5,varejo:24.5,categoria:"Óleos 120ml",marca:"EIKO VIDA",embalagem:"UN/1",imagem:"https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_17714414.png",estoque:"",codbarras:""},
+  {codigo:"700129",nome:"ÓLEO DE SEMENTE DE UVA 30ML",atacado:7.5,varejo:7.5,categoria:"Óleos 30ml",marca:"EIKO VIDA",embalagem:"UN/1",imagem:"https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_40289633.png",estoque:"",codbarras:""},
+  {codigo:"700116",nome:"ÓLEO DE SUCUPIRA 120ml",atacado:43.0,varejo:43.0,categoria:"Óleos 120ml",marca:"EIKO VIDA",embalagem:"UN/1",imagem:"https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_17714413.png",estoque:"",codbarras:""},
+  {codigo:"700138",nome:"ÓLEO DE SUCUPIRA 30ML",atacado:12.5,varejo:12.5,categoria:"Óleos 30ml",marca:"EIKO VIDA",embalagem:"UN/1",imagem:"https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_40414353.png",estoque:"",codbarras:""}
 ];
+const SEED = CATALOGO;
 
 /* ====== UTILS ====== */
 const brl=(v)=>(Number(v)||0).toLocaleString("pt-BR",{style:"currency",currency:"BRL"});
@@ -247,7 +286,7 @@ function iniciar(){
   db.ref("clientes").on("value",s=>{clientes=toArr(s.val());if(["clientes","novo"].includes(viewAtual))render();});
   db.ref("categorias_cliente").on("value",s=>{catCliente=toArr(s.val());if(viewAtual==="clientes")render();});
   db.ref("categorias_produto").on("value",s=>{catProduto=toArr(s.val());if(["produtos","novo"].includes(viewAtual))render();});
-  db.ref("tabelas").on("value",s=>{tabelas=toArr(s.val());if(viewAtual==="novo"&&subAbaPedido==="cab")render();});
+  db.ref("tabelas").on("value",s=>{tabelas=toArr(s.val());if((viewAtual==="novo"&&subAbaPedido==="cab")||viewAtual==="tabelas")render();});
   db.ref("pedidos").on("value",s=>{pedidos=toArr(s.val()).sort((a,b)=>new Date(b.data)-new Date(a.data));if(["central","clientes"].includes(viewAtual))render();});
   db.ref("pedidos").on("child_added",s=>{
     const p=s.val();
@@ -262,7 +301,7 @@ function toArr(o){return o?Object.keys(o).map(k=>({id:k,...o[k]})):[];}
 function semear(){const u={};SEED.forEach(p=>{u[db.ref("produtos").push().key]=p;});db.ref("produtos").update(u);}
 
 /* ====== NAV ====== */
-function irPara(v){viewAtual=v;clienteDetalhe=null;editCli=null;document.querySelectorAll("nav button").forEach(b=>b.classList.toggle("on",b.dataset.v===v));render();}
+function irPara(v){viewAtual=v;clienteDetalhe=null;editCli=null;tabEdit=null;prodEdit=null;document.querySelectorAll("nav button").forEach(b=>b.classList.toggle("on",b.dataset.v===v));render();}
 
 function render(){
   const c=document.getElementById("conteudo");
@@ -271,9 +310,17 @@ function render(){
   else if(viewAtual==="central")c.innerHTML=viewCentral();
   else if(viewAtual==="clientes")c.innerHTML=clienteDetalhe?viewClienteDetalhe():viewClientes();
   else if(viewAtual==="produtos")c.innerHTML=viewProdutos();
+  else if(viewAtual==="tabelas")c.innerHTML=viewTabelas();
 }
 
 /* ====== NOVO PEDIDO ====== */
+function precoComTabela(p){
+  const base=Number(p.atacado)||0;
+  const t=tabelas.find(x=>x.nome===ped.tabela);
+  if(!t)return base;
+  const perc=parseFloat(t.percentual)||0;
+  return t.tipo==="desconto"?base*(1-perc/100):base*(1+perc/100);
+}
 function calcTotais(){
   const bruto=Object.entries(carrinho).reduce((s,[id,it])=>s+(it.qtd*it.preco),0);
   const perc=parseFloat(ped.descPerc)||0;
@@ -282,6 +329,12 @@ function calcTotais(){
   return {bruto,total,qtd,perc};
 }
 function upd(campo,valor){ped[campo]=valor;}
+function selecionarCliente(id){
+  clienteSel=id;
+  const cli=clientes.find(c=>c.id===id);
+  if(cli&&cli.tabela)ped.tabela=cli.tabela;
+  render();
+}
 
 function viewNovo(){
   const {bruto,total}=calcTotais();
@@ -312,7 +365,7 @@ function viewCabecalho(){
         <div><label class="lb">Empresa</label><input class="inp" value="EIKO VIDA" readonly style="background:#f4f4f2"/></div>
       </div>
       <label class="lb" style="margin-top:10px;display:block">Cliente *</label>
-      <select class="inp" onchange="clienteSel=this.value;render()"><option value="">Selecione…</option>${opts}</select>
+      <select class="inp" onchange="selecionarCliente(this.value)"><option value="">Selecione…</option>${opts}</select>
       ${catBadge}
       ${clientes.length===0?`<div style="margin-top:8px"><button class="btn btn-g btn-sm" onclick="irPara('clientes')">+ Cadastrar cliente</button></div>`:""}
       <label style="display:flex;align-items:center;gap:8px;margin-top:12px;font-size:14px">
@@ -390,17 +443,20 @@ function viewBuscaItem(){
   const lista=produtos.filter(p=>(!filtroItemCat||p.categoria===filtroItemCat) &&
     (!termo || (p.nome||"").toLowerCase().includes(termo) || (p.codigo||"").toLowerCase().includes(termo) || (p.codbarras||"").toLowerCase().includes(termo)));
   const prods=lista.map(p=>{
-    const noped=carrinho[p.id]?`<span class="badge b-cat">no pedido: ${carrinho[p.id].qtd}</span>`:"";
+    const noped=carrinho[p.id]?`<span class="badge b-cat">no pedido: ${carrinho[p.id].qtd}</span>`:'<span class="editpen">＋</span>';
     return `<div class="pitem" onclick="abrirEditor('${p.id}')" style="cursor:pointer">
-      <div class="nome"><b>${esc(p.nome)}</b><small>${p.codigo?"Ref: "+esc(p.codigo)+" · ":""}${brl(p.atacado)}${p.estoque!=null&&p.estoque!==""?" · Est: "+p.estoque:""}</small></div>
-      ${noped||'<span class="editpen">＋</span>'}</div>`;
+      <div class="thumb" style="width:40px;height:40px;font-size:18px">${p.imagem?`<img src="${esc(p.imagem)}" onerror="this.style.display='none';this.parentNode.innerHTML='📦'"/>`:'📦'}</div>
+      <div class="nome"><b>${esc(p.nome)}</b><small>${p.codigo?"Ref: "+esc(p.codigo)+" · ":""}${brl(precoComTabela(p))}${p.estoque!=null&&p.estoque!==""?" · Est: "+p.estoque:""}</small></div>
+      ${noped}</div>`;
   }).join("");
+  const tabInfo=ped.tabela?`<div style="font-size:12px;color:var(--verde);font-weight:600;margin-bottom:8px">💲 Tabela: ${esc(ped.tabela)}</div>`:"";
   return `
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
       <button class="btn btn-g btn-sm" onclick="buscaItem=false;render()">← Voltar</button>
       <b style="flex:1">Novo Item — ${lista.length} produto(s)</b>
     </div>
     <div class="relbusca"><input class="inp" placeholder="código / nome / cód. barras" value="${esc(buscaItemTxt)}" oninput="buscaItemTxt=this.value;render()" style="margin-top:0"/></div>
+    ${tabInfo}
     ${chips}
     <div style="margin-top:6px">${prods||'<div class="vazio">Nenhum produto encontrado</div>'}</div>
   `;
@@ -411,7 +467,7 @@ function abrirEditor(id){
   const it=carrinho[id];
   const p=produtos.find(x=>x.id===id);
   itemQtd = it?it.qtd:"";
-  itemPreco = it?it.preco:(p?p.atacado:0);
+  itemPreco = it?it.preco:precoComTabela(p);
   buscaItem=false;
   render();
   setTimeout(()=>{const el=document.getElementById("itQtd");if(el){el.focus();el.select();}},60);
@@ -426,9 +482,14 @@ function viewEditarItem(){
       <button class="btn btn-g btn-sm" onclick="itemEditando=null;buscaItem=true;render()">← Voltar</button>
     </div>
     <div class="card">
-      <div style="font-weight:800;font-size:15px">${esc(p.nome)}</div>
-      <div style="font-size:12px;color:var(--cinza);margin-top:2px">
-        ${p.codigo?"Ref: "+esc(p.codigo)+" · ":""}${p.embalagem?esc(p.embalagem)+" · ":""}${p.estoque!=null&&p.estoque!==""?"Estoque: "+p.estoque:""}
+      <div style="display:flex;gap:10px;align-items:center">
+        <div class="thumb" style="width:56px;height:56px">${p.imagem?`<img src="${esc(p.imagem)}" onerror="this.style.display='none';this.parentNode.innerHTML='📦'"/>`:'📦'}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:800;font-size:15px">${esc(p.nome)}</div>
+          <div style="font-size:12px;color:var(--cinza);margin-top:2px">
+            ${p.codigo?"Ref: "+esc(p.codigo)+" · ":""}${p.embalagem?esc(p.embalagem)+" · ":""}${p.estoque!=null&&p.estoque!==""?"Estoque: "+p.estoque:""}
+          </div>
+        </div>
       </div>
       <div class="fgrid" style="margin-top:14px">
         <div>
@@ -436,8 +497,8 @@ function viewEditarItem(){
           <input class="inp" id="itQtd" type="number" inputmode="numeric" value="${itemQtd}" oninput="itemQtd=this.value;calcItem()" style="font-size:20px;font-weight:800;text-align:center"/>
         </div>
         <div>
-          <label class="lb">Preço unitário</label>
-          <input class="inp" id="itPreco" type="number" inputmode="decimal" value="${itemPreco}" oninput="itemPreco=this.value;calcItem()" style="font-size:20px;font-weight:800;text-align:center"/>
+          <label class="lb">Preço unitário (R$)</label>
+          <input class="inp" id="itPreco" type="text" inputmode="decimal" value="${Number(itemPreco||0).toFixed(2).replace('.',',')}" oninput="itemPreco=(parseFloat(this.value.replace(/\\./g,'').replace(',','.'))||0);calcItem()" style="font-size:20px;font-weight:800;text-align:center"/>
         </div>
       </div>
       <div style="text-align:center;margin-top:6px;font-size:12px;color:var(--cinza)">preço padrão: ${brl(p.atacado)}</div>
@@ -578,7 +639,10 @@ function viewClientes(){
   const form=`<div class="card">
     <div style="font-weight:700;font-size:14px;margin-bottom:8px">${editCli?"✎ Editar cliente":"+ Novo cliente"}</div>
     <input class="inp" id="cNome" placeholder="Nome / Loja *" value="${esc(f.nome)}"/>
-    <select class="inp" id="cCat"><option value="">Categoria…</option>${catOpts}</select>
+    <div class="fgrid" style="margin-top:8px">
+      <div><select class="inp" id="cCat" style="margin-top:0"><option value="">Categoria…</option>${catOpts}</select></div>
+      <div><select class="inp" id="cTab" style="margin-top:0"><option value="">Tabela padrão…</option>${tabelas.map(t=>`<option ${f.tabela===t.nome?"selected":""}>${esc(t.nome)}</option>`).join("")}</select></div>
+    </div>
     <div class="row" style="margin-top:8px"><input class="inp" id="cCnpj" placeholder="CNPJ" value="${esc(f.cnpj)}" style="margin-top:0"/><input class="inp" id="cWhats" placeholder="WhatsApp" value="${esc(f.whatsapp)}" style="margin-top:0"/></div>
     <input class="inp" id="cEmail" placeholder="E-mail" value="${esc(f.email)}" style="margin-top:8px"/>
     <div class="row" style="margin-top:8px"><input class="inp" id="cCidade" placeholder="Cidade" value="${esc(f.cidade)}" style="margin-top:0"/><input class="inp" id="cEnd" placeholder="Endereço" value="${esc(f.endereco)}" style="margin-top:0"/></div>
@@ -602,7 +666,7 @@ function viewClientes(){
 function addCatCli(){const n=document.getElementById("novaCatCli").value.trim();if(!n)return;db.ref("categorias_cliente").push({nome:n});toast("Categoria criada");}
 function delCatCli(id){if(confirm("Excluir categoria?"))db.ref("categorias_cliente/"+id).remove();}
 function salvarCli(){
-  const o={nome:val("cNome"),categoria:val("cCat"),cnpj:val("cCnpj"),whatsapp:val("cWhats"),email:val("cEmail"),cidade:val("cCidade"),endereco:val("cEnd"),obs:val("cObs")};
+  const o={nome:val("cNome"),categoria:val("cCat"),tabela:val("cTab"),cnpj:val("cCnpj"),whatsapp:val("cWhats"),email:val("cEmail"),cidade:val("cCidade"),endereco:val("cEnd"),obs:val("cObs")};
   if(!o.nome){toast("Informe o nome");return;}
   if(editCli){db.ref("clientes/"+editCli.id).update(o);editCli=null;}else db.ref("clientes").push(o);
   toast("Cliente salvo");render();
@@ -660,45 +724,123 @@ function viewProdutos(){
   const catManage=`<div class="catbox">
     <div class="hd" onclick="showCatProd=!showCatProd;render()"><span>🏷️ Categorias de produto</span><span>${showCatProd?"▲":"▼"}</span></div>
     ${showCatProd?`<div style="margin-top:10px">
-      <div class="row"><input class="inp" id="novaCatProd" placeholder="Nova categoria (ex: Cabelo)" style="margin-top:0"/><button class="btn btn-v" onclick="addCatProd()">＋</button></div>
+      <div class="row"><input class="inp" id="novaCatProd" placeholder="Nova categoria" style="margin-top:0"/><button class="btn btn-v" onclick="addCatProd()">＋</button></div>
       <div class="chips" style="margin-top:10px;flex-wrap:wrap">${catProduto.map(c=>`<span class="chip-x">${esc(c.nome)}<span onclick="delCatProd('${c.id}')">✕</span></span>`).join("")||'<small style="color:var(--cinza)">Nenhuma ainda</small>'}</div>
     </div>`:""}
   </div>`;
+  const catalogoBtn=`<button class="btn btn-o" style="width:100%;margin-bottom:12px" onclick="recarregarCatalogo()">🔄 Carregar catálogo oficial (42 produtos)</button>`;
   const add=`<div class="card">
-    <input class="inp" id="pNome" placeholder="Produto novo" style="margin-top:0"/>
-    <div class="row" style="margin-top:8px">
-      <select class="inp" id="pCat" style="margin-top:0"><option value="">Categoria…</option>${catOpts}</select>
-      <input class="inp" id="pAtac" placeholder="R$ atacado" inputmode="decimal" style="margin-top:0;max-width:120px"/>
-      <button class="btn btn-v" onclick="addProduto()">＋</button>
+    <div style="font-weight:700;font-size:14px;margin-bottom:8px">${prodEdit?"✎ Editar produto":"+ Novo produto"}</div>
+    <input class="inp" id="pNome" placeholder="Nome do produto *" value="${prodEdit?esc(prodEdit.nome):''}" style="margin-top:0"/>
+    <div class="fgrid" style="margin-top:8px">
+      <div><label class="lb">Código</label><input class="inp" id="pCod" value="${prodEdit?esc(prodEdit.codigo||''):''}"/></div>
+      <div><label class="lb">Cód. barras</label><input class="inp" id="pBar" value="${prodEdit?esc(prodEdit.codbarras||''):''}"/></div>
+    </div>
+    <div class="fgrid" style="margin-top:8px">
+      <div><label class="lb">Preço (R$)</label><input class="inp" id="pAtac" inputmode="decimal" value="${prodEdit?(prodEdit.atacado||''):''}"/></div>
+      <div><label class="lb">Estoque</label><input class="inp" id="pEst" inputmode="numeric" value="${prodEdit?esc(String(prodEdit.estoque||'')):''}"/></div>
+    </div>
+    <div class="fgrid" style="margin-top:8px">
+      <div><label class="lb">Categoria</label><select class="inp" id="pCat"><option value="">—</option>${catProduto.map(c=>`<option ${prodEdit&&prodEdit.categoria===c.nome?"selected":""}>${esc(c.nome)}</option>`).join("")}${(prodEdit&&prodEdit.categoria&&!catProduto.find(c=>c.nome===prodEdit.categoria))?`<option selected>${esc(prodEdit.categoria)}</option>`:""}</select></div>
+      <div><label class="lb">Embalagem</label><input class="inp" id="pEmb" value="${prodEdit?esc(prodEdit.embalagem||'UN/1'):'UN/1'}"/></div>
+    </div>
+    <label class="lb" style="margin-top:8px;display:block">URL da imagem</label>
+    <input class="inp" id="pImg" placeholder="https://…" value="${prodEdit?esc(prodEdit.imagem||''):''}" style="margin-top:2px"/>
+    <div class="row" style="margin-top:10px">
+      <button class="btn btn-v" style="flex:1" onclick="salvarProduto()">${prodEdit?"Salvar alterações":"Adicionar"}</button>
+      ${prodEdit?`<button class="btn btn-g" onclick="prodEdit=null;render()">✕</button>`:""}
     </div></div>`;
   const cats=[...new Set(produtos.map(p=>p.categoria).filter(Boolean))];
-  const chips=cats.length?`<div class="chips"><button class="chip ${filtroProd===""?"on":""}" onclick="filtroProd='';render()">Todos</button>`
+  const chips=cats.length?`<div class="chips"><button class="chip ${filtroProd===""?"on":""}" onclick="filtroProd='';render()">Todos (${produtos.length})</button>`
     +cats.map(ct=>`<button class="chip ${filtroProd===ct?"on":""}" onclick="filtroProd='${esc(ct)}';render()">${esc(ct)}</button>`).join("")+`</div>`:"";
-  const lista=produtos.filter(p=>!filtroProd||p.categoria===filtroProd).map(p=>`<div class="card" style="padding:12px">
-    <div style="display:flex;align-items:center;gap:8px">
-      <b style="flex:1;font-size:14px">${esc(p.nome)}</b>
-      ${p.categoria?`<span class="badge b-cat">${esc(p.categoria)}</span>`:""}
-      <button class="icbtn btn-r" onclick="excluirProd('${p.id}')">🗑</button></div>
-    <div class="row" style="margin-top:8px;align-items:flex-end">
-      <div style="flex:1"><small style="color:var(--cinza);font-size:11px">Varejo</small><div style="color:var(--cinza)">${p.varejo?brl(p.varejo):"—"}</div></div>
-      <div style="flex:1"><small style="color:var(--dourado);font-size:11px;font-weight:700">ATACADO</small>
-        <input class="inp" type="number" value="${p.atacado||''}" onblur="setAtacado('${p.id}',this.value)" style="border-color:var(--dourado);font-weight:700;padding:8px;margin-top:2px"/></div>
-      <button class="btn btn-g btn-sm" onclick="mudarCatProd('${p.id}')">🏷️</button>
-    </div></div>`).join("");
-  return `<h2 class="tit">Produtos</h2>${catManage}${add}${chips}${lista||'<div class="vazio">Carregando…</div>'}`;
+  const busca=`<div class="relbusca"><input class="inp" placeholder="Buscar por nome ou código…" value="${esc(filtroProdTxt)}" oninput="filtroProdTxt=this.value;render()"/></div>`;
+  const termo=filtroProdTxt.toLowerCase();
+  const lista=produtos
+    .filter(p=>(!filtroProd||p.categoria===filtroProd)&&(!termo||(p.nome||'').toLowerCase().includes(termo)||(p.codigo||'').toLowerCase().includes(termo)))
+    .sort((a,b)=>(a.nome||'').localeCompare(b.nome||''))
+    .map(p=>`<div class="card" style="padding:10px;display:flex;gap:10px;align-items:center">
+      <div class="thumb">${p.imagem?`<img src="${esc(p.imagem)}" onerror="this.style.display='none';this.parentNode.innerHTML='📦'" />`:'📦'}</div>
+      <div style="flex:1;min-width:0">
+        <b style="font-size:13px;display:block">${esc(p.nome)}</b>
+        <small style="color:var(--cinza)">${p.codigo?"Cód: "+esc(p.codigo)+" · ":""}<b style="color:var(--verde)">${brl(p.atacado)}</b>${p.estoque!==""&&p.estoque!=null?" · Est: "+esc(String(p.estoque)):""}</small>
+        ${p.categoria?`<div><span class="badge b-cat" style="margin-top:3px;display:inline-block">${esc(p.categoria)}</span></div>`:""}
+      </div>
+      <button class="icbtn btn-g" onclick="editarProduto('${p.id}')">✎</button>
+      <button class="icbtn btn-r" onclick="excluirProd('${p.id}')">🗑</button>
+    </div>`).join("");
+  return `<h2 class="tit">Produtos</h2>${catalogoBtn}${catManage}${add}${busca}${chips}${lista||'<div class="vazio">Nenhum produto</div>'}`;
 }
 function addCatProd(){const n=document.getElementById("novaCatProd").value.trim();if(!n)return;db.ref("categorias_produto").push({nome:n});toast("Categoria criada");}
 function delCatProd(id){if(confirm("Excluir categoria?"))db.ref("categorias_produto/"+id).remove();}
-function addProduto(){const nome=val("pNome"),cat=val("pCat"),atac=parseFloat(document.getElementById("pAtac").value)||0;if(!nome){toast("Informe o nome");return;}db.ref("produtos").push({nome,varejo:0,atacado:atac,categoria:cat});toast("Produto adicionado");}
-function setAtacado(id,v){db.ref("produtos/"+id+"/atacado").set(parseFloat(v)||0);}
-function excluirProd(id){if(confirm("Excluir produto?"))db.ref("produtos/"+id).remove();}
-function mudarCatProd(id){
-  const nomes=catProduto.map(c=>c.nome);
-  if(nomes.length===0){toast("Crie categorias primeiro");showCatProd=true;render();return;}
-  const atual=produtos.find(p=>p.id===id);
-  const nova=prompt("Categoria do produto:\n"+nomes.join(", "),atual.categoria||"");
-  if(nova!==null)db.ref("produtos/"+id+"/categoria").set(nova.trim());
+function salvarProduto(){
+  const o={
+    nome:val("pNome"),codigo:val("pCod"),codbarras:val("pBar"),
+    atacado:parseFloat(String(val("pAtac")).replace(',','.'))||0,varejo:parseFloat(String(val("pAtac")).replace(',','.'))||0,
+    estoque:val("pEst"),categoria:val("pCat"),embalagem:val("pEmb")||"UN/1",marca:"EIKO VIDA",imagem:val("pImg")
+  };
+  if(!o.nome){toast("Informe o nome");return;}
+  if(prodEdit){db.ref("produtos/"+prodEdit.id).update(o);prodEdit=null;toast("Produto atualizado");}
+  else{db.ref("produtos").push(o);toast("Produto adicionado");}
+  render();
 }
+function editarProduto(id){prodEdit=produtos.find(p=>p.id===id);render();window.scrollTo(0,0);}
+function excluirProd(id){if(confirm("Excluir produto?"))db.ref("produtos/"+id).remove();}
+function recarregarCatalogo(){
+  if(!confirm("Isto vai APAGAR todos os produtos atuais e cadastrar os 42 do catálogo oficial (com códigos e imagens). Continuar?"))return;
+  const updates={};
+  CATALOGO.forEach(p=>{updates[db.ref("produtos").push().key]=p;});
+  db.ref("produtos").set(updates).then(()=>toast("Catálogo carregado: 42 produtos ✓")).catch(()=>toast("Erro ao carregar"));
+}
+
+/* ====== TABELAS DE PREÇO ====== */
+function viewTabelas(){
+  const f=tabEdit||{nome:"",tipo:"acrescimo",percentual:""};
+  const form=`<div class="card">
+    <div style="font-weight:700;font-size:14px;margin-bottom:8px">${tabEdit?"✎ Editar tabela":"+ Nova tabela de preço"}</div>
+    <label class="lb">Nome da tabela</label>
+    <input class="inp" id="tNome" placeholder="Ex: Farmácia, Produto Natural, Distribuidor" value="${esc(f.nome)}"/>
+    <div class="fgrid" style="margin-top:10px">
+      <div><label class="lb">Tipo</label>
+        <select class="inp" id="tTipo">
+          <option value="acrescimo" ${f.tipo==="acrescimo"?"selected":""}>Acréscimo (+)</option>
+          <option value="desconto" ${f.tipo==="desconto"?"selected":""}>Desconto (−)</option>
+        </select></div>
+      <div><label class="lb">Percentual (%)</label>
+        <input class="inp" id="tPerc" type="number" inputmode="decimal" placeholder="Ex: 15" value="${f.percentual}"/></div>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button class="btn btn-v" style="flex:1" onclick="salvarTabela()">${tabEdit?"Salvar alterações":"Criar tabela"}</button>
+      ${tabEdit?`<button class="btn btn-g" onclick="tabEdit=null;render()">✕</button>`:""}
+    </div>
+  </div>`;
+  const info=`<div style="font-size:12px;color:var(--cinza);background:#f8f8f6;border-radius:10px;padding:10px;margin-bottom:12px">
+    A tabela ajusta o <b>preço base</b> dos produtos pelo percentual. No pedido, escolha a tabela (ou associe uma ao cliente) e os preços já entram ajustados.</div>`;
+  const lista=tabelas.length===0
+    ? `<div class="vazio"><div class="em">💲</div><div>Nenhuma tabela ainda.</div></div>`
+    : tabelas.map(t=>{
+        const sinal=t.tipo==="desconto"?"−":"+";
+        const cor=t.tipo==="desconto"?"#b45309":"var(--verde)";
+        return `<div class="lista-cli">
+          <div class="info"><b>${esc(t.nome)}</b><small>${t.tipo==="desconto"?"Desconto":"Acréscimo"} sobre o preço base</small></div>
+          <span style="font-weight:800;color:${cor};font-size:16px">${sinal}${esc(String(t.percentual))}%</span>
+          <button class="icbtn btn-g" onclick="editarTabela('${t.id}')">✎</button>
+          <button class="icbtn btn-r" onclick="excluirTabela('${t.id}')">🗑</button>
+        </div>`;
+      }).join("");
+  // exemplo prático
+  const exemplo=tabelas.length?`<div style="font-size:12px;color:var(--cinza);margin-top:10px;text-align:center">
+    Ex: produto de ${brl(30)} → ${tabelas.map(t=>{const perc=parseFloat(t.percentual)||0;const v=t.tipo==="desconto"?30*(1-perc/100):30*(1+perc/100);return esc(t.nome)+": "+brl(v);}).join(" · ")}</div>`:"";
+  return `<h2 class="tit">Tabelas de preço</h2>${info}${form}${lista}${exemplo}`;
+}
+function salvarTabela(){
+  const o={nome:val("tNome"),tipo:document.getElementById("tTipo").value,percentual:parseFloat(String(val("tPerc")).replace(',','.'))||0};
+  if(!o.nome){toast("Informe o nome da tabela");return;}
+  if(tabEdit){db.ref("tabelas/"+tabEdit.id).update(o);tabEdit=null;toast("Tabela atualizada");}
+  else{db.ref("tabelas").push(o);toast("Tabela criada");}
+  render();
+}
+function editarTabela(id){tabEdit=tabelas.find(t=>t.id===id);render();window.scrollTo(0,0);}
+function excluirTabela(id){if(confirm("Excluir tabela?"))db.ref("tabelas/"+id).remove();}
 
 /* ====== PWA ====== */
 let deferredPrompt=null;
