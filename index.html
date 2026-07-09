@@ -126,6 +126,7 @@
   .subaba.on{background:var(--verde);color:#fff}
   .fgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
   .fgrid .lb{margin-bottom:0}
+  .editpen{color:var(--dourado);font-size:18px;font-weight:700;padding:0 4px}
 </style>
 </head>
 <body>
@@ -184,6 +185,7 @@ let produtos=[], clientes=[], pedidos=[], catCliente=[], catProduto=[];
 let vendedor="", viewAtual="novo";
 let carrinho={}, clienteSel="";
 let subAbaPedido="cab", buscaItem=false, buscaItemTxt="", filtroItemCat="";
+let itemEditando=null, itemQtd="", itemPreco=0, tabelas=[];
 let ped={status:"Pedido",consumidorFinal:false,dataEmissao:new Date().toISOString().slice(0,10),dataFat:"",previsao:"",cond:"",forma:"",tabela:"",descTipo:"desc",descPerc:"",obsCli:"",obsEmp:"",ordemCompra:"",transportadora:""};
 let destaqueId=null, pedidoAberto=null;
 let filtroCli="", filtroProd="", filtroProdPedido="";
@@ -245,6 +247,7 @@ function iniciar(){
   db.ref("clientes").on("value",s=>{clientes=toArr(s.val());if(["clientes","novo"].includes(viewAtual))render();});
   db.ref("categorias_cliente").on("value",s=>{catCliente=toArr(s.val());if(viewAtual==="clientes")render();});
   db.ref("categorias_produto").on("value",s=>{catProduto=toArr(s.val());if(["produtos","novo"].includes(viewAtual))render();});
+  db.ref("tabelas").on("value",s=>{tabelas=toArr(s.val());if(viewAtual==="novo"&&subAbaPedido==="cab")render();});
   db.ref("pedidos").on("value",s=>{pedidos=toArr(s.val()).sort((a,b)=>new Date(b.data)-new Date(a.data));if(["central","clientes"].includes(viewAtual))render();});
   db.ref("pedidos").on("child_added",s=>{
     const p=s.val();
@@ -272,10 +275,10 @@ function render(){
 
 /* ====== NOVO PEDIDO ====== */
 function calcTotais(){
-  const bruto=Object.entries(carrinho).reduce((s,[id,q])=>{const p=produtos.find(x=>x.id===id);return s+(p?p.atacado:0)*q;},0);
+  const bruto=Object.entries(carrinho).reduce((s,[id,it])=>s+(it.qtd*it.preco),0);
   const perc=parseFloat(ped.descPerc)||0;
   const total=ped.descTipo==="desc"?bruto*(1-perc/100):bruto*(1+perc/100);
-  const qtd=Object.values(carrinho).reduce((s,q)=>s+q,0);
+  const qtd=Object.values(carrinho).reduce((s,it)=>s+it.qtd,0);
   return {bruto,total,qtd,perc};
 }
 function upd(campo,valor){ped[campo]=valor;}
@@ -284,13 +287,15 @@ function viewNovo(){
   const {bruto,total}=calcTotais();
   const nItens=Object.keys(carrinho).length;
   const abas=`<div class="subabas">
-    <button class="subaba ${subAbaPedido==='cab'?'on':''}" onclick="subAbaPedido='cab';buscaItem=false;render()">CABEÇALHO</button>
+    <button class="subaba ${subAbaPedido==='cab'?'on':''}" onclick="subAbaPedido='cab';buscaItem=false;itemEditando=null;render()">CABEÇALHO</button>
     <button class="subaba ${subAbaPedido==='itens'?'on':''}" onclick="subAbaPedido='itens';render()">ITENS${nItens?` (${nItens})`:''}</button>
   </div>`;
   const topo=`<div class="totbar"><span>Tot. Produtos</span><b>${brl(bruto)}</b></div>`;
   let corpo="";
   if(subAbaPedido==="cab") corpo=viewCabecalho();
-  else corpo = buscaItem?viewBuscaItem():viewItens();
+  else if(itemEditando) corpo=viewEditarItem();
+  else if(buscaItem) corpo=viewBuscaItem();
+  else corpo=viewItens();
   return `${topo}${abas}<div style="margin-top:12px">${corpo}</div>`;
 }
 
@@ -328,8 +333,15 @@ function viewCabecalho(){
     <div class="card">
       <label class="lb">Condição de pagamento *</label>
       <select class="inp" onchange="upd('cond',this.value)">${condOpts}</select>
-      <label class="lb" style="margin-top:10px;display:block">Forma de pagamento</label>
-      <select class="inp" onchange="upd('forma',this.value)">${formaOpts}</select>
+      <div class="fgrid" style="margin-top:10px">
+        <div><label class="lb">Forma de pagamento</label>
+          <select class="inp" onchange="upd('forma',this.value)">${formaOpts}</select></div>
+        <div><label class="lb">Tabela de preços</label>
+          <select class="inp" onchange="upd('tabela',this.value)">
+            <option value="">Padrão (atacado)</option>
+            ${tabelas.map(t=>`<option ${ped.tabela===t.nome?"selected":""}>${esc(t.nome)}</option>`).join("")}
+          </select></div>
+      </div>
       <label class="lb" style="margin-top:10px;display:block">Desconto / Acréscimo</label>
       <div class="fgrid">
         <select class="inp" onchange="upd('descTipo',this.value)">
@@ -358,10 +370,14 @@ function viewItens(){
   if(linhas.length===0)
     return `<div class="vazio"><div class="em">🛒</div><div>Nenhum item no pedido.</div></div>
       <button class="btn btn-o" style="width:100%" onclick="buscaItem=true;render()">＋ Novo Item</button>`;
-  const itens=linhas.map(([id,q])=>{
+  const itens=linhas.map(([id,it])=>{
     const p=produtos.find(x=>x.id===id); if(!p) return "";
-    return `<div class="pitem"><div class="nome"><b>${esc(p.nome)}</b><small>${q} × ${brl(p.atacado)} = <b style="color:var(--verde)">${brl(q*p.atacado)}</b></small></div>
-      <div class="qtd"><button class="qbtn menos" onclick="addItem('${p.id}',-1)">−</button><span class="qnum">${q}</span><button class="qbtn mais" onclick="addItem('${p.id}',1)">＋</button></div></div>`;
+    return `<div class="pitem" onclick="abrirEditor('${id}')" style="cursor:pointer">
+      <div class="nome"><b>${esc(p.nome)}</b><small>${it.qtd} × ${brl(it.preco)} = <b style="color:var(--verde)">${brl(it.qtd*it.preco)}</b></small></div>
+      <div style="display:flex;gap:6px;align-items:center">
+        <span class="editpen">✎</span>
+        <button class="qbtn menos" onclick="event.stopPropagation();removerItem('${id}')">🗑</button>
+      </div></div>`;
   }).join("");
   return `${itens}<button class="btn btn-o" style="width:100%;margin-top:6px" onclick="buscaItem=true;render()">＋ Novo Item</button>`;
 }
@@ -374,10 +390,10 @@ function viewBuscaItem(){
   const lista=produtos.filter(p=>(!filtroItemCat||p.categoria===filtroItemCat) &&
     (!termo || (p.nome||"").toLowerCase().includes(termo) || (p.codigo||"").toLowerCase().includes(termo) || (p.codbarras||"").toLowerCase().includes(termo)));
   const prods=lista.map(p=>{
-    const q=carrinho[p.id]||0;
-    const ctrl=q===0?`<button class="qbtn mais" onclick="addItem('${p.id}',1)">＋</button>`
-      :`<div class="qtd"><button class="qbtn menos" onclick="addItem('${p.id}',-1)">−</button><span class="qnum">${q}</span><button class="qbtn mais" onclick="addItem('${p.id}',1)">＋</button></div>`;
-    return `<div class="pitem"><div class="nome"><b>${esc(p.nome)}</b><small>${p.codigo?"Ref: "+esc(p.codigo)+" · ":""}${brl(p.atacado)}${p.estoque!=null?" · Est: "+p.estoque:""}</small></div>${ctrl}</div>`;
+    const noped=carrinho[p.id]?`<span class="badge b-cat">no pedido: ${carrinho[p.id].qtd}</span>`:"";
+    return `<div class="pitem" onclick="abrirEditor('${p.id}')" style="cursor:pointer">
+      <div class="nome"><b>${esc(p.nome)}</b><small>${p.codigo?"Ref: "+esc(p.codigo)+" · ":""}${brl(p.atacado)}${p.estoque!=null&&p.estoque!==""?" · Est: "+p.estoque:""}</small></div>
+      ${noped||'<span class="editpen">＋</span>'}</div>`;
   }).join("");
   return `
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
@@ -390,7 +406,68 @@ function viewBuscaItem(){
   `;
 }
 
-function addItem(id,d){const q=(carrinho[id]||0)+d;if(q<=0)delete carrinho[id];else carrinho[id]=q;render();}
+function abrirEditor(id){
+  itemEditando=id;
+  const it=carrinho[id];
+  const p=produtos.find(x=>x.id===id);
+  itemQtd = it?it.qtd:"";
+  itemPreco = it?it.preco:(p?p.atacado:0);
+  buscaItem=false;
+  render();
+  setTimeout(()=>{const el=document.getElementById("itQtd");if(el){el.focus();el.select();}},60);
+}
+
+function viewEditarItem(){
+  const p=produtos.find(x=>x.id===itemEditando);
+  if(!p){itemEditando=null;return viewItens();}
+  const total=(parseFloat(itemQtd)||0)*(parseFloat(itemPreco)||0);
+  return `
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+      <button class="btn btn-g btn-sm" onclick="itemEditando=null;buscaItem=true;render()">← Voltar</button>
+    </div>
+    <div class="card">
+      <div style="font-weight:800;font-size:15px">${esc(p.nome)}</div>
+      <div style="font-size:12px;color:var(--cinza);margin-top:2px">
+        ${p.codigo?"Ref: "+esc(p.codigo)+" · ":""}${p.embalagem?esc(p.embalagem)+" · ":""}${p.estoque!=null&&p.estoque!==""?"Estoque: "+p.estoque:""}
+      </div>
+      <div class="fgrid" style="margin-top:14px">
+        <div>
+          <label class="lb">Quantidade *</label>
+          <input class="inp" id="itQtd" type="number" inputmode="numeric" value="${itemQtd}" oninput="itemQtd=this.value;calcItem()" style="font-size:20px;font-weight:800;text-align:center"/>
+        </div>
+        <div>
+          <label class="lb">Preço unitário</label>
+          <input class="inp" id="itPreco" type="number" inputmode="decimal" value="${itemPreco}" oninput="itemPreco=this.value;calcItem()" style="font-size:20px;font-weight:800;text-align:center"/>
+        </div>
+      </div>
+      <div style="text-align:center;margin-top:6px;font-size:12px;color:var(--cinza)">preço padrão: ${brl(p.atacado)}</div>
+      <div style="text-align:center;margin-top:14px;padding:12px;background:var(--verde);color:#fff;border-radius:12px">
+        <div style="font-size:12px;opacity:.85">Total do item</div>
+        <div id="itTotal" style="font-size:24px;font-weight:900">${brl(total)}</div>
+      </div>
+      <button class="btn btn-v" style="width:100%;margin-top:14px" onclick="salvarItem()">${carrinho[itemEditando]?"Atualizar item":"Adicionar ao pedido"}</button>
+    </div>
+  `;
+}
+function calcItem(){
+  const t=(parseFloat(itemQtd)||0)*(parseFloat(itemPreco)||0);
+  const el=document.getElementById("itTotal"); if(el) el.textContent=brl(t);
+}
+function salvarItem(){
+  const q=parseFloat(itemQtd)||0, pr=parseFloat(itemPreco)||0;
+  if(q<=0){toast("Informe a quantidade");return;}
+  carrinho[itemEditando]={qtd:q,preco:pr};
+  itemEditando=null; buscaItem=false; subAbaPedido="itens";
+  toast("Item adicionado"); render();
+}
+function removerItem(id){delete carrinho[id];render();}
+function addItem(id,d){ // ajuste rápido +/- (mantido por compatibilidade)
+  const p=produtos.find(x=>x.id===id);
+  const cur=carrinho[id]||{qtd:0,preco:p?p.atacado:0};
+  const q=cur.qtd+d;
+  if(q<=0)delete carrinho[id];else carrinho[id]={qtd:q,preco:cur.preco};
+  render();
+}
 
 function renderBarra(){
   const {total,qtd,perc}=calcTotais();
@@ -413,12 +490,12 @@ function finalizar(enviar){
   const linhas=Object.entries(carrinho);
   if(linhas.length===0){toast("Adicione itens");subAbaPedido="itens";render();return;}
   const cli=clientes.find(c=>c.id===clienteSel);
-  const itens=linhas.map(([id,qtd])=>{const p=produtos.find(x=>x.id===id);return{nome:p.nome,codigo:p.codigo||"",qtd,preco:p.atacado};});
+  const itens=linhas.map(([id,it])=>{const p=produtos.find(x=>x.id===id);return{nome:p.nome,codigo:p.codigo||"",qtd:it.qtd,preco:it.preco};});
   const {bruto,total}=calcTotais();
   const pedido={
     clienteId:clienteSel,cliente:cli.nome,cidade:cli.cidade||"",whats:cli.whatsapp||"",categoria:cli.categoria||"",
     vendedor,itens,bruto,total,
-    status:"aberto",tipo:ped.status,cond:ped.cond,forma:ped.forma,
+    status:"aberto",tipo:ped.status,cond:ped.cond,forma:ped.forma,tabela:ped.tabela||"",
     descTipo:ped.descTipo,descPerc:parseFloat(ped.descPerc)||0,
     consumidorFinal:ped.consumidorFinal,dataEmissao:ped.dataEmissao,dataFat:ped.dataFat,previsao:ped.previsao,
     obsCli:ped.obsCli,obsEmp:ped.obsEmp,ordemCompra:ped.ordemCompra,transportadora:ped.transportadora,
@@ -427,7 +504,7 @@ function finalizar(enviar){
   db.ref("pedidos").push(pedido);
   if(enviar){const alvo=soDig(cli.whatsapp)?("55"+soDig(cli.whatsapp).replace(/^55/,"")):WHATS_EMPRESA;window.open(`https://wa.me/${alvo}?text=${encodeURIComponent(textoPedido(pedido))}`,"_blank");}
   // reset
-  carrinho={};clienteSel="";subAbaPedido="cab";buscaItem=false;buscaItemTxt="";filtroItemCat="";
+  carrinho={};clienteSel="";subAbaPedido="cab";buscaItem=false;buscaItemTxt="";filtroItemCat="";itemEditando=null;
   ped={status:"Pedido",consumidorFinal:false,dataEmissao:new Date().toISOString().slice(0,10),dataFat:"",previsao:"",cond:"",forma:"",tabela:"",descTipo:"desc",descPerc:"",obsCli:"",obsEmp:"",ordemCompra:"",transportadora:""};
   toast("Pedido enviado!");render();
 }
