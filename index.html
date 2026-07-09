@@ -638,17 +638,45 @@ function viewClientes(){
   </div>`;
   const form=`<div class="card">
     <div style="font-weight:700;font-size:14px;margin-bottom:8px">${editCli?"✎ Editar cliente":"+ Novo cliente"}</div>
-    <input class="inp" id="cNome" placeholder="Nome / Loja *" value="${esc(f.nome)}"/>
-    <div class="fgrid" style="margin-top:8px">
-      <div><select class="inp" id="cCat" style="margin-top:0"><option value="">Categoria…</option>${catOpts}</select></div>
-      <div><select class="inp" id="cTab" style="margin-top:0"><option value="">Tabela padrão…</option>${tabelas.map(t=>`<option ${f.tabela===t.nome?"selected":""}>${esc(t.nome)}</option>`).join("")}</select></div>
+    <label class="lb">CNPJ (digite e clique buscar)</label>
+    <div class="row" style="margin-top:2px">
+      <input class="inp" id="cCnpj" placeholder="00.000.000/0000-00" value="${esc(f.cnpj)}" style="margin-top:0"/>
+      <button class="btn btn-o" onclick="buscarCNPJ()">🔍 Buscar</button>
     </div>
-    <div class="row" style="margin-top:8px"><input class="inp" id="cCnpj" placeholder="CNPJ" value="${esc(f.cnpj)}" style="margin-top:0"/><input class="inp" id="cWhats" placeholder="WhatsApp" value="${esc(f.whatsapp)}" style="margin-top:0"/></div>
-    <input class="inp" id="cEmail" placeholder="E-mail" value="${esc(f.email)}" style="margin-top:8px"/>
-    <div class="row" style="margin-top:8px"><input class="inp" id="cCidade" placeholder="Cidade" value="${esc(f.cidade)}" style="margin-top:0"/><input class="inp" id="cEnd" placeholder="Endereço" value="${esc(f.endereco)}" style="margin-top:0"/></div>
-    <input class="inp" id="cObs" placeholder="Observação" value="${esc(f.obs)}" style="margin-top:8px"/>
-    <div class="row" style="margin-top:10px">
-      <button class="btn btn-v" style="flex:1" onclick="salvarCli()">${editCli?"Salvar alterações":"Adicionar"}</button>
+    <label class="lb" style="margin-top:10px;display:block">Razão social / Nome *</label>
+    <input class="inp" id="cNome" placeholder="Razão social ou nome" value="${esc(f.nome)}" style="margin-top:2px"/>
+    <div class="fgrid" style="margin-top:8px">
+      <div><label class="lb">Fantasia</label><input class="inp" id="cFant" value="${esc(f.fantasia||'')}"/></div>
+      <div><label class="lb">Insc. estadual</label><input class="inp" id="cIe" value="${esc(f.ie||'')}"/></div>
+    </div>
+    <div class="fgrid" style="margin-top:8px">
+      <div><label class="lb">Categoria</label><select class="inp" id="cCat" style="margin-top:0"><option value="">—</option>${catOpts}</select></div>
+      <div><label class="lb">Tabela padrão</label><select class="inp" id="cTab" style="margin-top:0"><option value="">—</option>${tabelas.map(t=>`<option ${f.tabela===t.nome?"selected":""}>${esc(t.nome)}</option>`).join("")}</select></div>
+    </div>
+    <div class="fgrid" style="margin-top:8px">
+      <div><label class="lb">WhatsApp</label><input class="inp" id="cWhats" value="${esc(f.whatsapp)}"/></div>
+      <div><label class="lb">Limite crédito</label><input class="inp" id="cLimite" inputmode="decimal" value="${esc(String(f.limite||''))}"/></div>
+    </div>
+    <label class="lb" style="margin-top:8px;display:block">E-mail (cópia do pedido)</label>
+    <input class="inp" id="cEmail" value="${esc(f.email)}" style="margin-top:2px"/>
+    <div class="fgrid" style="margin-top:8px">
+      <div><label class="lb">CEP</label><input class="inp" id="cCep" value="${esc(f.cep||'')}"/></div>
+      <div><label class="lb">Número</label><input class="inp" id="cNum" value="${esc(f.numero||'')}"/></div>
+    </div>
+    <label class="lb" style="margin-top:8px;display:block">Endereço</label>
+    <input class="inp" id="cEnd" value="${esc(f.endereco)}" style="margin-top:2px"/>
+    <div class="fgrid" style="margin-top:8px">
+      <div><label class="lb">Bairro</label><input class="inp" id="cBairro" value="${esc(f.bairro||'')}"/></div>
+      <div><label class="lb">Complemento</label><input class="inp" id="cCompl" value="${esc(f.complemento||'')}"/></div>
+    </div>
+    <div class="fgrid" style="margin-top:8px">
+      <div><label class="lb">Cidade</label><input class="inp" id="cCidade" value="${esc(f.cidade)}"/></div>
+      <div><label class="lb">UF</label><input class="inp" id="cUf" value="${esc(f.uf||'')}"/></div>
+    </div>
+    <label class="lb" style="margin-top:8px;display:block">Observação</label>
+    <input class="inp" id="cObs" value="${esc(f.obs)}" style="margin-top:2px"/>
+    <div class="row" style="margin-top:12px">
+      <button class="btn btn-v" style="flex:1" onclick="salvarCli()">${editCli?"Salvar alterações":"Adicionar cliente"}</button>
       ${editCli?`<button class="btn btn-g" onclick="editCli=null;render()">✕</button>`:""}
     </div></div>`;
   const cats=[...new Set(clientes.map(c=>c.categoria).filter(Boolean))];
@@ -666,10 +694,36 @@ function viewClientes(){
 function addCatCli(){const n=document.getElementById("novaCatCli").value.trim();if(!n)return;db.ref("categorias_cliente").push({nome:n});toast("Categoria criada");}
 function delCatCli(id){if(confirm("Excluir categoria?"))db.ref("categorias_cliente/"+id).remove();}
 function salvarCli(){
-  const o={nome:val("cNome"),categoria:val("cCat"),tabela:val("cTab"),cnpj:val("cCnpj"),whatsapp:val("cWhats"),email:val("cEmail"),cidade:val("cCidade"),endereco:val("cEnd"),obs:val("cObs")};
+  const o={nome:val("cNome"),fantasia:val("cFant"),ie:val("cIe"),categoria:val("cCat"),tabela:val("cTab"),
+    cnpj:val("cCnpj"),whatsapp:val("cWhats"),limite:parseFloat(String(val("cLimite")).replace(/\./g,'').replace(',','.'))||0,
+    email:val("cEmail"),cep:val("cCep"),numero:val("cNum"),endereco:val("cEnd"),bairro:val("cBairro"),
+    complemento:val("cCompl"),cidade:val("cCidade"),uf:val("cUf"),obs:val("cObs")};
   if(!o.nome){toast("Informe o nome");return;}
   if(editCli){db.ref("clientes/"+editCli.id).update(o);editCli=null;}else db.ref("clientes").push(o);
   toast("Cliente salvo");render();
+}
+function setV(id,v){const e=document.getElementById(id);if(e&&v)e.value=v;}
+async function buscarCNPJ(){
+  const cnpj=soDig(val("cCnpj"));
+  if(cnpj.length!==14){toast("CNPJ deve ter 14 dígitos");return;}
+  toast("Buscando CNPJ…");
+  try{
+    const r=await fetch("https://brasilapi.com.br/api/cnpj/v1/"+cnpj);
+    if(!r.ok)throw new Error("nao encontrado");
+    const d=await r.json();
+    setV("cNome",d.razao_social);
+    setV("cFant",d.nome_fantasia);
+    setV("cCep",d.cep);
+    setV("cEnd",d.logradouro);
+    setV("cNum",d.numero);
+    setV("cBairro",d.bairro);
+    setV("cCidade",d.municipio);
+    setV("cUf",d.uf);
+    setV("cCompl",d.complemento);
+    if(d.ddd_telefone_1)setV("cWhats",d.ddd_telefone_1);
+    if(d.email)setV("cEmail",(d.email||"").toLowerCase());
+    toast("Dados preenchidos ✓");
+  }catch(e){toast("CNPJ não encontrado");}
 }
 function val(id){const e=document.getElementById(id);return e?e.value.trim():"";}
 function editarCli(id){editCli=clientes.find(c=>c.id===id);clienteDetalhe=null;render();}
@@ -682,12 +736,19 @@ function viewClienteDetalhe(){
   const hist=pedidos.filter(p=>p.clienteId===clienteDetalhe||p.cliente===c.nome);
   const totalComprado=hist.reduce((s,p)=>s+p.total,0);
   const dados=[
+    c.fantasia?["Fantasia",c.fantasia]:null,
     c.categoria?["Categoria",c.categoria]:null,
+    c.tabela?["Tabela de preço",c.tabela]:null,
     c.cnpj?["CNPJ",c.cnpj]:null,
+    c.ie?["Insc. estadual",c.ie]:null,
     c.whatsapp?["WhatsApp",c.whatsapp]:null,
     c.email?["E-mail",c.email]:null,
-    c.cidade?["Cidade",c.cidade]:null,
-    c.endereco?["Endereço",c.endereco]:null,
+    (c.limite&&c.limite>0)?["Limite crédito",brl(c.limite)]:null,
+    (c.endereco||c.numero)?["Endereço",[c.endereco,c.numero].filter(Boolean).join(", ")]:null,
+    c.bairro?["Bairro",c.bairro]:null,
+    c.complemento?["Complemento",c.complemento]:null,
+    (c.cidade||c.uf)?["Cidade/UF",[c.cidade,c.uf].filter(Boolean).join(" - ")]:null,
+    c.cep?["CEP",c.cep]:null,
     c.obs?["Obs",c.obs]:null
   ].filter(Boolean).map(a=>`<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:14px;border-bottom:1px solid #f0f0ee"><span style="color:var(--cinza)">${a[0]}</span><span style="text-align:right;max-width:60%">${esc(a[1])}</span></div>`).join("");
   const histHtml=hist.length===0?`<div class="vazio" style="padding:24px"><div>Sem pedidos ainda.</div></div>`
