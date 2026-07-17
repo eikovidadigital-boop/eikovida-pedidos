@@ -195,6 +195,8 @@ const WHATS_EMPRESA = "558141410577";
 
 /* ====== ESTADO ====== */
 let produtos=[], clientes=[], pedidos=[], catCliente=[], catProduto=[];
+let pedidosRemoto=[];
+const LS={get(k,def){try{const v=localStorage.getItem("eiko_"+k);return v?JSON.parse(v):def;}catch(e){return def;}},set(k,v){try{localStorage.setItem("eiko_"+k,JSON.stringify(v));}catch(e){}}};
 let vendedor="", viewAtual="home";
 let online=(typeof navigator!=="undefined"?navigator.onLine:true), filaPendentes=[];
 let carrinho={}, clienteSel="";
@@ -289,15 +291,35 @@ function entrar(){
   iniciar();
 }
 
-/* ====== FIREBASE ====== */
+/* ====== DADOS (offline-first) ====== */
 function iniciar(){
   document.getElementById("subHeader").textContent="Vendedor: "+vendedor;
-  db.ref("produtos").on("value",s=>{produtos=toArr(s.val());if(produtos.length===0)semear();if(["produtos","novo"].includes(viewAtual))render();});
-  db.ref("clientes").on("value",s=>{clientes=toArr(s.val());if(["clientes","novo"].includes(viewAtual))render();});
-  db.ref("categorias_cliente").on("value",s=>{catCliente=toArr(s.val());if(viewAtual==="clientes")render();});
-  db.ref("categorias_produto").on("value",s=>{catProduto=toArr(s.val());if(["produtos","novo"].includes(viewAtual))render();});
-  db.ref("tabelas").on("value",s=>{tabelas=toArr(s.val());if((viewAtual==="novo"&&subAbaPedido==="cab")||viewAtual==="tabelas")render();});
-  db.ref("pedidos").on("value",s=>{pedidos=toArr(s.val()).sort((a,b)=>new Date(b.data)-new Date(a.data));if(["central","clientes"].includes(viewAtual))render();});
+  // 1) carrega o que já está salvo no aparelho — funciona mesmo sem internet
+  produtos=LS.get("produtos",[]);
+  clientes=LS.get("clientes",[]);
+  catCliente=LS.get("catCliente",[]);
+  catProduto=LS.get("catProduto",[]);
+  tabelas=LS.get("tabelas",[]);
+  pedidosRemoto=LS.get("pedidos",[]);
+  filaPendentes=LS.get("fila",[]);
+  reconstruirPedidos();
+  // 2) status de rede
+  atualizarStatusRede();
+  window.addEventListener("online",aoVoltarOnline);
+  window.addEventListener("offline",atualizarStatusRede);
+  // 3) conecta a nuvem (o SDK reconecta sozinho quando a internet volta)
+  conectarFirebase();
+  // 4) se já tem internet, envia o que estiver na fila
+  if(navigator.onLine)setTimeout(sincronizarAgora,1500);
+  irPara(window.innerWidth>=900?"central":"home");
+}
+function conectarFirebase(){
+  db.ref("produtos").on("value",s=>{const a=toArr(s.val());if(a.length===0){semear();return;}produtos=a;LS.set("produtos",a);reRender(["produtos","novo"]);});
+  db.ref("clientes").on("value",s=>{clientes=toArr(s.val());LS.set("clientes",clientes);reRender(["clientes","novo"]);});
+  db.ref("categorias_cliente").on("value",s=>{catCliente=toArr(s.val());LS.set("catCliente",catCliente);reRender(["clientes"]);});
+  db.ref("categorias_produto").on("value",s=>{catProduto=toArr(s.val());LS.set("catProduto",catProduto);reRender(["produtos","novo"]);});
+  db.ref("tabelas").on("value",s=>{tabelas=toArr(s.val());LS.set("tabelas",tabelas);reRender(["tabelas"]);if(viewAtual==="novo"&&subAbaPedido==="cab")render();});
+  db.ref("pedidos").on("value",s=>{pedidosRemoto=toArr(s.val());LS.set("pedidos",pedidosRemoto);reconstruirPedidos();reRender(["central","clientes","home"]);});
   db.ref("pedidos").on("child_added",s=>{
     const p=s.val();
     if(p&&p.data&&(Date.now()-new Date(p.data).getTime())<8000){
@@ -305,10 +327,11 @@ function iniciar(){
       setTimeout(()=>{destaqueId=null;if(viewAtual==="central")render();},4000);
     }
   });
-  atualizarStatusRede();
-  window.addEventListener("online",aoVoltarOnline);
-  window.addEventListener("offline",atualizarStatusRede);
-  irPara(window.innerWidth>=900?"central":"home");
+}
+function reRender(views){if(views.includes(viewAtual))render();}
+function reconstruirPedidos(){
+  const pend=filaPendentes.filter(f=>f.col==="pedidos").map(f=>({...f.data,id:f.tempId,_pendente:true}));
+  pedidos=[...pend,...pedidosRemoto].sort((a,b)=>new Date(b.data)-new Date(a.data));
 }
 function toArr(o){return o?Object.keys(o).map(k=>({id:k,...o[k]})):[];}
 function semear(){const u={};SEED.forEach(p=>{u[db.ref("produtos").push().key]=p;});db.ref("produtos").update(u);}
@@ -330,7 +353,7 @@ function viewHome(){
   const cards=itens.map(i=>`<button class="homecard" onclick="${i.v==='catalogo'?`window.open('https://eikovida.pedidook.com.br/','_blank')`:`irPara('${i.v}')`}">
     <span class="homeic" style="background:${i.cor}22;color:${i.cor}">${i.ic}</span>
     <span class="hometit">${i.tit}</span></button>`).join("");
-  const pend=filaPendentes.length?`<div class="pendbar" onclick="irPara('sync')">⏳ ${filaPendentes.length} pedido(s) aguardando sincronizar — toque aqui</div>`:"";
+  const pend=filaPendentes.length?`<div class="pendbar" onclick="irPara('sync')">⏳ ${filaPendentes.length} item(ns) aguardando sincronizar — toque aqui</div>`:"";
   return `<div class="homewrap">
     <div class="homehead"><b>Olá, ${esc(vendedor)}</b><span>${online?'🟢 Online':'🔴 Offline'}</span></div>
     ${pend}
@@ -351,7 +374,7 @@ function viewSync(){
     </div>
     <div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center">
-        <span>Pedidos aguardando envio</span>
+        <span>Itens aguardando envio</span>
         <b style="font-size:20px;color:${pend?'#b45309':'var(--verde)'}">${pend}</b>
       </div>
       ${pend?`<button class="btn btn-v" style="width:100%;margin-top:10px" onclick="sincronizarAgora()">🔄 Sincronizar agora</button>`:'<div style="font-size:12px;color:var(--cinza);margin-top:6px">Tudo sincronizado ✓</div>'}
@@ -365,15 +388,18 @@ function atualizarStatusRede(){
 }
 function aoVoltarOnline(){atualizarStatusRede();sincronizarAgora();}
 function sincronizarAgora(){
-  if(!online){toast("Sem internet ainda");return;}
+  if(!navigator.onLine){toast("Sem internet ainda");return;}
   if(filaPendentes.length===0){atualizarStatusRede();return;}
-  // envia cada pedido pendente ao Firebase
   const fila=[...filaPendentes];
-  fila.forEach(p=>{db.ref("pedidos").push(p);});
+  fila.forEach(f=>{
+    if(f.op==="update"&&f.id)db.ref(f.col+"/"+f.id).update(f.data);
+    else db.ref(f.col).push(f.data);
+  });
   filaPendentes=[];
-  try{localStorage.setItem("eiko_fila","[]");}catch(e){}
-  toast(fila.length+" pedido(s) sincronizado(s) ✓");
-  if(["home","sync"].includes(viewAtual))render();
+  LS.set("fila",[]);
+  reconstruirPedidos();
+  toast(fila.length+" item(ns) sincronizado(s) ✓");
+  if(["home","sync","central"].includes(viewAtual))render();
 }
 
 function render(){
@@ -639,12 +665,19 @@ function finalizar(enviar){
     obsCli:ped.obsCli,obsEmp:ped.obsEmp,ordemCompra:ped.ordemCompra,transportadora:ped.transportadora,
     data:new Date().toISOString()
   };
-  db.ref("pedidos").push(pedido);
+  if(navigator.onLine){
+    db.ref("pedidos").push(pedido);
+  }else{
+    const tempId="local_"+Date.now();
+    filaPendentes.push({col:"pedidos",data:pedido,tempId,quando:Date.now()});
+    LS.set("fila",filaPendentes);
+    reconstruirPedidos();
+  }
   if(enviar){const alvo=soDig(cli.whatsapp)?("55"+soDig(cli.whatsapp).replace(/^55/,"")):WHATS_EMPRESA;window.open(`https://wa.me/${alvo}?text=${encodeURIComponent(textoPedido(pedido))}`,"_blank");}
   // reset
   carrinho={};clienteSel="";subAbaPedido="cab";buscaItem=false;buscaItemTxt="";filtroItemCat="";itemEditando=null;
   ped={status:"Pedido",consumidorFinal:false,dataEmissao:new Date().toISOString().slice(0,10),dataFat:"",previsao:"",cond:"",forma:"",tabela:"",descTipo:"desc",descPerc:"",obsCli:"",obsEmp:"",ordemCompra:"",transportadora:""};
-  toast("Pedido enviado!");render();
+  toast(navigator.onLine?"Pedido enviado!":"Pedido salvo no celular — envia quando a internet voltar");render();
 }
 
 function textoPedido(o){
@@ -690,12 +723,12 @@ function viewCentral(){
           <button class="btn btn-r btn-sm" onclick="excluirPed('${o.id}')">🗑</button>
         </div></div>`:"";
     return `<div class="ped ${nv?'novo':''}">
-      <div class="top" onclick="abrirPed('${o.id}')">
-        <div class="cli"><b>${esc(o.cliente)}${nv?'<span class="tagnovo">NOVO</span>':''}</b>
+      <div class="top" onclick="${o._pendente?'':`abrirPed('${o.id}')`}">
+        <div class="cli"><b>${esc(o.cliente)}${nv?'<span class="tagnovo">NOVO</span>':''}${o._pendente?'<span class="tagnovo" style="background:#b45309">⏳ OFFLINE</span>':''}</b>
           <small>${esc(o.cidade||"")} · ${o.itens.reduce((s,i)=>s+i.qtd,0)} un · ${o.vendedor?esc(o.vendedor)+" · ":""}${hora(o.data)}</small></div>
         <div class="tot">${brl(o.total)}</div>
-        <span class="badge ${o.status==='enviado'?'b-enviado':'b-aberto'}">${o.status}</span>
-      </div>${det}</div>`;
+        <span class="badge ${o._pendente?'b-aberto':(o.status==='enviado'?'b-enviado':'b-aberto')}">${o._pendente?'na fila':o.status}</span>
+      </div>${o._pendente?'':det}</div>`;
   }).join("");
   return `<h2 class="tit">Central de pedidos</h2>${kpis}${lista}`;
 }
@@ -876,8 +909,21 @@ function salvarCli(){
     email:val("cEmail"),cep:val("cCep"),numero:val("cNum"),endereco:val("cEnd"),bairro:val("cBairro"),
     complemento:val("cCompl"),cidade:val("cCidade"),uf:val("cUf"),obs:val("cObs")};
   if(!o.nome){toast("Informe o nome");return;}
-  if(editCli){db.ref("clientes/"+editCli.id).update(o);editCli=null;}else db.ref("clientes").push(o);
-  toast("Cliente salvo");render();
+  if(navigator.onLine){
+    if(editCli){db.ref("clientes/"+editCli.id).update(o);}else db.ref("clientes").push(o);
+  }else{
+    if(editCli){
+      const i=clientes.findIndex(c=>c.id===editCli.id);if(i>=0)clientes[i]={...clientes[i],...o};
+      filaPendentes.push({col:"clientes",op:"update",id:editCli.id,data:o});
+    }else{
+      const tempId="local_"+Date.now();
+      clientes.push({id:tempId,...o});
+      filaPendentes.push({col:"clientes",op:"push",data:o,tempId});
+    }
+    LS.set("clientes",clientes);LS.set("fila",filaPendentes);
+  }
+  editCli=null;
+  toast(navigator.onLine?"Cliente salvo":"Cliente salvo offline ✓");render();
 }
 function setV(id,v){const e=document.getElementById(id);if(e&&v)e.value=v;}
 async function buscarCNPJ(){
