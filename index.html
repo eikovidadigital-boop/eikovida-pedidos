@@ -728,7 +728,14 @@ function viewImportacoes(){
         ${impPreview.length>20?`<div style="font-size:11px;color:var(--cinza);margin-top:6px">…e mais ${impPreview.length-20}</div>`:""}</div>`;
     }
   }
-  return `<h2 class="tit">Importações</h2>${seletor}${instr}${area}${prev}`;
+  return `<h2 class="tit">Importações</h2>
+    <div class="card" style="border:2px solid var(--verde);background:#f2f9f2">
+      <div style="font-weight:700;font-size:14px;margin-bottom:4px">📦 Carga inicial do PedidoOK</div>
+      <div style="font-size:12px;color:#555;margin-bottom:8px">Importa de uma vez sua base completa: <b>1.402 clientes</b> e <b>1.690 pedidos</b> do histórico de vendas. Use apenas uma vez.</div>
+      <button class="btn btn-v" id="btnCarga" style="width:100%" onclick="importarCargaInicial()">📥 Importar minha base do PedidoOK</button>
+      <div id="impProg" style="font-size:12px;color:#333;margin-top:8px"></div>
+    </div>
+    ${seletor}${instr}${area}${prev}`;
 }
 function previewImport(){
   const txt=(document.getElementById("impTxt").value||"").trim();
@@ -756,6 +763,34 @@ function confirmarImport(){
   const updates={};
   impPreview.forEach(item=>{updates[db.ref(col).push().key]=item;});
   db.ref(col).update(updates).then(()=>{toast(impPreview.length+" "+col+" importados ✓");impPreview=null;render();}).catch(()=>toast("Erro ao importar"));
+}
+
+async function importarCargaInicial(){
+  if(!navigator.onLine){toast("Precisa estar online");return;}
+  if(!confirm("Isso importa TODA a sua base do PedidoOK (1.402 clientes + 1.690 pedidos do histórico) para o app.\n\nFaça isso apenas UMA vez. Continuar?"))return;
+  const prog=document.getElementById("impProg");
+  const set=t=>{if(prog)prog.innerHTML=t;};
+  const btn=document.getElementById("btnCarga");if(btn)btn.disabled=true;
+  try{
+    set("⏳ Baixando arquivos…");
+    const [cli,ped]=await Promise.all([
+      fetch("clientes-seed.json").then(r=>{if(!r.ok)throw new Error("clientes-seed.json não encontrado");return r.json();}),
+      fetch("pedidos-seed.json").then(r=>{if(!r.ok)throw new Error("pedidos-seed.json não encontrado");return r.json();})
+    ]);
+    await gravarLotes("clientes",cli,set,"clientes");
+    await gravarLotes("pedidos",ped,set,"pedidos (histórico)");
+    set("✅ Concluído! <b>"+cli.length+" clientes</b> e <b>"+ped.length+" pedidos</b> importados.<br>Feche e abra o app para ver tudo.");
+    toast("Base do PedidoOK importada ✓");
+  }catch(e){set("❌ Erro: "+esc(e.message)+"<br>Confira se subiu os 2 arquivos .json no GitHub.");if(btn)btn.disabled=false;}
+}
+async function gravarLotes(col,arr,set,label){
+  const TAM=300;
+  for(let i=0;i<arr.length;i+=TAM){
+    const lote=arr.slice(i,i+TAM), upd={};
+    lote.forEach(item=>{upd[db.ref(col).push().key]=item;});
+    await db.ref(col).update(upd);
+    set("⏳ Importando "+label+"… <b>"+Math.min(i+TAM,arr.length)+"/"+arr.length+"</b>");
+  }
 }
 
 function atualizarStatusRede(){
