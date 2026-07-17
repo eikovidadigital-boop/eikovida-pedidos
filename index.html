@@ -204,6 +204,7 @@ let transportadoras=[], transpEdit=null, filtroCobr="areceber";
 let agenda=[], agendaEdit=null, filtroAgenda="proximos";
 let fornecedores=[], fornEdit=null;
 let empresa={}, equipe=[], vendEdit=null;
+let impTipo="produtos", impPreview=null;
 let carrinho={}, clienteSel="";
 let subAbaPedido="cab", buscaItem=false, buscaItemTxt="", filtroItemCat="";
 let itemEditando=null, itemQtd="", itemPreco=0, tabelas=[];
@@ -369,6 +370,7 @@ function viewHome(){
     {ic:"🏭",cor:"#78716C",tit:"Fornecedores",v:"fornecedores"},
     {ic:"🏢",cor:"#0891B2",tit:"Empresa",v:"empresa"},
     {ic:"🧑‍💼",cor:"#7C3AED",tit:"Minha Equipe",v:"equipe"},
+    {ic:"📥",cor:"#2563EB",tit:"Importações",v:"importacoes"},
     {ic:"🚚",cor:"#0EA5E9",tit:"Transportadoras",v:"transportadoras"},
     {ic:"🌐",cor:"#8B5CF6",tit:"Catálogo Online",v:"catalogo"},
   ];
@@ -691,6 +693,71 @@ function addVendRapido(nome){vendEdit={nome,meta:""};render();window.scrollTo(0,
 function editarVend(id){vendEdit=equipe.find(x=>x.id===id);render();window.scrollTo(0,0);}
 function excluirVend(id){if(confirm("Excluir vendedor?"))db.ref("vendedores/"+id).remove();}
 
+/* ====== IMPORTAÇÕES ====== */
+function viewImportacoes(){
+  const formato = impTipo==="produtos"
+    ? "código &nbsp;|&nbsp; nome &nbsp;|&nbsp; preço &nbsp;|&nbsp; categoria &nbsp;|&nbsp; estoque"
+    : "nome &nbsp;|&nbsp; CNPJ &nbsp;|&nbsp; telefone &nbsp;|&nbsp; cidade";
+  const exemplo = impTipo==="produtos"
+    ? "700101 [tab] Óleo de Abacate 120ml [tab] 22,00 [tab] Óleos 120ml [tab] 100"
+    : "Farmácia São João [tab] 12.345.678/0001-90 [tab] 81999998888 [tab] Recife";
+  const seletor=`<div class="subabas" style="margin-bottom:12px">
+    <button class="subaba ${impTipo==='produtos'?'on':''}" onclick="impTipo='produtos';impPreview=null;render()">Produtos</button>
+    <button class="subaba ${impTipo==='clientes'?'on':''}" onclick="impTipo='clientes';impPreview=null;render()">Clientes</button>
+  </div>`;
+  const instr=`<div style="font-size:12px;color:var(--cinza);background:#f8f8f6;border-radius:10px;padding:10px;margin-bottom:12px">
+    Cole uma linha por item. Colunas na ordem:<br><b>${formato}</b><br>
+    Separe as colunas com <b>Tab</b> (copiando do Excel/planilha) ou ponto-e-vírgula.<br>
+    <span style="color:#999">Ex: ${exemplo}</span></div>`;
+  const area=`<div class="card">
+    <textarea class="inp" id="impTxt" style="min-height:120px;font-family:monospace;font-size:12px" placeholder="Cole aqui a lista…"></textarea>
+    <div class="row" style="margin-top:8px">
+      <button class="btn btn-g" style="flex:1" onclick="previewImport()">👁 Pré-visualizar</button>
+      ${impPreview&&impPreview.length?`<button class="btn btn-v" style="flex:1" onclick="confirmarImport()">✓ Importar ${impPreview.length}</button>`:""}
+    </div></div>`;
+  let prev="";
+  if(impPreview){
+    if(impPreview.length===0)prev=`<div class="vazio">Nada reconhecido. Confira o formato.</div>`;
+    else{
+      const linhas=impPreview.slice(0,20).map(x=>impTipo==="produtos"
+        ?`<tr><td>${esc(x.codigo)}</td><td class="l">${esc(x.nome)}</td><td>${brl(x.atacado)}</td><td>${esc(x.categoria||"")}</td></tr>`
+        :`<tr><td class="l">${esc(x.nome)}</td><td>${esc(x.cnpj||"")}</td><td>${esc(x.whatsapp||"")}</td><td>${esc(x.cidade||"")}</td></tr>`).join("");
+      const cab=impTipo==="produtos"?"<th>Código</th><th>Nome</th><th>Preço</th><th>Categoria</th>":"<th>Nome</th><th>CNPJ</th><th>Telefone</th><th>Cidade</th>";
+      prev=`<div class="card"><div style="font-weight:700;font-size:13px;margin-bottom:6px">Pré-visualização — ${impPreview.length} item(ns)</div>
+        <table style="width:100%;border-collapse:collapse;font-size:11px"><thead><tr>${cab}</tr></thead><tbody>${linhas}</tbody></table>
+        ${impPreview.length>20?`<div style="font-size:11px;color:var(--cinza);margin-top:6px">…e mais ${impPreview.length-20}</div>`:""}</div>`;
+    }
+  }
+  return `<h2 class="tit">Importações</h2>${seletor}${instr}${area}${prev}`;
+}
+function previewImport(){
+  const txt=(document.getElementById("impTxt").value||"").trim();
+  if(!txt){toast("Cole a lista primeiro");return;}
+  const sep = txt.includes("\t")?"\t":(txt.includes(";")?";":",");
+  const linhas=txt.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+  const arr=[];
+  linhas.forEach(l=>{
+    const c=l.split(sep).map(x=>x.trim());
+    if(impTipo==="produtos"){
+      const nome=c[1]||c[0]; if(!nome)return;
+      const preco=parseFloat(String(c[2]||"").replace(/\./g,"").replace(",","."))||0;
+      arr.push({codigo:c[0]||"",nome:c[1]||c[0],atacado:preco,varejo:preco,categoria:c[3]||"",estoque:c[4]||"",marca:"EIKO VIDA",embalagem:"UN/1",imagem:"",codbarras:""});
+    }else{
+      if(!c[0])return;
+      arr.push({nome:c[0],cnpj:c[1]||"",whatsapp:c[2]||"",cidade:c[3]||""});
+    }
+  });
+  impPreview=arr;render();
+}
+function confirmarImport(){
+  if(!impPreview||!impPreview.length)return;
+  if(!navigator.onLine){toast("Conecte à internet para importar");return;}
+  const col=impTipo==="produtos"?"produtos":"clientes";
+  const updates={};
+  impPreview.forEach(item=>{updates[db.ref(col).push().key]=item;});
+  db.ref(col).update(updates).then(()=>{toast(impPreview.length+" "+col+" importados ✓");impPreview=null;render();}).catch(()=>toast("Erro ao importar"));
+}
+
 function atualizarStatusRede(){
   online=navigator.onLine;
   const live=document.querySelector(".live");
@@ -730,6 +797,7 @@ function render(){
   else if(viewAtual==="fornecedores")c.innerHTML=viewFornecedores();
   else if(viewAtual==="empresa")c.innerHTML=viewEmpresa();
   else if(viewAtual==="equipe")c.innerHTML=viewEquipe();
+  else if(viewAtual==="importacoes")c.innerHTML=viewImportacoes();
 }
 
 /* ====== NOVO PEDIDO ====== */
