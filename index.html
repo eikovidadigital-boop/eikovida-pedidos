@@ -199,6 +199,10 @@ let pedidosRemoto=[];
 const LS={get(k,def){try{const v=localStorage.getItem("eiko_"+k);return v?JSON.parse(v):def;}catch(e){return def;}},set(k,v){try{localStorage.setItem("eiko_"+k,JSON.stringify(v));}catch(e){}}};
 let vendedor="", viewAtual="home";
 let online=(typeof navigator!=="undefined"?navigator.onLine:true), filaPendentes=[];
+let periodoRel="30";
+let transportadoras=[], transpEdit=null, filtroCobr="areceber";
+let agenda=[], agendaEdit=null, filtroAgenda="proximos";
+let fornecedores=[], fornEdit=null;
 let carrinho={}, clienteSel="";
 let subAbaPedido="cab", buscaItem=false, buscaItemTxt="", filtroItemCat="";
 let itemEditando=null, itemQtd="", itemPreco=0, tabelas=[];
@@ -300,6 +304,9 @@ function iniciar(){
   catCliente=LS.get("catCliente",[]);
   catProduto=LS.get("catProduto",[]);
   tabelas=LS.get("tabelas",[]);
+  transportadoras=LS.get("transportadoras",[]);
+  agenda=LS.get("agenda",[]);
+  fornecedores=LS.get("fornecedores",[]);
   pedidosRemoto=LS.get("pedidos",[]);
   filaPendentes=LS.get("fila",[]);
   reconstruirPedidos();
@@ -319,6 +326,9 @@ function conectarFirebase(){
   db.ref("categorias_cliente").on("value",s=>{const a=toArr(s.val());if(a.length===0&&catCliente.length>0)return;catCliente=a;LS.set("catCliente",a);reRender(["clientes"]);});
   db.ref("categorias_produto").on("value",s=>{const a=toArr(s.val());if(a.length===0&&catProduto.length>0)return;catProduto=a;LS.set("catProduto",a);reRender(["produtos","novo"]);});
   db.ref("tabelas").on("value",s=>{const a=toArr(s.val());if(a.length===0&&tabelas.length>0)return;tabelas=a;LS.set("tabelas",a);reRender(["tabelas"]);if(viewAtual==="novo"&&subAbaPedido==="cab")render();});
+  db.ref("transportadoras").on("value",s=>{const a=toArr(s.val());if(a.length===0&&transportadoras.length>0)return;transportadoras=a;LS.set("transportadoras",a);reRender(["transportadoras","novo"]);});
+  db.ref("agenda").on("value",s=>{const a=toArr(s.val());if(a.length===0&&agenda.length>0)return;agenda=a;LS.set("agenda",a);reRender(["agenda","home"]);});
+  db.ref("fornecedores").on("value",s=>{const a=toArr(s.val());if(a.length===0&&fornecedores.length>0)return;fornecedores=a;LS.set("fornecedores",a);reRender(["fornecedores"]);});
   db.ref("pedidos").on("value",s=>{const a=toArr(s.val());if(a.length===0&&pedidosRemoto.length>0)return;pedidosRemoto=a;LS.set("pedidos",a);reconstruirPedidos();reRender(["central","clientes","home"]);});
   db.ref("pedidos").on("child_added",s=>{
     const p=s.val();
@@ -348,6 +358,11 @@ function viewHome(){
     {ic:"📦",cor:"#EA8A5B",tit:"Produtos",v:"produtos"},
     {ic:"💲",cor:"#10B981",tit:"Tabelas",v:"tabelas"},
     {ic:"☁️",cor:"#60A5FA",tit:"Sincronização",v:"sync"},
+    {ic:"📊",cor:"#EF4444",tit:"Relatórios",v:"relatorios"},
+    {ic:"💰",cor:"#16A34A",tit:"Cobranças",v:"cobrancas"},
+    {ic:"📅",cor:"#DB2777",tit:"Agenda / CRM",v:"agenda"},
+    {ic:"🏭",cor:"#78716C",tit:"Fornecedores",v:"fornecedores"},
+    {ic:"🚚",cor:"#0EA5E9",tit:"Transportadoras",v:"transportadoras"},
     {ic:"🌐",cor:"#8B5CF6",tit:"Catálogo Online",v:"catalogo"},
   ];
   const cards=itens.map(i=>`<button class="homecard" onclick="${i.v==='catalogo'?`window.open('https://eikovida.pedidook.com.br/','_blank')`:`irPara('${i.v}')`}">
@@ -380,6 +395,216 @@ function viewSync(){
       ${pend?`<button class="btn btn-v" style="width:100%;margin-top:10px" onclick="sincronizarAgora()">🔄 Sincronizar agora</button>`:'<div style="font-size:12px;color:var(--cinza);margin-top:6px">Tudo sincronizado ✓</div>'}
     </div>`;
 }
+/* ====== RELATÓRIOS ====== */
+function viewRelatorios(){
+  const agora=Date.now();
+  const limite = periodoRel==="hoje" ? new Date().setHours(0,0,0,0) : (periodoRel==="tudo"?0:agora-parseInt(periodoRel)*86400000);
+  const lista=pedidos.filter(p=>p.data&&new Date(p.data).getTime()>=limite);
+  const totalVend=lista.reduce((s,p)=>s+(p.total||0),0);
+  const nPed=lista.length;
+  const ticket=nPed?totalVend/nPed:0;
+  const nItens=lista.reduce((s,p)=>s+(p.itens||[]).reduce((a,i)=>a+i.qtd,0),0);
+  const prodMap={};
+  lista.forEach(p=>(p.itens||[]).forEach(i=>{if(!prodMap[i.nome])prodMap[i.nome]={qtd:0,valor:0};prodMap[i.nome].qtd+=i.qtd;prodMap[i.nome].valor+=i.qtd*i.preco;}));
+  const topProd=Object.entries(prodMap).sort((a,b)=>b[1].valor-a[1].valor).slice(0,5);
+  const cliMap={};
+  lista.forEach(p=>{const n=p.cliente||"—";if(!cliMap[n])cliMap[n]={valor:0,ped:0};cliMap[n].valor+=p.total||0;cliMap[n].ped++;});
+  const topCli=Object.entries(cliMap).sort((a,b)=>b[1].valor-a[1].valor).slice(0,5);
+  const vendMap={};
+  lista.forEach(p=>{const n=p.vendedor||"—";if(!vendMap[n])vendMap[n]={valor:0,ped:0};vendMap[n].valor+=p.total||0;vendMap[n].ped++;});
+  const vends=Object.entries(vendMap).sort((a,b)=>b[1].valor-a[1].valor);
+
+  const per=[["hoje","Hoje"],["7","7 dias"],["30","30 dias"],["tudo","Tudo"]];
+  const chips=`<div class="chips">${per.map(([v,l])=>`<button class="chip ${periodoRel===v?'on':''}" onclick="periodoRel='${v}';render()">${l}</button>`).join("")}</div>`;
+  const kpis=`<div class="kpis" style="grid-template-columns:1fr 1fr">
+    <div class="kpi"><small>Vendido</small><b>${brl(totalVend)}</b></div>
+    <div class="kpi"><small>Pedidos</small><b>${nPed}</b></div>
+    <div class="kpi"><small>Ticket médio</small><b>${brl(ticket)}</b></div>
+    <div class="kpi"><small>Itens vendidos</small><b>${nItens}</b></div>
+  </div>`;
+  const rank=(titulo,itens,fmt)=>`<div class="card"><div style="font-weight:700;font-size:14px;margin-bottom:8px">${titulo}</div>
+    ${itens.length?itens.map((e,i)=>`<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #f0f0ee;font-size:13px">
+      <span style="max-width:62%"><b style="color:var(--dourado)">${i+1}.</b> ${esc(e[0])}</span><span style="text-align:right">${fmt(e[1])}</span></div>`).join(""):'<div style="color:var(--cinza);font-size:13px">Sem dados no período</div>'}
+  </div>`;
+
+  return `<h2 class="tit">Relatórios</h2>
+    ${chips}${kpis}
+    ${rank("🏆 Produtos que mais venderam",topProd,v=>`${v.qtd} un · <b style="color:var(--verde)">${brl(v.valor)}</b>`)}
+    ${rank("👥 Clientes que mais compraram",topCli,v=>`${v.ped} ped · <b style="color:var(--verde)">${brl(v.valor)}</b>`)}
+    ${vends.length>1?rank("🧑‍💼 Vendas por vendedor",vends,v=>`${v.ped} ped · <b style="color:var(--verde)">${brl(v.valor)}</b>`):""}`;
+}
+
+/* ====== TRANSPORTADORAS ====== */
+function viewTransportadoras(){
+  const f=transpEdit||{nome:"",telefone:"",cidade:""};
+  const form=`<div class="card">
+    <div style="font-weight:700;font-size:14px;margin-bottom:8px">${transpEdit?"✎ Editar transportadora":"+ Nova transportadora"}</div>
+    <input class="inp" id="trNome" placeholder="Nome da transportadora *" value="${esc(f.nome)}" style="margin-top:0"/>
+    <div class="fgrid" style="margin-top:8px">
+      <div><label class="lb">Telefone</label><input class="inp" id="trTel" value="${esc(f.telefone)}"/></div>
+      <div><label class="lb">Cidade</label><input class="inp" id="trCid" value="${esc(f.cidade)}"/></div>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button class="btn btn-v" style="flex:1" onclick="salvarTransp()">${transpEdit?"Salvar alterações":"Adicionar"}</button>
+      ${transpEdit?`<button class="btn btn-g" onclick="transpEdit=null;render()">✕</button>`:""}
+    </div></div>`;
+  const lista=transportadoras.length===0
+    ? `<div class="vazio"><div class="em">🚚</div><div>Nenhuma transportadora ainda.</div></div>`
+    : transportadoras.slice().sort((a,b)=>(a.nome||"").localeCompare(b.nome||"")).map(t=>`<div class="lista-cli">
+        <div class="info"><b>${esc(t.nome)}</b><small>${[t.cidade,t.telefone].filter(Boolean).join(" · ")||"—"}</small></div>
+        <button class="icbtn btn-g" onclick="editarTransp('${t.id}')">✎</button>
+        <button class="icbtn btn-r" onclick="excluirTransp('${t.id}')">🗑</button>
+      </div>`).join("");
+  return `<h2 class="tit">Transportadoras</h2>${form}${lista}`;
+}
+function salvarTransp(){
+  const o={nome:val("trNome"),telefone:val("trTel"),cidade:val("trCid")};
+  if(!o.nome){toast("Informe o nome");return;}
+  if(navigator.onLine){
+    if(transpEdit)db.ref("transportadoras/"+transpEdit.id).update(o);else db.ref("transportadoras").push(o);
+  }else{
+    if(transpEdit){const i=transportadoras.findIndex(t=>t.id===transpEdit.id);if(i>=0)transportadoras[i]={...transportadoras[i],...o};filaPendentes.push({col:"transportadoras",op:"update",id:transpEdit.id,data:o});}
+    else{const tempId="local_"+Date.now();transportadoras.push({id:tempId,...o});filaPendentes.push({col:"transportadoras",op:"push",data:o,tempId});}
+    LS.set("transportadoras",transportadoras);LS.set("fila",filaPendentes);
+  }
+  transpEdit=null;toast(navigator.onLine?"Transportadora salva":"Salva offline ✓");render();
+}
+function editarTransp(id){transpEdit=transportadoras.find(t=>t.id===id);render();window.scrollTo(0,0);}
+function excluirTransp(id){if(confirm("Excluir transportadora?"))db.ref("transportadoras/"+id).remove();}
+
+/* ====== COBRANÇAS ====== */
+function ehAVista(cond){return !cond||/vista/i.test(cond);}
+function viewCobrancas(){
+  const aprazo=pedidos.filter(p=>!p._pendente&&!ehAVista(p.cond));
+  const receber=aprazo.filter(p=>!p.recebido);
+  const recebidos=aprazo.filter(p=>p.recebido);
+  const totalReceber=receber.reduce((s,p)=>s+(p.total||0),0);
+  const totalRecebido=recebidos.reduce((s,p)=>s+(p.total||0),0);
+  const kpis=`<div class="kpis" style="grid-template-columns:1fr 1fr">
+    <div class="kpi"><small>A receber</small><b style="color:#b45309">${brl(totalReceber)}</b></div>
+    <div class="kpi"><small>Recebido</small><b>${brl(totalRecebido)}</b></div>
+  </div>`;
+  const filtros=[["areceber","A receber"],["recebidos","Recebidos"],["todos","Todos"]];
+  const chips=`<div class="chips">${filtros.map(([v,l])=>`<button class="chip ${filtroCobr===v?'on':''}" onclick="filtroCobr='${v}';render()">${l}</button>`).join("")}</div>`;
+  const fonte=filtroCobr==="areceber"?receber:filtroCobr==="recebidos"?recebidos:aprazo;
+  const lista=fonte.length===0
+    ? `<div class="vazio"><div class="em">💰</div><div>Nada aqui.</div></div>`
+    : fonte.slice().sort((a,b)=>new Date(b.data)-new Date(a.data)).map(p=>`<div class="card" style="padding:12px">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <div style="flex:1;min-width:0"><b style="font-size:14px">${esc(p.cliente)}</b>
+            <small style="display:block;color:var(--cinza)">${dataBr(p.data)} · ${esc(p.cond||"")}${p.numero?" · Nº "+p.numero:""}</small></div>
+          <b style="color:var(--verde);font-size:15px">${brl(p.total)}</b>
+        </div>
+        <button class="btn ${p.recebido?'btn-g':'btn-v'} btn-sm" style="width:100%;margin-top:8px" onclick="marcarRecebido('${p.id}',${p.recebido?'false':'true'})">
+          ${p.recebido?'↩ Marcar como a receber':'✓ Marcar como recebido'}</button>
+      </div>`).join("");
+  return `<h2 class="tit">Cobranças</h2>${kpis}${chips}${lista}`;
+}
+function marcarRecebido(id,val){
+  const p=pedidos.find(x=>x.id===id);
+  if(p&&p._pendente){toast("Pedido ainda não sincronizado");return;}
+  if(navigator.onLine)db.ref("pedidos/"+id+"/recebido").set(val);
+  else{filaPendentes.push({col:"pedidos/"+id,op:"update",id:"pedidos/"+id,data:{recebido:val}});const pr=pedidosRemoto.find(x=>x.id===id);if(pr)pr.recebido=val;LS.set("fila",filaPendentes);reconstruirPedidos();render();}
+}
+
+/* ====== AGENDA / CRM ====== */
+const TIPOS_AG={"Visita":"🚗","Ligação":"📞","Follow-up":"🔁","Cobrança":"💰","Entrega":"📦","Outro":"📌"};
+function viewAgenda(){
+  const f=agendaEdit||{cliente:"",tipo:"Visita",data:new Date().toISOString().slice(0,10),hora:"",obs:""};
+  const cliOpts=clientes.slice().sort((a,b)=>(a.nome||"").localeCompare(b.nome||"")).map(c=>`<option ${f.cliente===c.nome?"selected":""}>${esc(c.nome)}</option>`).join("");
+  const tipoOpts=Object.keys(TIPOS_AG).map(t=>`<option ${f.tipo===t?"selected":""}>${t}</option>`).join("");
+  const form=`<div class="card">
+    <div style="font-weight:700;font-size:14px;margin-bottom:8px">${agendaEdit?"✎ Editar compromisso":"+ Novo compromisso"}</div>
+    <label class="lb">Cliente</label>
+    <select class="inp" id="agCli"><option value="">— (livre)</option>${cliOpts}</select>
+    <div class="fgrid" style="margin-top:8px">
+      <div><label class="lb">Tipo</label><select class="inp" id="agTipo">${tipoOpts}</select></div>
+      <div><label class="lb">Data</label><input class="inp" id="agData" type="date" value="${f.data}"/></div>
+    </div>
+    <div class="fgrid" style="margin-top:8px">
+      <div><label class="lb">Hora (opcional)</label><input class="inp" id="agHora" type="time" value="${esc(f.hora||'')}"/></div>
+      <div><label class="lb">&nbsp;</label><input class="inp" id="agObs" placeholder="Observação"/></div>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button class="btn btn-v" style="flex:1" onclick="salvarAgenda()">${agendaEdit?"Salvar":"Agendar"}</button>
+      ${agendaEdit?`<button class="btn btn-g" onclick="agendaEdit=null;render()">✕</button>`:""}
+    </div></div>`;
+  const filtros=[["proximos","Próximos"],["hoje","Hoje"],["feitos","Feitos"],["todos","Todos"]];
+  const chips=`<div class="chips">${filtros.map(([v,l])=>`<button class="chip ${filtroAgenda===v?'on':''}" onclick="filtroAgenda='${v}';render()">${l}</button>`).join("")}</div>`;
+  const hoje0=new Date().setHours(0,0,0,0), amanha0=hoje0+86400000;
+  const dt=a=>new Date(a.data+"T"+(a.hora||"00:00")).getTime();
+  let fonte=agenda.slice();
+  if(filtroAgenda==="proximos")fonte=fonte.filter(a=>!a.feito&&dt(a)>=hoje0);
+  else if(filtroAgenda==="hoje")fonte=fonte.filter(a=>dt(a)>=hoje0&&dt(a)<amanha0);
+  else if(filtroAgenda==="feitos")fonte=fonte.filter(a=>a.feito);
+  fonte.sort((a,b)=>dt(a)-dt(b));
+  const card=a=>{
+    const t=dt(a); const atrasado=!a.feito&&t<hoje0; const ehHoje=t>=hoje0&&t<amanha0;
+    const cor=a.feito?"#9ca3af":atrasado?"#dc2626":ehHoje?"var(--dourado)":"var(--verde)";
+    return `<div class="card" style="padding:12px;border-left:4px solid ${cor}">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div style="flex:1;min-width:0">
+          <b style="font-size:14px;${a.feito?'text-decoration:line-through;color:#9ca3af':''}">${TIPOS_AG[a.tipo]||"📌"} ${esc(a.cliente||a.tipo)}</b>
+          <small style="display:block;color:var(--cinza)">${dataBr(a.data)}${a.hora?" · "+a.hora:""}${atrasado?' · <b style="color:#dc2626">atrasado</b>':ehHoje?' · <b style="color:var(--dourado)">hoje</b>':''}</small>
+          ${a.obs?`<div style="font-size:12px;color:#555;margin-top:2px">${esc(a.obs)}</div>`:""}
+        </div>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <button class="btn ${a.feito?'btn-g':'btn-v'} btn-sm" style="flex:1" onclick="marcarAgenda('${a.id}',${a.feito?'false':'true'})">${a.feito?'↩ Reabrir':'✓ Concluir'}</button>
+        <button class="btn btn-g btn-sm" onclick="editarAgenda('${a.id}')">✎</button>
+        <button class="btn btn-r btn-sm" onclick="excluirAgenda('${a.id}')">🗑</button>
+      </div></div>`;
+  };
+  const lista=fonte.length===0?`<div class="vazio"><div class="em">📅</div><div>Nada aqui.</div></div>`:fonte.map(card).join("");
+  return `<h2 class="tit">Agenda / CRM</h2>${form}${chips}${lista}`;
+}
+function salvarAgenda(){
+  const o={cliente:val("agCli"),tipo:val("agTipo"),data:val("agData"),hora:val("agHora"),obs:val("agObs"),feito:agendaEdit?!!agendaEdit.feito:false};
+  if(!o.data){toast("Escolha a data");return;}
+  if(navigator.onLine){if(agendaEdit)db.ref("agenda/"+agendaEdit.id).update(o);else db.ref("agenda").push(o);}
+  else{if(agendaEdit){const i=agenda.findIndex(a=>a.id===agendaEdit.id);if(i>=0)agenda[i]={...agenda[i],...o};filaPendentes.push({col:"agenda",op:"update",id:agendaEdit.id,data:o});}else{const tempId="local_"+Date.now();agenda.push({id:tempId,...o});filaPendentes.push({col:"agenda",op:"push",data:o,tempId});}LS.set("agenda",agenda);LS.set("fila",filaPendentes);}
+  agendaEdit=null;toast(navigator.onLine?"Agendado":"Agendado offline ✓");render();
+}
+function marcarAgenda(id,v){if(navigator.onLine)db.ref("agenda/"+id+"/feito").set(v);else{const a=agenda.find(x=>x.id===id);if(a)a.feito=v;LS.set("agenda",agenda);filaPendentes.push({col:"agenda",op:"update",id,data:{feito:v}});LS.set("fila",filaPendentes);render();}}
+function editarAgenda(id){agendaEdit=agenda.find(a=>a.id===id);render();window.scrollTo(0,0);}
+function excluirAgenda(id){if(confirm("Excluir compromisso?"))db.ref("agenda/"+id).remove();}
+
+/* ====== FORNECEDORES ====== */
+function viewFornecedores(){
+  const f=fornEdit||{nome:"",cnpj:"",telefone:"",cidade:"",obs:""};
+  const form=`<div class="card">
+    <div style="font-weight:700;font-size:14px;margin-bottom:8px">${fornEdit?"✎ Editar fornecedor":"+ Novo fornecedor"}</div>
+    <input class="inp" id="foNome" placeholder="Nome / Razão social *" value="${esc(f.nome)}" style="margin-top:0"/>
+    <div class="fgrid" style="margin-top:8px">
+      <div><label class="lb">CNPJ</label><input class="inp" id="foCnpj" value="${esc(f.cnpj)}"/></div>
+      <div><label class="lb">Telefone</label><input class="inp" id="foTel" value="${esc(f.telefone)}"/></div>
+    </div>
+    <div class="fgrid" style="margin-top:8px">
+      <div><label class="lb">Cidade</label><input class="inp" id="foCid" value="${esc(f.cidade)}"/></div>
+      <div><label class="lb">Observação</label><input class="inp" id="foObs" value="${esc(f.obs)}"/></div>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <button class="btn btn-v" style="flex:1" onclick="salvarForn()">${fornEdit?"Salvar alterações":"Adicionar"}</button>
+      ${fornEdit?`<button class="btn btn-g" onclick="fornEdit=null;render()">✕</button>`:""}
+    </div></div>`;
+  const lista=fornecedores.length===0?`<div class="vazio"><div class="em">🏭</div><div>Nenhum fornecedor ainda.</div></div>`
+    :fornecedores.slice().sort((a,b)=>(a.nome||"").localeCompare(b.nome||"")).map(x=>`<div class="lista-cli">
+        <div class="info"><b>${esc(x.nome)}</b><small>${[x.cidade,x.telefone,x.cnpj].filter(Boolean).join(" · ")||"—"}</small></div>
+        <button class="icbtn btn-g" onclick="editarForn('${x.id}')">✎</button>
+        <button class="icbtn btn-r" onclick="excluirForn('${x.id}')">🗑</button>
+      </div>`).join("");
+  return `<h2 class="tit">Fornecedores</h2>${form}${lista}`;
+}
+function salvarForn(){
+  const o={nome:val("foNome"),cnpj:val("foCnpj"),telefone:val("foTel"),cidade:val("foCid"),obs:val("foObs")};
+  if(!o.nome){toast("Informe o nome");return;}
+  if(navigator.onLine){if(fornEdit)db.ref("fornecedores/"+fornEdit.id).update(o);else db.ref("fornecedores").push(o);}
+  else{if(fornEdit){const i=fornecedores.findIndex(x=>x.id===fornEdit.id);if(i>=0)fornecedores[i]={...fornecedores[i],...o};filaPendentes.push({col:"fornecedores",op:"update",id:fornEdit.id,data:o});}else{const tempId="local_"+Date.now();fornecedores.push({id:tempId,...o});filaPendentes.push({col:"fornecedores",op:"push",data:o,tempId});}LS.set("fornecedores",fornecedores);LS.set("fila",filaPendentes);}
+  fornEdit=null;toast(navigator.onLine?"Fornecedor salvo":"Salvo offline ✓");render();
+}
+function editarForn(id){fornEdit=fornecedores.find(x=>x.id===id);render();window.scrollTo(0,0);}
+function excluirForn(id){if(confirm("Excluir fornecedor?"))db.ref("fornecedores/"+id).remove();}
+
 function atualizarStatusRede(){
   online=navigator.onLine;
   const live=document.querySelector(".live");
@@ -412,6 +637,11 @@ function render(){
   else if(viewAtual==="produtos")c.innerHTML=viewProdutos();
   else if(viewAtual==="tabelas")c.innerHTML=viewTabelas();
   else if(viewAtual==="sync")c.innerHTML=viewSync();
+  else if(viewAtual==="relatorios")c.innerHTML=viewRelatorios();
+  else if(viewAtual==="cobrancas")c.innerHTML=viewCobrancas();
+  else if(viewAtual==="transportadoras")c.innerHTML=viewTransportadoras();
+  else if(viewAtual==="agenda")c.innerHTML=viewAgenda();
+  else if(viewAtual==="fornecedores")c.innerHTML=viewFornecedores();
 }
 
 /* ====== NOVO PEDIDO ====== */
@@ -513,7 +743,8 @@ function viewCabecalho(){
       <textarea class="inp" oninput="upd('obsEmp',this.value)">${esc(ped.obsEmp)}</textarea>
       <div class="fgrid" style="margin-top:10px">
         <div><label class="lb">Ordem de compra</label><input class="inp" value="${esc(ped.ordemCompra)}" oninput="upd('ordemCompra',this.value)"/></div>
-        <div><label class="lb">Transportadora</label><input class="inp" value="${esc(ped.transportadora)}" oninput="upd('transportadora',this.value)"/></div>
+        <div><label class="lb">Transportadora</label><input class="inp" list="listaTransp" value="${esc(ped.transportadora)}" oninput="upd('transportadora',this.value)"/>
+          <datalist id="listaTransp">${transportadoras.map(t=>`<option value="${esc(t.nome)}">`).join("")}</datalist></div>
       </div>
     </div>
   `;
