@@ -130,6 +130,15 @@
   .thumb{width:48px;height:48px;border-radius:9px;background:#f4f4f2;display:flex;align-items:center;justify-content:center;font-size:22px;overflow:hidden;flex-shrink:0}
   .thumb img{width:100%;height:100%;object-fit:contain}
   .relbusca{margin-bottom:10px}
+  .homewrap{padding:2px}
+  .homehead{display:flex;justify-content:space-between;align-items:center;padding:4px 4px 14px;font-size:16px}
+  .homehead span{font-size:13px;color:var(--cinza)}
+  .homegrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+  .homecard{background:#fff;border:1px solid var(--borda);border-radius:16px;padding:16px 6px;display:flex;flex-direction:column;align-items:center;gap:8px;box-shadow:0 1px 4px rgba(0,0,0,.04)}
+  .homecard:active{transform:scale(.96)}
+  .homeic{width:56px;height:56px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:28px}
+  .hometit{font-size:12px;font-weight:600;color:#333;text-align:center;line-height:1.2}
+  .pendbar{background:#fff7e6;border:1px solid #f0d488;color:#92600a;border-radius:10px;padding:10px;font-size:13px;font-weight:600;text-align:center;margin-bottom:12px}
 </style>
 </head>
 <body>
@@ -158,11 +167,11 @@
   <div id="barraTotal" class="hide"></div>
 
   <nav>
+    <button data-v="home" onclick="irPara('home')"><span class="ic">🏠</span>Início</button>
     <button data-v="novo" onclick="irPara('novo')"><span class="ic">＋</span>Pedido</button>
     <button data-v="central" onclick="irPara('central')"><span class="ic">📋</span>Central</button>
     <button data-v="clientes" onclick="irPara('clientes')"><span class="ic">👥</span>Clientes</button>
     <button data-v="produtos" onclick="irPara('produtos')"><span class="ic">📦</span>Produtos</button>
-    <button data-v="tabelas" onclick="irPara('tabelas')"><span class="ic">💲</span>Tabelas</button>
   </nav>
 
   <button id="instalar" class="hide" onclick="instalarApp()">⬇ Instalar app</button>
@@ -186,7 +195,8 @@ const WHATS_EMPRESA = "558141410577";
 
 /* ====== ESTADO ====== */
 let produtos=[], clientes=[], pedidos=[], catCliente=[], catProduto=[];
-let vendedor="", viewAtual="novo";
+let vendedor="", viewAtual="home";
+let online=(typeof navigator!=="undefined"?navigator.onLine:true), filaPendentes=[];
 let carrinho={}, clienteSel="";
 let subAbaPedido="cab", buscaItem=false, buscaItemTxt="", filtroItemCat="";
 let itemEditando=null, itemQtd="", itemPreco=0, tabelas=[];
@@ -295,7 +305,10 @@ function iniciar(){
       setTimeout(()=>{destaqueId=null;if(viewAtual==="central")render();},4000);
     }
   });
-  irPara(window.innerWidth>=900?"central":"novo");
+  atualizarStatusRede();
+  window.addEventListener("online",aoVoltarOnline);
+  window.addEventListener("offline",atualizarStatusRede);
+  irPara(window.innerWidth>=900?"central":"home");
 }
 function toArr(o){return o?Object.keys(o).map(k=>({id:k,...o[k]})):[];}
 function semear(){const u={};SEED.forEach(p=>{u[db.ref("produtos").push().key]=p;});db.ref("produtos").update(u);}
@@ -303,14 +316,76 @@ function semear(){const u={};SEED.forEach(p=>{u[db.ref("produtos").push().key]=p
 /* ====== NAV ====== */
 function irPara(v){viewAtual=v;clienteDetalhe=null;editCli=null;tabEdit=null;prodEdit=null;document.querySelectorAll("nav button").forEach(b=>b.classList.toggle("on",b.dataset.v===v));render();}
 
+/* ====== HOME (grade) ====== */
+function viewHome(){
+  const itens=[
+    {ic:"📋",cor:"#3B82F6",tit:"Painel / Central",v:"central"},
+    {ic:"➕",cor:"#2F6B4F",tit:"Novo Pedido",v:"novo"},
+    {ic:"👥",cor:"#F59E0B",tit:"Clientes",v:"clientes"},
+    {ic:"📦",cor:"#EA8A5B",tit:"Produtos",v:"produtos"},
+    {ic:"💲",cor:"#10B981",tit:"Tabelas",v:"tabelas"},
+    {ic:"☁️",cor:"#60A5FA",tit:"Sincronização",v:"sync"},
+    {ic:"🌐",cor:"#8B5CF6",tit:"Catálogo Online",v:"catalogo"},
+  ];
+  const cards=itens.map(i=>`<button class="homecard" onclick="${i.v==='catalogo'?`window.open('https://eikovida.pedidook.com.br/','_blank')`:`irPara('${i.v}')`}">
+    <span class="homeic" style="background:${i.cor}22;color:${i.cor}">${i.ic}</span>
+    <span class="hometit">${i.tit}</span></button>`).join("");
+  const pend=filaPendentes.length?`<div class="pendbar" onclick="irPara('sync')">⏳ ${filaPendentes.length} pedido(s) aguardando sincronizar — toque aqui</div>`:"";
+  return `<div class="homewrap">
+    <div class="homehead"><b>Olá, ${esc(vendedor)}</b><span>${online?'🟢 Online':'🔴 Offline'}</span></div>
+    ${pend}
+    <div class="homegrid">${cards}</div>
+  </div>`;
+}
+
+/* ====== SINCRONIZAÇÃO ====== */
+function viewSync(){
+  const pend=filaPendentes.length;
+  return `<h2 class="tit">Sincronização</h2>
+    <div class="card" style="text-align:center">
+      <div style="font-size:44px">${online?'☁️':'📴'}</div>
+      <div style="font-size:18px;font-weight:800;margin-top:6px">${online?'Conectado':'Sem internet'}</div>
+      <div style="font-size:13px;color:var(--cinza);margin-top:4px">
+        ${online?'Seus pedidos sincronizam automaticamente.':'Você pode tirar pedidos normalmente. Eles serão enviados quando a internet voltar.'}
+      </div>
+    </div>
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span>Pedidos aguardando envio</span>
+        <b style="font-size:20px;color:${pend?'#b45309':'var(--verde)'}">${pend}</b>
+      </div>
+      ${pend?`<button class="btn btn-v" style="width:100%;margin-top:10px" onclick="sincronizarAgora()">🔄 Sincronizar agora</button>`:'<div style="font-size:12px;color:var(--cinza);margin-top:6px">Tudo sincronizado ✓</div>'}
+    </div>`;
+}
+function atualizarStatusRede(){
+  online=navigator.onLine;
+  const live=document.querySelector(".live");
+  if(live)live.innerHTML=online?'<span class="dot"></span> Online':'<span class="dot" style="background:#ef4444"></span> Offline';
+  if(["home","sync"].includes(viewAtual))render();
+}
+function aoVoltarOnline(){atualizarStatusRede();sincronizarAgora();}
+function sincronizarAgora(){
+  if(!online){toast("Sem internet ainda");return;}
+  if(filaPendentes.length===0){atualizarStatusRede();return;}
+  // envia cada pedido pendente ao Firebase
+  const fila=[...filaPendentes];
+  fila.forEach(p=>{db.ref("pedidos").push(p);});
+  filaPendentes=[];
+  try{localStorage.setItem("eiko_fila","[]");}catch(e){}
+  toast(fila.length+" pedido(s) sincronizado(s) ✓");
+  if(["home","sync"].includes(viewAtual))render();
+}
+
 function render(){
   const c=document.getElementById("conteudo");
   document.getElementById("barraTotal").classList.add("hide");
-  if(viewAtual==="novo"){c.innerHTML=viewNovo();renderBarra();}
+  if(viewAtual==="home")c.innerHTML=viewHome();
+  else if(viewAtual==="novo"){c.innerHTML=viewNovo();renderBarra();}
   else if(viewAtual==="central")c.innerHTML=viewCentral();
   else if(viewAtual==="clientes")c.innerHTML=clienteDetalhe?viewClienteDetalhe():viewClientes();
   else if(viewAtual==="produtos")c.innerHTML=viewProdutos();
   else if(viewAtual==="tabelas")c.innerHTML=viewTabelas();
+  else if(viewAtual==="sync")c.innerHTML=viewSync();
 }
 
 /* ====== NOVO PEDIDO ====== */
@@ -553,7 +628,9 @@ function finalizar(enviar){
   const cli=clientes.find(c=>c.id===clienteSel);
   const itens=linhas.map(([id,it])=>{const p=produtos.find(x=>x.id===id);return{nome:p.nome,codigo:p.codigo||"",qtd:it.qtd,preco:it.preco};});
   const {bruto,total}=calcTotais();
+  const numero=pedidos.reduce((m,p)=>Math.max(m,p.numero||0),1000)+1;
   const pedido={
+    numero,
     clienteId:clienteSel,cliente:cli.nome,cidade:cli.cidade||"",whats:cli.whatsapp||"",categoria:cli.categoria||"",
     vendedor,itens,bruto,total,
     status:"aberto",tipo:ped.status,cond:ped.cond,forma:ped.forma,tabela:ped.tabela||"",
@@ -606,7 +683,10 @@ function viewCentral(){
         <div class="row" style="margin-top:10px">
           <button class="btn btn-g btn-sm" style="flex:1" onclick="copiarPed('${o.id}')">Copiar</button>
           <button class="btn btn-w btn-sm" style="flex:1" onclick="whatsPed('${o.id}')">WhatsApp</button>
-          <button class="btn btn-v btn-sm" onclick="toggleStatus('${o.id}')">✓</button>
+          <button class="btn btn-o btn-sm" style="flex:1" onclick="gerarPDF('${o.id}')">📄 PDF</button>
+        </div>
+        <div class="row" style="margin-top:6px">
+          <button class="btn btn-v btn-sm" style="flex:1" onclick="toggleStatus('${o.id}')">✓ ${o.status==='aberto'?'Marcar enviado':'Reabrir'}</button>
           <button class="btn btn-r btn-sm" onclick="excluirPed('${o.id}')">🗑</button>
         </div></div>`:"";
     return `<div class="ped ${nv?'novo':''}">
@@ -624,6 +704,103 @@ function toggleStatus(id){const p=pedidos.find(x=>x.id===id);db.ref("pedidos/"+i
 function excluirPed(id){if(confirm("Excluir este pedido?"))db.ref("pedidos/"+id).remove();}
 function copiarPed(id){const o=pedidos.find(x=>x.id===id);navigator.clipboard?.writeText(textoPedido(o));toast("Copiado");}
 function whatsPed(id){const o=pedidos.find(x=>x.id===id);const alvo=soDig(o.whats)?("55"+soDig(o.whats).replace(/^55/,"")):WHATS_EMPRESA;window.open(`https://wa.me/${alvo}?text=${encodeURIComponent(textoPedido(o))}`,"_blank");}
+
+function gerarPDF(id){
+  const o=pedidos.find(x=>x.id===id); if(!o)return;
+  const c=clientes.find(x=>x.id===o.clienteId)||{};
+  const num=o.numero||"—";
+  const desc=o.descPerc>0?(o.descTipo==="desco"||o.descTipo==="desconto"?"-":"+")+o.descPerc+"%":"—";
+  const totQtd=o.itens.reduce((s,i)=>s+i.qtd,0);
+  const linhas=o.itens.map(i=>{
+    const prod=produtos.find(p=>p.nome===i.nome)||{};
+    return `<tr>
+      <td>${esc(i.codigo||prod.codigo||"")}</td>
+      <td class="l">${esc(i.nome)}</td>
+      <td>${esc(prod.embalagem||"UN")}</td>
+      <td class="r">${i.qtd}</td>
+      <td class="r">${brl(i.preco)}</td>
+      <td class="r">${brl(i.qtd*i.preco)}</td>
+      <td>${esc(prod.codbarras||"")}</td>
+    </tr>`;
+  }).join("");
+  const linha=(rot,val)=>`<div class="cel"><span class="rot">${rot}</span><span class="val">${esc(val||"—")}</span></div>`;
+  const doc=`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>Pedido ${num}</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0;font-family:Arial,sans-serif}
+    body{padding:14px;color:#222;font-size:12px}
+    .hd{display:flex;align-items:center;gap:12px;border:1px solid #333;padding:10px;border-radius:4px}
+    .hd img{width:70px;height:70px;object-fit:contain}
+    .hd .mid{flex:1;text-align:center}
+    .hd .mid b{font-size:20px;color:#2F6B4F}
+    .hd .mid .frase{font-size:11px;color:#555;margin:2px 0}
+    .hd .num{text-align:right;border-left:1px solid #ccc;padding-left:12px}
+    .hd .num b{font-size:22px}
+    .sec{border:1px solid #333;border-top:none;padding:0}
+    .sech{background:#2F6B4F;color:#fff;padding:4px 8px;font-weight:bold;font-size:11px;letter-spacing:.5px}
+    .grid{display:flex;flex-wrap:wrap}
+    .cel{flex:1 1 33%;min-width:33%;padding:5px 8px;border-right:1px solid #eee;border-bottom:1px solid #eee}
+    .cel.full{flex:1 1 100%;min-width:100%}
+    .cel.half{flex:1 1 50%;min-width:50%}
+    .rot{display:block;font-size:9px;color:#888;text-transform:uppercase}
+    .val{display:block;font-size:12px;font-weight:600}
+    table{width:100%;border-collapse:collapse;margin-top:8px;font-size:11px}
+    th{background:#2F6B4F;color:#fff;padding:5px;text-align:center;font-size:10px}
+    td{border:1px solid #ddd;padding:4px 5px;text-align:center}
+    td.l{text-align:left}td.r{text-align:right}
+    .tot{margin-top:8px;display:flex;justify-content:flex-end}
+    .tot .box{border:2px solid #2F6B4F;border-radius:4px;padding:8px 16px;text-align:right}
+    .tot .box .big{font-size:18px;font-weight:bold;color:#2F6B4F}
+    .rodape{margin-top:16px;text-align:center;font-size:10px;color:#999}
+    @media print{body{padding:0}}
+  </style></head><body>
+    <div class="hd">
+      <img src="logo.png" onerror="this.style.display='none'"/>
+      <div class="mid"><b>EIKO VIDA</b><div class="frase">Produtos Naturais · Obrigado pela preferência!</div>
+        <div style="font-size:11px">Vendedor: ${esc(o.vendedor||"")}</div></div>
+      <div class="num"><div style="font-size:10px">PEDIDO</div><b>${num}</b><div style="font-size:10px">${dataBr(o.data)}</div>
+        ${o.tipo&&o.tipo!=="Pedido"?`<div style="font-size:10px;color:#b45309">${esc(o.tipo)}</div>`:""}</div>
+    </div>
+    <div class="sec"><div class="sech">CLIENTE</div><div class="grid">
+      ${linha("Nome / Razão social",c.nome||o.cliente)}
+      ${linha("CNPJ / CPF",c.cnpj)}
+      ${linha("Insc. estadual",c.ie)}
+      ${linha("Fantasia",c.fantasia)}
+      ${linha("Telefone",c.whatsapp)}
+      ${linha("E-mail",c.email)}
+      <div class="cel half"><span class="rot">Endereço</span><span class="val">${esc([c.endereco,c.numero].filter(Boolean).join(", ")||"—")}</span></div>
+      ${linha("Bairro",c.bairro)}
+      ${linha("Complemento",c.complemento)}
+      ${linha("Município",c.cidade)}
+      ${linha("UF",c.uf)}
+      ${linha("CEP",c.cep)}
+    </div></div>
+    <div class="sec"><div class="sech">OUTRAS INFORMAÇÕES</div><div class="grid">
+      ${linha("Condição de pagamento",o.cond)}
+      ${linha("Forma de pagamento",o.forma)}
+      ${linha("Tabela de preço",o.tabela||"Padrão")}
+      ${linha("Previsão de entrega",o.previsao?dataBr(o.previsao):"—")}
+      ${linha("Desc/Acréscimo",desc)}
+      ${linha("Transportadora",o.transportadora)}
+      ${linha("Ordem de compra",o.ordemCompra)}
+      ${linha("Itens",String(totQtd))}
+      ${linha("Vendedor",o.vendedor)}
+      ${o.obsCli?`<div class="cel full"><span class="rot">Observação</span><span class="val">${esc(o.obsCli)}</span></div>`:""}
+    </div></div>
+    <div class="sec"><div class="sech">DADOS DOS PRODUTOS</div>
+      <table><thead><tr><th>Código</th><th>Descrição</th><th>Un</th><th>Qtd</th><th>V.Unit</th><th>V.Total</th><th>Cód. Barras</th></tr></thead>
+      <tbody>${linhas}</tbody></table>
+    </div>
+    <div class="tot"><div class="box">
+      <div style="font-size:10px;color:#888">VALOR TOTAL DO PEDIDO</div>
+      <div class="big">${brl(o.total)}</div>
+    </div></div>
+    <div class="rodape">EikoVida Pedidos · gerado em ${new Date().toLocaleString("pt-BR")}</div>
+  </body></html>`;
+  const w=window.open("","_blank");
+  if(!w){toast("Permita pop-ups para gerar o PDF");return;}
+  w.document.write(doc); w.document.close();
+  w.onload=()=>setTimeout(()=>w.print(),400);
+}
 
 /* ====== CLIENTES ====== */
 function viewClientes(){
