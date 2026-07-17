@@ -1162,95 +1162,137 @@ function whatsPed(id){const o=pedidos.find(x=>x.id===id);const alvo=soDig(o.what
 
 function gerarPDF(id){
   const o=pedidos.find(x=>x.id===id); if(!o)return;
-  const c=clientes.find(x=>x.id===o.clienteId)||{};
+  const c=clientes.find(x=>x.id===o.clienteId)||{nome:o.cliente||"",cidade:(o.cidade||"").split("/")[0]||"",uf:(o.cidade||"").split("/")[1]||""};
   const num=o.numero||"—";
-  const desc=o.descPerc>0?(o.descTipo==="desco"||o.descTipo==="desconto"?"-":"+")+o.descPerc+"%":"—";
-  const totQtd=o.itens.reduce((s,i)=>s+i.qtd,0);
-  const linhas=o.itens.map(i=>{
+  const emp=empresa||{};
+  const nomeEmp=(emp.razao||"EIKO VIDA");
+  const subtotal=(o.itens&&o.itens.length)?o.itens.reduce((s,i)=>s+i.qtd*i.preco,0):(o.total||0);
+  const dp=parseFloat(String(o.descPerc||"0").replace(",","."))||0;
+  const ehAcre=(o.descTipo||"").toLowerCase().startsWith("acr");
+  const descValor=subtotal*dp/100;
+  const descPercTxt=dp?((ehAcre?"+":"-")+dp.toString().replace(".",",")+"%"):"";
+  const descValTxt=dp?((ehAcre?"+":"-")+brl(descValor)):"";
+  const nItens=(o.itens||[]).length;
+  const totQtd=(o.itens||[]).reduce((s,i)=>s+i.qtd,0);
+  const endLinha=[c.endereco,c.numero].filter(Boolean).join(", ");
+  const endResumo=[endLinha,c.bairro,(c.cidade?c.cidade+(c.uf?"/"+c.uf:""):"")].filter(Boolean).join(" - ");
+  const venc=o.cond?o.cond:("(0) "+dataBr(o.data));
+  const F=(rot,val,flex)=>`<div class="cp" style="flex:${flex||1}"><span class="lb">${rot}</span><span class="vl">${(val==null||val==="")?"&nbsp;":esc(String(val))}</span></div>`;
+  const L=(...cps)=>`<div class="ln">${cps.join("")}</div>`;
+  const linhas=(o.itens||[]).map(i=>{
     const prod=produtos.find(p=>p.nome===i.nome)||{};
     return `<tr>
       <td>${esc(i.codigo||prod.codigo||"")}</td>
       <td class="l">${esc(i.nome)}</td>
-      <td>${esc(prod.embalagem||"UN")}</td>
+      <td>${esc(prod.ncm||"")}</td>
+      <td>${esc(prod.embalagem||"UN/1")}</td>
       <td class="r">${i.qtd}</td>
       <td class="r">${brl(i.preco)}</td>
       <td class="r">${brl(i.qtd*i.preco)}</td>
+      <td></td>
       <td>${esc(prod.codbarras||"")}</td>
     </tr>`;
   }).join("");
-  const linha=(rot,val)=>`<div class="cel"><span class="rot">${rot}</span><span class="val">${esc(val||"—")}</span></div>`;
   const doc=`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>Pedido ${num}</title>
   <style>
-    *{box-sizing:border-box;margin:0;padding:0;font-family:Arial,sans-serif}
-    body{padding:14px;color:#222;font-size:12px}
-    .hd{display:flex;align-items:center;gap:12px;border:1px solid #333;padding:10px;border-radius:4px}
-    .hd img{width:70px;height:70px;object-fit:contain}
-    .hd .mid{flex:1;text-align:center}
-    .hd .mid b{font-size:20px;color:#2F6B4F}
-    .hd .mid .frase{font-size:11px;color:#555;margin:2px 0}
-    .hd .num{text-align:right;border-left:1px solid #ccc;padding-left:12px}
-    .hd .num b{font-size:22px}
-    .sec{border:1px solid #333;border-top:none;padding:0}
-    .sech{background:#2F6B4F;color:#fff;padding:4px 8px;font-weight:bold;font-size:11px;letter-spacing:.5px}
-    .grid{display:flex;flex-wrap:wrap}
-    .cel{flex:1 1 33%;min-width:33%;padding:5px 8px;border-right:1px solid #eee;border-bottom:1px solid #eee}
-    .cel.full{flex:1 1 100%;min-width:100%}
-    .cel.half{flex:1 1 50%;min-width:50%}
-    .rot{display:block;font-size:9px;color:#888;text-transform:uppercase}
-    .val{display:block;font-size:12px;font-weight:600}
-    table{width:100%;border-collapse:collapse;margin-top:8px;font-size:11px}
-    th{background:#2F6B4F;color:#fff;padding:5px;text-align:center;font-size:10px}
-    td{border:1px solid #ddd;padding:4px 5px;text-align:center}
+    *{box-sizing:border-box;margin:0;padding:0;font-family:Arial,Helvetica,sans-serif}
+    body{padding:10px;color:#000;font-size:11px}
+    .lb{display:block;font-size:6.5px;line-height:1.15;text-transform:uppercase;color:#000}
+    .vl{display:block;font-size:10px;line-height:1.25;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    /* CANHOTO */
+    .canhoto{display:flex;border:1px solid #000}
+    .cbtxt{flex:1;padding:3px 5px}
+    .cbrecebe{font-size:7px;line-height:1.3}
+    .cbdest{font-size:8px;font-weight:bold;margin-top:1px;line-height:1.3}
+    .cbvenc{font-size:8px;margin-top:1px}
+    .cbcampos{display:flex;margin-top:5px;border-top:1px solid #000}
+    .cbc{padding:2px 4px 10px;border-right:1px solid #000}
+    .cbc:last-child{border-right:none}
+    .cbnum{width:120px;border-left:1px solid #000;text-align:center;padding:4px;display:flex;flex-direction:column;justify-content:center}
+    .cbnum b{font-size:16px}
+    .tracejado{border-top:1px dashed #000;margin:3px 0 8px}
+    /* CABEÇALHO */
+    .cab{display:flex;border:1px solid #000;align-items:stretch}
+    .cablogo{width:90px;border-right:1px solid #000;display:flex;align-items:center;justify-content:center;padding:5px}
+    .cablogo img{width:78px;height:78px;object-fit:contain}
+    .cabmid{flex:1;text-align:center;padding:8px 6px;display:flex;flex-direction:column;justify-content:center}
+    .cabmid .nm{font-size:20px;font-weight:bold;color:#2F6B4F;letter-spacing:1px}
+    .cabmid .fr{font-size:11px;color:#333;margin:3px 0}
+    .cabmid .vd{font-size:12px;font-weight:bold;margin-top:2px}
+    .cabnum{width:150px;border-left:1px solid #000;text-align:center;padding:6px;display:flex;flex-direction:column;justify-content:center}
+    .cabnum .t{font-size:11px}
+    .cabnum b{font-size:20px}
+    .cabnum .sm{font-size:9px;margin-top:2px}
+    /* SEÇÕES */
+    .sech{font-size:8px;font-weight:bold;margin:6px 0 0;padding:1px 2px}
+    .quadro{border:1px solid #000}
+    .ln{display:flex;border-bottom:1px solid #000}
+    .ln:last-child{border-bottom:none}
+    .cp{border-right:1px solid #000;padding:1px 4px 2px;min-width:0}
+    .cp:last-child{border-right:none}
+    /* PRODUTOS */
+    table{width:100%;border-collapse:collapse;margin-top:2px}
+    th{border:1px solid #000;padding:2px 3px;font-size:7px;text-transform:uppercase;background:#f0f0f0}
+    td{border:1px solid #000;padding:2px 3px;font-size:9px;text-align:center}
     td.l{text-align:left}td.r{text-align:right}
-    .tot{margin-top:8px;display:flex;justify-content:flex-end}
-    .tot .box{border:2px solid #2F6B4F;border-radius:4px;padding:8px 16px;text-align:right}
-    .tot .box .big{font-size:18px;font-weight:bold;color:#2F6B4F}
-    .rodape{margin-top:16px;text-align:center;font-size:10px;color:#999}
-    @media print{body{padding:0}}
+    .rodape{margin-top:8px;text-align:center;font-size:8px;color:#555;border-top:1px solid #ccc;padding-top:3px}
+    @media print{body{padding:0}@page{margin:8mm}}
   </style></head><body>
-    <div class="hd">
-      <img src="logo.png" onerror="this.style.display='none'"/>
-      <div class="mid"><b>${esc(empresa.razao||"EIKO VIDA")}</b><div class="frase">${esc(empresa.frase||"Produtos Naturais · Obrigado pela preferência!")}</div>
-        <div style="font-size:11px">${empresa.cnpj?"CNPJ: "+esc(empresa.cnpj)+" · ":""}Vendedor: ${esc(o.vendedor||"")}</div>
-        ${(empresa.telefone||empresa.site)?`<div style="font-size:10px;color:#666">${[empresa.telefone,empresa.site].filter(Boolean).map(esc).join(" · ")}</div>`:""}</div>
-      <div class="num"><div style="font-size:10px">PEDIDO</div><b>${num}</b><div style="font-size:10px">${dataBr(o.data)}</div>
-        ${o.tipo&&o.tipo!=="Pedido"?`<div style="font-size:10px;color:#b45309">${esc(o.tipo)}</div>`:""}</div>
+    <!-- CANHOTO -->
+    <div class="canhoto">
+      <div class="cbtxt">
+        <div class="cbrecebe">RECEBEMOS DE ${esc(nomeEmp)} OS PRODUTOS E/OU SERVIÇOS CONSTANTES NO PEDIDO INDICADO AO LADO. &nbsp;&nbsp; EMISSÃO ${dataBr(o.data)}</div>
+        <div class="cbdest">VALOR TOTAL ${brl(o.total)} | DESTINATÁRIO: ${esc(c.nome||o.cliente||"")}${endResumo?" - "+esc(endResumo):""}</div>
+        <div class="cbvenc">VENCIMENTOS: ${esc(venc)}</div>
+        <div class="cbcampos">
+          <div class="cbc" style="flex:0 0 32%"><span class="lb">Data de recebimento</span></div>
+          <div class="cbc" style="flex:1"><span class="lb">Identificação e assinatura do recebedor</span></div>
+        </div>
+      </div>
+      <div class="cbnum"><div style="font-size:11px">Pedido</div><b>${num}</b></div>
     </div>
-    <div class="sec"><div class="sech">CLIENTE</div><div class="grid">
-      ${linha("Nome / Razão social",c.nome||o.cliente)}
-      ${linha("CNPJ / CPF",c.cnpj)}
-      ${linha("Insc. estadual",c.ie)}
-      ${linha("Fantasia",c.fantasia)}
-      ${linha("Telefone",c.whatsapp)}
-      ${linha("E-mail",c.email)}
-      <div class="cel half"><span class="rot">Endereço</span><span class="val">${esc([c.endereco,c.numero].filter(Boolean).join(", ")||"—")}</span></div>
-      ${linha("Bairro",c.bairro)}
-      ${linha("Complemento",c.complemento)}
-      ${linha("Município",c.cidade)}
-      ${linha("UF",c.uf)}
-      ${linha("CEP",c.cep)}
-    </div></div>
-    <div class="sec"><div class="sech">OUTRAS INFORMAÇÕES</div><div class="grid">
-      ${linha("Condição de pagamento",o.cond)}
-      ${linha("Forma de pagamento",o.forma)}
-      ${linha("Tabela de preço",o.tabela||"Padrão")}
-      ${linha("Previsão de entrega",o.previsao?dataBr(o.previsao):"—")}
-      ${linha("Desc/Acréscimo",desc)}
-      ${linha("Transportadora",o.transportadora)}
-      ${linha("Ordem de compra",o.ordemCompra)}
-      ${linha("Itens",String(totQtd))}
-      ${linha("Vendedor",o.vendedor)}
-      ${o.obsCli?`<div class="cel full"><span class="rot">Observação</span><span class="val">${esc(o.obsCli)}</span></div>`:""}
-    </div></div>
-    <div class="sec"><div class="sech">DADOS DOS PRODUTOS</div>
-      <table><thead><tr><th>Código</th><th>Descrição</th><th>Un</th><th>Qtd</th><th>V.Unit</th><th>V.Total</th><th>Cód. Barras</th></tr></thead>
-      <tbody>${linhas}</tbody></table>
+    <div class="tracejado"></div>
+    <!-- CABEÇALHO -->
+    <div class="cab">
+      <div class="cablogo"><img src="logo.png" onerror="this.style.display='none'"/></div>
+      <div class="cabmid">
+        <div class="nm">${esc(nomeEmp)}</div>
+        <div class="fr">${esc(emp.frase||"Obrigado pela Preferência!!! Deus é mais ...")}</div>
+        <div class="vd">${esc(o.vendedor||"")}</div>
+      </div>
+      <div class="cabnum"><div class="t">Pedido</div><b>${num}</b><div class="sm">Emitido em ${dataBr(o.data)}</div><div class="sm">Folha 1 / 1</div></div>
     </div>
-    <div class="tot"><div class="box">
-      <div style="font-size:10px;color:#888">VALOR TOTAL DO PEDIDO</div>
-      <div class="big">${brl(o.total)}</div>
-    </div></div>
-    <div class="rodape">EikoVida Pedidos · gerado em ${new Date().toLocaleString("pt-BR")}</div>
+    <!-- CLIENTE -->
+    <div class="sech">CLIENTE</div>
+    <div class="quadro">
+      ${L(F("Nome / Razão social",c.nome||o.cliente,2),F("Código",c.codPedidook||c.codigo,1),F("CNPJ / CPF",c.cnpj,1.4))}
+      ${L(F("Nome fantasia",c.fantasia,2),F("Inscrição estadual / RG",c.ie,1.6))}
+      ${L(F("Endereço",endLinha,2),F("Bairro",c.bairro,1.2),F("CEP",c.cep,1))}
+      ${L(F("Município",c.cidade,1.6),F("Telefone",c.whatsapp,1.2),F("UF",c.uf,0.5),F("Complemento",c.complemento,1.2))}
+    </div>
+    <!-- VALORES -->
+    <div class="sech">VALORES</div>
+    <div class="quadro">
+      ${L(F("Valor total dos produtos",brl(subtotal),1.3),F("Desc./Acrés. em percentual",descPercTxt,1.3),F("Desc./Acrés. em valor",descValTxt,1.3),F("Valor total do IPI","",1),F("Valor total da ST","",1),F("Valor do frete","",1),F("Valor total do pedido",brl(o.total),1.4))}
+    </div>
+    <!-- OUTRAS INFORMAÇÕES -->
+    <div class="sech">OUTRAS INFORMAÇÕES</div>
+    <div class="quadro">
+      ${L(F("Previsão de entrega",o.previsao?dataBr(o.previsao):"",1.2),F("Ordem de compra",o.ordemCompra,1.2),F("Frete por conta","",1),F("Transportadora",o.transportadora,1.6))}
+      ${L(F("Tabela de preço",o.tabela,1.6),F("Forma de pagamento",o.forma,1.6),F("Volumes","",1),F("Itens",String(nItens),0.8),F("Peso bruto kg","",1))}
+      ${L(F("Condição de pagamento",o.cond,1))}
+      ${L(F("Observação",o.obsCli||o.obsEmp,1))}
+      ${L(F("E-mail para envio da cópia do pedido",c.email,1),F("E-mail para envio do XML da NFe",c.email,1))}
+    </div>
+    <!-- DADOS DOS PRODUTOS -->
+    <div class="sech">DADOS DOS PRODUTOS</div>
+    <table>
+      <thead><tr>
+        <th>Código<br>produto</th><th>Descrição do produto</th><th>NCM</th><th>Unid.</th><th>Quant.</th><th>Valor<br>unit.</th><th>Valor total</th><th>% IPI</th><th>Código barra</th>
+      </tr></thead>
+      <tbody>${linhas||'<tr><td colspan="9" style="padding:8px;color:#777">Pedido do histórico (sem itens detalhados)</td></tr>'}</tbody>
+    </table>
+    <div class="rodape">${esc(nomeEmp)}${emp.site?" · "+esc(emp.site):""}${emp.telefone?" · "+esc(emp.telefone):""} — gerado em ${new Date().toLocaleString("pt-BR")}</div>
   </body></html>`;
   const w=window.open("","_blank");
   if(!w){toast("Permita pop-ups para gerar o PDF");return;}
