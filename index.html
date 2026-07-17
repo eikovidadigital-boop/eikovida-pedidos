@@ -314,12 +314,12 @@ function iniciar(){
   irPara(window.innerWidth>=900?"central":"home");
 }
 function conectarFirebase(){
-  db.ref("produtos").on("value",s=>{const a=toArr(s.val());if(a.length===0){semear();return;}produtos=a;LS.set("produtos",a);reRender(["produtos","novo"]);});
-  db.ref("clientes").on("value",s=>{clientes=toArr(s.val());LS.set("clientes",clientes);reRender(["clientes","novo"]);});
-  db.ref("categorias_cliente").on("value",s=>{catCliente=toArr(s.val());LS.set("catCliente",catCliente);reRender(["clientes"]);});
-  db.ref("categorias_produto").on("value",s=>{catProduto=toArr(s.val());LS.set("catProduto",catProduto);reRender(["produtos","novo"]);});
-  db.ref("tabelas").on("value",s=>{tabelas=toArr(s.val());LS.set("tabelas",tabelas);reRender(["tabelas"]);if(viewAtual==="novo"&&subAbaPedido==="cab")render();});
-  db.ref("pedidos").on("value",s=>{pedidosRemoto=toArr(s.val());LS.set("pedidos",pedidosRemoto);reconstruirPedidos();reRender(["central","clientes","home"]);});
+  db.ref("produtos").on("value",s=>{const a=toArr(s.val());if(a.length===0){if(produtos.length===0&&navigator.onLine)semear();return;}produtos=a;LS.set("produtos",a);reRender(["produtos","novo"]);});
+  db.ref("clientes").on("value",s=>{const a=toArr(s.val());if(a.length===0&&clientes.length>0)return;clientes=a;LS.set("clientes",a);reRender(["clientes","novo"]);});
+  db.ref("categorias_cliente").on("value",s=>{const a=toArr(s.val());if(a.length===0&&catCliente.length>0)return;catCliente=a;LS.set("catCliente",a);reRender(["clientes"]);});
+  db.ref("categorias_produto").on("value",s=>{const a=toArr(s.val());if(a.length===0&&catProduto.length>0)return;catProduto=a;LS.set("catProduto",a);reRender(["produtos","novo"]);});
+  db.ref("tabelas").on("value",s=>{const a=toArr(s.val());if(a.length===0&&tabelas.length>0)return;tabelas=a;LS.set("tabelas",a);reRender(["tabelas"]);if(viewAtual==="novo"&&subAbaPedido==="cab")render();});
+  db.ref("pedidos").on("value",s=>{const a=toArr(s.val());if(a.length===0&&pedidosRemoto.length>0)return;pedidosRemoto=a;LS.set("pedidos",a);reconstruirPedidos();reRender(["central","clientes","home"]);});
   db.ref("pedidos").on("child_added",s=>{
     const p=s.val();
     if(p&&p.data&&(Date.now()-new Date(p.data).getTime())<8000){
