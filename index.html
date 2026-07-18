@@ -54,7 +54,14 @@
   .cli-sel>div{flex:1;min-width:0}
   .cli-sel b{display:block;font-size:14px;line-height:1.25}
   .cli-sel small{color:#557;font-size:12px}
-  .voltar{display:inline-flex;align-items:center;gap:6px;background:none;border:none;color:var(--verde);font-size:14px;font-weight:600;cursor:pointer;padding:2px 0 8px}
+  .voltar{display:inline-flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--borda);border-radius:10px;color:var(--verde);font-size:16px;font-weight:700;cursor:pointer;padding:10px 16px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+  .voltar:active{background:#eef6ef}
+  .linkbox{margin-top:14px;text-align:center}
+  .linkbox span{color:var(--verde);font-size:14px;font-weight:600;cursor:pointer;text-decoration:underline}
+  .avisoAtv{background:#f8f8f6;border-radius:10px;padding:10px;font-size:13px;color:#555;margin-bottom:10px;text-align:center}
+  .loginmsg{margin-top:12px;font-size:14px;text-align:center;min-height:20px}
+  .loginmsg.erro{color:#dc2626;font-weight:600}
+  .loginmsg.ok{color:var(--verde);font-weight:600}
   .resumo{background:#5b6470;color:#fff;border-radius:12px;padding:12px 14px;margin-bottom:14px}
   .resumo-l{display:flex;justify-content:space-between;align-items:center;font-size:13px;padding:2px 0}
   .resumo-l b{font-size:14px}
@@ -185,8 +192,27 @@
     <div class="logo" id="loginLogo">E</div>
     <h1>EikoVida Pedidos</h1>
     <p>Atacado · óleos vegetais</p>
-    <input id="nomeVendedor" placeholder="Seu nome (vendedor)" />
-    <button onclick="entrar()">Entrar</button>
+
+    <div id="formLogin">
+      <input id="loginCodigo" inputmode="numeric" maxlength="4" placeholder="Código do vendedor (ex: 001)" />
+      <input id="loginSenha" type="password" inputmode="numeric" maxlength="4" placeholder="Senha (4 dígitos)" onkeydown="if(event.key==='Enter')entrar()" />
+      <button onclick="entrar()">Entrar</button>
+      <div class="linkbox">
+        <span onclick="mostrarAtivacao()">Primeiro acesso? Ativar meu cadastro</span>
+      </div>
+    </div>
+
+    <div id="formAtivar" class="hide">
+      <div class="avisoAtv">Peça o <b>código de ativação</b> ao administrador.</div>
+      <input id="atvCodigo" placeholder="Código de ativação" />
+      <input id="atvNome" placeholder="Seu nome completo" />
+      <input id="atvSenha" type="password" inputmode="numeric" maxlength="4" placeholder="Crie uma senha de 4 dígitos" />
+      <input id="atvSenha2" type="password" inputmode="numeric" maxlength="4" placeholder="Repita a senha" />
+      <button onclick="ativarVendedor()">Ativar cadastro</button>
+      <div class="linkbox"><span onclick="mostrarLogin()">← Voltar para o login</span></div>
+    </div>
+
+    <div id="loginMsg" class="loginmsg"></div>
   </div>
 </div>
 
@@ -235,12 +261,13 @@ let produtos=[], clientes=[], pedidos=[], catCliente=[], catProduto=[];
 let pedidosRemoto=[];
 const LS={get(k,def){try{const v=localStorage.getItem("eiko_"+k);return v?JSON.parse(v):def;}catch(e){return def;}},set(k,v){try{localStorage.setItem("eiko_"+k,JSON.stringify(v));}catch(e){}}};
 let vendedor="", viewAtual="home";
+let vendedorCodigo="", vendedorId="", ehAdmin=false;
 let online=(typeof navigator!=="undefined"?navigator.onLine:true), filaPendentes=[];
 let periodoRel="30";
 let transportadoras=[], transpEdit=null, filtroCobr="areceber";
 let agenda=[], agendaEdit=null, filtroAgenda="proximos";
 let fornecedores=[], fornEdit=null;
-let empresa={}, equipe=[], vendEdit=null;
+let empresa={}, equipe=[], vendEdit=null, transfDe=null, codigoAtivacao="EIKO2026";
 let impTipo="produtos", impPreview=null;
 let baseCarregada=null, modoImport="add", importando=false;
 let carrinho={}, clienteSel="";
@@ -249,7 +276,7 @@ let itemEditando=null, itemQtd="", itemPreco=0, tabelas=[];
 let ped={status:"Pedido",consumidorFinal:false,dataEmissao:new Date().toISOString().slice(0,10),dataFat:"",previsao:"",cond:"",forma:"",tabela:"",descTipo:"desc",descPerc:"",obsCli:"",obsEmp:"",ordemCompra:"",transportadora:""};
 let destaqueId=null, pedidoAberto=null;
 let filtroCli="", filtroProd="", filtroProdPedido="";
-let buscaCli="", buscaCentral="", buscaCliPed="";
+let buscaCli="", buscaCentral="", buscaCliPed="", escopoCli="todos";
 let editCli=null, clienteDetalhe=null, showCatCli=false, showCatProd=false;
 let prodEdit=null, filtroProdTxt="", tabEdit=null;
 
@@ -326,19 +353,87 @@ function tentarLogo(){
 }
 
 /* ====== LOGIN ====== */
-function entrar(){
-  const n=document.getElementById("nomeVendedor").value.trim();
-  if(!n){toast("Digite seu nome");return;}
-  vendedor=n;
-  try{localStorage.setItem("eiko_vendedor",n);}catch(e){}
+function lmsg(t,tipo){const e=document.getElementById("loginMsg");if(e){e.className="loginmsg "+(tipo||"");e.innerHTML=t;}}
+function mostrarAtivacao(){document.getElementById("formLogin").classList.add("hide");document.getElementById("formAtivar").classList.remove("hide");lmsg("");}
+function mostrarLogin(){document.getElementById("formAtivar").classList.add("hide");document.getElementById("formLogin").classList.remove("hide");lmsg("");}
+function padCod(c){return String(c||"").replace(/\D/g,"").padStart(3,"0");}
+
+async function entrar(){
+  const cod=padCod(val("loginCodigo"));
+  const senha=String(val("loginSenha")||"").trim();
+  if(!cod||cod==="000"){lmsg("Digite o código do vendedor","erro");return;}
+  if(senha.length!==4){lmsg("A senha tem 4 dígitos","erro");return;}
+  lmsg("Verificando…");
+  let v=null;
+  try{
+    if(navigator.onLine){
+      const s=await db.ref("vendedores").once("value");
+      const arr=toArr(s.val());
+      equipe=arr;LS.set("equipe",arr);
+      v=arr.find(x=>padCod(x.codigo)===cod);
+    }else{
+      v=(LS.get("equipe",[])||[]).find(x=>padCod(x.codigo)===cod);
+      if(!v){lmsg("Sem internet e esse código nunca entrou neste aparelho","erro");return;}
+    }
+  }catch(e){lmsg("Erro ao verificar. Tente de novo.","erro");return;}
+  if(!v){lmsg("Código não encontrado. Use 'Ativar meu cadastro'.","erro");return;}
+  if(v.ativo===false){lmsg("Este vendedor está desativado. Fale com o administrador.","erro");return;}
+  if(!v.senha){
+    // vendedor cadastrado antes do sistema de senha: define a senha neste primeiro acesso
+    if(!navigator.onLine){lmsg("Precisa de internet no primeiro acesso","erro");return;}
+    if(!confirm("Primeiro acesso de "+v.nome+".\n\nA senha digitada será cadastrada como a senha deste vendedor. Confirmar?"))return;
+    try{await db.ref("vendedores/"+v.id+"/senha").set(senha);v.senha=senha;}
+    catch(e){lmsg("Erro ao salvar a senha","erro");return;}
+  }
+  if(String(v.senha||"")!==senha){lmsg("Senha incorreta","erro");return;}
+  iniciarSessao(v);
+}
+function iniciarSessao(v){
+  vendedor=v.nome; vendedorCodigo=padCod(v.codigo); vendedorId=v.id||"";
+  ehAdmin = v.admin===true || vendedorCodigo==="001";
+  try{
+    localStorage.setItem("eiko_vendedor",v.nome);
+    localStorage.setItem("eiko_vcod",vendedorCodigo);
+    localStorage.setItem("eiko_vid",vendedorId);
+    localStorage.setItem("eiko_admin",ehAdmin?"1":"0");
+  }catch(e){}
   document.getElementById("login").classList.add("hide");
   document.getElementById("app").classList.remove("hide");
   iniciar();
 }
+async function ativarVendedor(){
+  const codAtv=String(val("atvCodigo")||"").trim();
+  const nome=String(val("atvNome")||"").trim();
+  const s1=String(val("atvSenha")||"").trim(), s2=String(val("atvSenha2")||"").trim();
+  if(!codAtv){lmsg("Digite o código de ativação","erro");return;}
+  if(nome.length<3){lmsg("Digite seu nome completo","erro");return;}
+  if(!/^\d{4}$/.test(s1)){lmsg("A senha deve ter 4 dígitos numéricos","erro");return;}
+  if(s1!==s2){lmsg("As senhas não conferem","erro");return;}
+  if(!navigator.onLine){lmsg("Precisa de internet para ativar o cadastro","erro");return;}
+  lmsg("Ativando…");
+  try{
+    const cfg=(await db.ref("config").once("value")).val()||{};
+    const oficial=String(cfg.codigoAtivacao||"EIKO2026");
+    if(codAtv.toUpperCase()!==oficial.toUpperCase()){lmsg("Código de ativação inválido","erro");return;}
+    const arr=toArr((await db.ref("vendedores").once("value")).val());
+    if(arr.some(x=>String(x.nome||"").toLowerCase()===nome.toLowerCase())){lmsg("Já existe vendedor com esse nome. Faça login.","erro");return;}
+    const maior=arr.reduce((m,x)=>Math.max(m,parseInt(padCod(x.codigo))||0),0);
+    const novoCod=padCod(String(maior+1));
+    const reg={nome:nome,codigo:novoCod,senha:s1,meta:0,ativo:true,admin:arr.length===0,criadoEm:new Date().toISOString()};
+    const ref=await db.ref("vendedores").push(reg);
+    lmsg("✅ Cadastro criado! Seu código é <b style='font-size:20px'>"+novoCod+"</b><br>Anote — você vai usar para entrar.","ok");
+    setTimeout(()=>iniciarSessao({...reg,id:ref.key}),2500);
+  }catch(e){lmsg("Erro ao ativar: "+(e&&e.message||""),"erro");}
+}
 
 /* ====== DADOS (offline-first) ====== */
 function iniciar(){
-  document.getElementById("subHeader").textContent="Vendedor: "+vendedor;
+  // restaura a aba ANTES de qualquer render (senão é sobrescrita por "home")
+  let ultima="";
+  try{ultima=localStorage.getItem("eiko_view")||"";}catch(e){}
+  const validas=["home","novo","central","clientes","produtos","tabelas","sync","relatorios","cobrancas","transportadoras","agenda","fornecedores","empresa","equipe","importacoes"];
+  viewAtual=validas.includes(ultima)?ultima:(window.innerWidth>=900?"central":"home");
+  document.getElementById("subHeader").textContent=vendedor+(vendedorCodigo?" · cód "+vendedorCodigo:"");
   // 1) carrega o que já está salvo no aparelho — funciona mesmo sem internet
   produtos=LS.get("produtos",[]);
   clientes=LS.get("clientes",[]);
@@ -361,10 +456,7 @@ function iniciar(){
   conectarFirebase();
   // 4) se já tem internet, envia o que estiver na fila
   if(navigator.onLine)setTimeout(sincronizarAgora,1500);
-  let ultima="";
-  try{ultima=localStorage.getItem("eiko_view")||"";}catch(e){}
-  const validas=["home","novo","central","clientes","produtos","tabelas","sync","relatorios","cobrancas","transportadoras","agenda","fornecedores","empresa","equipe","importacoes"];
-  irPara(validas.includes(ultima)?ultima:(window.innerWidth>=900?"central":"home"));
+  irPara(viewAtual);
 }
 function conectarFirebase(){
   db.ref("produtos").on("value",s=>{const a=toArr(s.val());if(a.length===0){if(produtos.length===0&&navigator.onLine)semear();return;}produtos=a;LS.set("produtos",a);reRender(["produtos","novo"]);});
@@ -376,6 +468,7 @@ function conectarFirebase(){
   db.ref("agenda").on("value",s=>{const a=toArr(s.val());if(a.length===0&&agenda.length>0)return;agenda=a;LS.set("agenda",a);reRender(["agenda","home"]);});
   db.ref("fornecedores").on("value",s=>{const a=toArr(s.val());if(a.length===0&&fornecedores.length>0)return;fornecedores=a;LS.set("fornecedores",a);reRender(["fornecedores"]);});
   db.ref("empresa").on("value",s=>{const v=s.val();if(!v&&Object.keys(empresa).length>0)return;empresa=v||{};LS.set("empresa",empresa);reRender(["empresa"]);});
+  db.ref("config").on("value",s=>{const v=s.val()||{};if(v.codigoAtivacao)codigoAtivacao=v.codigoAtivacao;reRender(["equipe"]);});
   db.ref("vendedores").on("value",s=>{const a=toArr(s.val());if(a.length===0&&equipe.length>0)return;equipe=a;LS.set("equipe",a);reRender(["equipe"]);});
   db.ref("pedidos").on("value",s=>{const a=toArr(s.val());if(a.length===0&&pedidosRemoto.length>0)return;pedidosRemoto=a;LS.set("pedidos",a);reconstruirPedidos();reRender(["central","clientes","home"]);});
   db.ref("pedidos").on("child_added",s=>{
@@ -429,7 +522,7 @@ function toggleMenu(){
 function navMenu(v){toggleMenu();if(v==="catalogo"){window.open("https://eikovida.pedidook.com.br/","_blank");return;}if(v==="__sair"){sair();return;}irPara(v);}
 function sair(){
   if(!confirm("Sair do app? Seus dados continuam salvos."))return;
-  try{localStorage.removeItem("eiko_vendedor");}catch(e){}
+  try{["eiko_vendedor","eiko_vcod","eiko_vid","eiko_admin"].forEach(k=>localStorage.removeItem(k));}catch(e){}
   location.reload();
 }
 function renderMenu(){
@@ -734,42 +827,120 @@ function salvarEmpresa(){
 
 /* ====== MINHA EQUIPE ====== */
 function viewEquipe(){
-  const f=vendEdit||{nome:"",meta:""};
+  const f=vendEdit||{nome:"",meta:"",codigo:"",senha:""};
   const form=`<div class="card">
     <div style="font-weight:700;font-size:14px;margin-bottom:8px">${vendEdit?"✎ Editar vendedor":"+ Novo vendedor"}</div>
     <div class="fgrid">
       <div><label class="lb">Nome *</label><input class="inp" id="veNome" value="${esc(f.nome)}"/></div>
+      <div><label class="lb">Código ${vendEdit?"":"(deixe vazio p/ automático)"}</label><input class="inp" id="veCod" inputmode="numeric" maxlength="4" value="${esc(String(f.codigo||''))}"/></div>
+    </div>
+    <div class="fgrid" style="margin-top:8px">
+      <div><label class="lb">Senha (4 dígitos)</label><input class="inp" id="veSenha" inputmode="numeric" maxlength="4" value="${esc(String(f.senha||''))}"/></div>
       <div><label class="lb">Meta mensal (R$)</label><input class="inp" id="veMeta" inputmode="decimal" value="${esc(String(f.meta||''))}"/></div>
     </div>
     <div class="row" style="margin-top:10px">
       <button class="btn btn-v" style="flex:1" onclick="salvarVend()">${vendEdit?"Salvar":"Adicionar"}</button>
       ${vendEdit?`<button class="btn btn-g" onclick="vendEdit=null;render()">✕</button>`:""}
     </div></div>`;
-  // desempenho do mês
   const mes0=new Date();mes0.setDate(1);mes0.setHours(0,0,0,0);
   const doMes=pedidos.filter(p=>p.data&&new Date(p.data).getTime()>=mes0.getTime());
-  // nomes: cadastrados + os que aparecem em pedidos + o vendedor logado
-  const nomes=[...new Set([...equipe.map(v=>v.nome),...pedidos.map(p=>p.vendedor).filter(Boolean),vendedor].filter(Boolean))];
-  const cards=nomes.sort().map(nome=>{
-    const v=equipe.find(x=>x.nome===nome);
-    const peds=doMes.filter(p=>p.vendedor===nome);
+  const cards=equipe.slice().sort((a,b)=>padCod(a.codigo).localeCompare(padCod(b.codigo))).map(v=>{
+    const peds=doMes.filter(p=>p.vendedor===v.nome);
     const total=peds.reduce((s,p)=>s+(p.total||0),0);
-    const meta=v&&v.meta?parseFloat(v.meta):0;
+    const meta=parseFloat(v.meta)||0;
     const perc=meta?Math.min(100,Math.round(total/meta*100)):0;
+    const carteira=clientes.filter(c=>padCod(c.vendedorCodigo)===padCod(v.codigo)).length;
     const barra=meta?`<div style="background:#eee;border-radius:20px;height:8px;margin-top:6px;overflow:hidden"><div style="background:${perc>=100?'var(--verde)':'var(--dourado)'};height:100%;width:${perc}%"></div></div>
-      <div style="font-size:11px;color:var(--cinza);margin-top:3px">${brl(total)} de ${brl(meta)} · ${perc}%</div>`:`<div style="font-size:11px;color:var(--cinza);margin-top:3px">Vendido no mês: <b style="color:var(--verde)">${brl(total)}</b></div>`;
-    return `<div class="card" style="padding:12px">
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <div style="flex:1;min-width:0"><b>${esc(nome)}${nome===vendedor?' <span class="badge b-cat">você</span>':''}</b>
-          <small style="display:block;color:var(--cinza)">${peds.length} pedido(s) no mês</small></div>
-        ${v?`<button class="icbtn btn-g" onclick="editarVend('${v.id}')">✎</button><button class="icbtn btn-r" onclick="excluirVend('${v.id}')">🗑</button>`:`<button class="btn btn-g btn-sm" onclick="addVendRapido('${esc(nome)}')">+ meta</button>`}
-      </div>${barra}</div>`;
+      <div style="font-size:11px;color:var(--cinza);margin-top:3px">${brl(total)} de ${brl(meta)} · ${perc}%</div>`
+      :`<div style="font-size:11px;color:var(--cinza);margin-top:3px">Vendido no mês: <b style="color:var(--verde)">${brl(total)}</b></div>`;
+    return `<div class="card" style="padding:12px;${v.ativo===false?'opacity:.6':''}">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+        <div style="flex:1;min-width:0">
+          <b>${esc(v.nome)}</b>${v.nome===vendedor?' <span class="badge b-cat">você</span>':''}${v.ativo===false?' <span class="badge" style="background:#fee2e2;color:#b91c1c">inativo</span>':''}
+          <small style="display:block;color:var(--cinza)">Código <b style="color:var(--verde)">${padCod(v.codigo)}</b> · ${peds.length} pedido(s) no mês · 👥 ${carteira} cliente(s)</small>
+        </div>
+        <button class="icbtn btn-g" onclick="editarVend('${v.id}')">✎</button>
+      </div>${barra}
+      <div class="row" style="margin-top:8px">
+        <button class="btn btn-g btn-sm" style="flex:1" onclick="abrirTransferencia('${v.id}')">🔁 Transferir carteira</button>
+        <button class="btn ${v.ativo===false?'btn-v':'btn-r'} btn-sm" onclick="toggleAtivo('${v.id}',${v.ativo===false})">${v.ativo===false?'Reativar':'Desativar'}</button>
+      </div>
+      ${transfDe===v.id?boxTransferencia(v):""}
+    </div>`;
   }).join("");
-  return `<h2 class="tit">Minha Equipe</h2>${form}${cards||'<div class="vazio">Nenhum vendedor ainda</div>'}`;
+  const semCod=[...new Set(pedidos.map(p=>p.vendedor).filter(n=>n&&!equipe.some(v=>v.nome===n)))];
+  const antigos=semCod.length?`<div class="card" style="padding:12px"><div style="font-size:12px;color:var(--cinza)">Vendedores que aparecem em pedidos antigos, sem cadastro: ${semCod.map(esc).join(", ")}</div></div>`:"";
+  const cfgAtv=ehAdmin?`<div class="card" style="border:1px solid var(--dourado);background:#fffdf5">
+    <div style="font-weight:700;font-size:14px;margin-bottom:4px">🔑 Código de ativação</div>
+    <div style="font-size:12px;color:#555;margin-bottom:8px">Passe este código para um vendedor novo criar o acesso dele no primeiro login.</div>
+    <div class="row"><input class="inp" id="cfgAtv" value="${esc(codigoAtivacao)}" style="margin-top:0"/><button class="btn btn-v" onclick="salvarCodigoAtivacao()">Salvar</button></div>
+  </div>`:"";
+  return `<h2 class="tit">Minha Equipe</h2>${cfgAtv}${form}${cards||'<div class="vazio">Nenhum vendedor cadastrado</div>'}${antigos}`;
+}
+function boxTransferencia(v){
+  const carteira=clientes.filter(c=>padCod(c.vendedorCodigo)===padCod(v.codigo)).length;
+  const outros=equipe.filter(x=>x.id!==v.id);
+  if(!outros.length)return `<div style="font-size:12px;color:#b45309;margin-top:8px">Cadastre outro vendedor para poder transferir.</div>`;
+  return `<div style="background:#f8f8f6;border-radius:10px;padding:10px;margin-top:8px">
+    <div style="font-size:13px;margin-bottom:6px">Transferir os <b>${carteira}</b> cliente(s) de <b>${esc(v.nome)}</b> para:</div>
+    <select class="inp" id="transfPara" style="margin-top:0"><option value="">Selecione o vendedor…</option>
+      ${outros.map(x=>`<option value="${x.id}">${padCod(x.codigo)} — ${esc(x.nome)}</option>`).join("")}</select>
+    <div class="row" style="margin-top:8px">
+      <button class="btn btn-v btn-sm" style="flex:1" onclick="confirmarTransferencia('${v.id}')">✓ Transferir</button>
+      <button class="btn btn-g btn-sm" onclick="transfDe=null;render()">Cancelar</button>
+    </div>
+    <div id="transfProg" style="font-size:12px;margin-top:6px"></div>
+  </div>`;
+}
+function abrirTransferencia(id){transfDe=(transfDe===id?null:id);render();}
+async function confirmarTransferencia(idDe){
+  const de=equipe.find(v=>v.id===idDe); if(!de)return;
+  const idPara=val("transfPara"); if(!idPara){toast("Escolha o vendedor de destino");return;}
+  const para=equipe.find(v=>v.id===idPara); if(!para)return;
+  if(!navigator.onLine){toast("Precisa estar online");return;}
+  const alvo=clientes.filter(c=>padCod(c.vendedorCodigo)===padCod(de.codigo));
+  if(!alvo.length){toast("Esse vendedor não tem clientes na carteira");return;}
+  if(!confirm("Transferir "+alvo.length+" cliente(s)\n\nDe: "+de.nome+" (cód "+padCod(de.codigo)+")\nPara: "+para.nome+" (cód "+padCod(para.codigo)+")\n\nOs clientes continuam na base geral da empresa. Continuar?"))return;
+  const set=t=>{const p=document.getElementById("transfProg");if(p)p.innerHTML=t;};
+  try{
+    const TAM=300;
+    for(let i=0;i<alvo.length;i+=TAM){
+      const upd={};
+      alvo.slice(i,i+TAM).forEach(c=>{upd[c.id+"/vendedorCodigo"]=padCod(para.codigo);upd[c.id+"/vendedorNome"]=para.nome;});
+      await db.ref("clientes").update(upd);
+      set("⏳ Transferindo… <b>"+Math.min(i+TAM,alvo.length)+"/"+alvo.length+"</b>");
+    }
+    set('<span style="color:var(--verde)">✅ '+alvo.length+" cliente(s) transferido(s)</span>");
+    toast("Carteira transferida ✓");
+    transfDe=null;setTimeout(()=>render(),1400);
+  }catch(e){set('<span style="color:#dc2626">Erro: '+esc(e.message||"")+"</span>");}
+}
+function toggleAtivo(id,ativar){
+  const v=equipe.find(x=>x.id===id); if(!v)return;
+  if(!ativar&&!confirm("Desativar "+v.nome+"?\n\nEle não conseguirá mais entrar no app. A carteira dele continua salva."))return;
+  db.ref("vendedores/"+id+"/ativo").set(!!ativar);
+  toast(ativar?"Vendedor reativado":"Vendedor desativado");
+}
+function salvarCodigoAtivacao(){
+  const c=String(val("cfgAtv")||"").trim();
+  if(!c){toast("Digite um código");return;}
+  db.ref("config/codigoAtivacao").set(c);
+  codigoAtivacao=c;toast("Código de ativação salvo ✓");
 }
 function salvarVend(){
   const o={nome:val("veNome"),meta:parseFloat(String(val("veMeta")).replace(/\./g,'').replace(',','.'))||0};
   if(!o.nome){toast("Informe o nome");return;}
+  const senha=String(val("veSenha")||"").trim();
+  if(senha&&!/^\d{4}$/.test(senha)){toast("A senha deve ter 4 dígitos");return;}
+  if(senha)o.senha=senha;
+  let cod=padCod(val("veCod"));
+  if(!val("veCod")){
+    const maior=equipe.reduce((m,x)=>Math.max(m,parseInt(padCod(x.codigo))||0),0);
+    cod=padCod(String(maior+1));
+  }
+  if(equipe.some(x=>padCod(x.codigo)===cod&&(!vendEdit||x.id!==vendEdit.id))){toast("Já existe vendedor com o código "+cod);return;}
+  o.codigo=cod;
+  if(!vendEdit)o.ativo=true;
   if(navigator.onLine){if(vendEdit)db.ref("vendedores/"+vendEdit.id).update(o);else db.ref("vendedores").push(o);}
   else{if(vendEdit){const i=equipe.findIndex(x=>x.id===vendEdit.id);if(i>=0)equipe[i]={...equipe[i],...o};filaPendentes.push({col:"vendedores",op:"update",id:vendEdit.id,data:o});}else{const tempId="local_"+Date.now();equipe.push({id:tempId,...o});filaPendentes.push({col:"vendedores",op:"push",data:o,tempId});}LS.set("equipe",equipe);LS.set("fila",filaPendentes);}
   vendEdit=null;toast(navigator.onLine?"Vendedor salvo":"Salvo offline ✓");render();
@@ -1785,18 +1956,22 @@ function viewClientes(){
   const chips=cats.length?`<div class="chips"><button class="chip ${filtroCli===""?"on":""}" onclick="filtroCli='';render()">Todos</button>`
     +cats.map(ct=>`<button class="chip ${filtroCli===ct?"on":""}" onclick="filtroCli='${esc(ct)}';render()">${esc(ct)}</button>`).join("")+`</div>`:"";
   const busca=`<input class="inp" id="buscaCliInp" placeholder="🔍 Buscar por nome, cidade ou CNPJ" value="${esc(buscaCli)}" oninput="filtrarClientes(this.value)" style="margin:4px 0 10px">`;
-  return `<h2 class="tit">Clientes (${clientes.length})</h2>${catManage}${form}${chips}${busca}<div id="listaClientes">${htmlListaClientes()}</div>`;
+  const meus=clientes.filter(c=>String(c.vendedorCodigo||"")===String(vendedorCodigo)).length;
+  const chipsCart=`<div class="chips"><button class="chip ${escopoCli==='todos'?'on':''}" onclick="escopoCli='todos';render()">Todos (${clientes.length})</button>
+    <button class="chip ${escopoCli==='meus'?'on':''}" onclick="escopoCli='meus';render()">Minha carteira (${meus})</button></div>`;
+  return `<h2 class="tit">Clientes (${clientes.length})</h2>${catManage}${form}${chipsCart}${chips}${busca}<div id="listaClientes">${htmlListaClientes()}</div>`;
 }
 function htmlListaClientes(){
   const q=(buscaCli||"").toLowerCase().trim();
   let lista=clientes.filter(c=>!filtroCli||c.categoria===filtroCli);
+  if(escopoCli==="meus")lista=lista.filter(c=>String(c.vendedorCodigo||"")===String(vendedorCodigo));
   if(q)lista=lista.filter(c=>((c.nome||"")+" "+(c.fantasia||"")+" "+(c.cidade||"")+" "+(c.cnpj||"")).toLowerCase().includes(q));
   const total=lista.length, LIM=60;
   lista=lista.slice().sort((a,b)=>(a.nome||"").localeCompare(b.nome||""));
   const mostra=lista.slice(0,LIM);
   if(total===0)return `<div class="vazio"><div class="em">👥</div><div>Nenhum cliente encontrado.</div></div>`;
   const cards=mostra.map(c=>`<div class="lista-cli" onclick="verCliente('${c.id}')"><div class="info"><b>${esc(c.nome)}</b>
-        <small>${[esc(c.cidade),esc(c.whatsapp)].filter(Boolean).join(" · ")}</small></div>
+        <small>${[esc(c.cidade),esc(c.whatsapp)].filter(Boolean).join(" · ")}${c.vendedorCodigo?` · <span style="color:var(--verde)">cód ${esc(c.vendedorCodigo)}</span>`:""}</small></div>
         ${c.categoria?`<span class="badge b-cat">${esc(c.categoria)}</span>`:""}
         <button class="icbtn btn-g" onclick="event.stopPropagation();editarCli('${c.id}')">✎</button></div>`).join("");
   const aviso=total>LIM?`<div style="text-align:center;color:var(--cinza);font-size:12px;padding:12px">Mostrando ${LIM} de ${total}. Use a busca para achar outros.</div>`:"";
@@ -1812,6 +1987,7 @@ function salvarCli(){
     email:val("cEmail"),cep:val("cCep"),numero:val("cNum"),endereco:val("cEnd"),bairro:val("cBairro"),
     complemento:val("cCompl"),cidade:val("cCidade"),uf:val("cUf"),obs:val("cObs")};
   if(!o.nome){toast("Informe o nome");return;}
+  if(!editCli){o.vendedorCodigo=vendedorCodigo||"";o.vendedorNome=vendedor||"";o.criadoEm=new Date().toISOString();}
   if(navigator.onLine){
     if(editCli){db.ref("clientes/"+editCli.id).update(o);}else db.ref("clientes").push(o);
   }else{
@@ -2031,10 +2207,15 @@ function excluirTabela(id){if(confirm("Excluir tabela?"))db.ref("tabelas/"+id).r
 
 /* ====== SESSÃO: mantém o vendedor logado ao recarregar/atualizar ====== */
 (function(){
-  let salvo="";
-  try{salvo=localStorage.getItem("eiko_vendedor")||"";}catch(e){}
-  if(salvo){
-    vendedor=salvo;
+  let n="",c="",id="",ad="";
+  try{
+    n=localStorage.getItem("eiko_vendedor")||"";
+    c=localStorage.getItem("eiko_vcod")||"";
+    id=localStorage.getItem("eiko_vid")||"";
+    ad=localStorage.getItem("eiko_admin")||"0";
+  }catch(e){}
+  if(n&&c){
+    vendedor=n;vendedorCodigo=c;vendedorId=id;ehAdmin=(ad==="1");
     document.getElementById("login").classList.add("hide");
     document.getElementById("app").classList.remove("hide");
     iniciar();
