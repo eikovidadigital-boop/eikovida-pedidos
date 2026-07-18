@@ -301,7 +301,7 @@ let ped={status:"Pedido",consumidorFinal:false,dataEmissao:new Date().toISOStrin
 let destaqueId=null, pedidoAberto=null;
 let filtroCli="", filtroProd="", filtroProdPedido="";
 let buscaCli="", buscaCentral="", buscaCliPed="", escopoCli="todos";
-let editandoPedido=null;
+let editandoPedido=null, mostrarLink=false;
 let editCli=null, clienteDetalhe=null, showCatCli=false, showCatProd=false;
 let prodEdit=null, filtroProdTxt="", tabEdit=null;
 
@@ -452,7 +452,7 @@ async function ativarApp(){
     await db.ref("vendedores/"+v.id).update({senha:s1,ativado:true,ativadoEm:new Date().toISOString()});
     lmsg("✅ App ativado! Seu código de acesso é <b style='font-size:22px'>"+padCod(v.codigo)+"</b><br>Guarde — você usa ele e sua senha para entrar.","ok");
     setTimeout(()=>iniciarSessao({...v,senha:s1,ativado:true}),2600);
-  }catch(e){lmsg("Erro ao ativar: "+(e&&e.message||""),"erro");}
+  }catch(e){lmsg("Não foi possível ativar. Confira o código e tente de novo.","erro");}
 }
 
 /* ====== DADOS (offline-first) ====== */
@@ -884,12 +884,15 @@ function viewConvites(){
   return `<h2 class="tit">Instalar para Vendedor</h2>
     <div class="card" style="border:1px solid var(--verde);background:#f2f9f2">
       <div style="font-weight:700;font-size:14px;margin-bottom:4px">🔗 Link de instalação</div>
-      <div style="font-size:12px;color:#555;margin-bottom:8px">O vendedor abre este link no celular, instala o app e ativa com o código dele.</div>
-      <div style="background:#fff;border:1px solid var(--borda);border-radius:8px;padding:10px;font-size:12px;word-break:break-all">${esc(link)}</div>
-      <div class="row" style="margin-top:8px">
-        <button class="btn btn-v btn-sm" style="flex:1" onclick="copiar('${esc(link)}','Link copiado ✓')">Copiar link</button>
-        <button class="btn btn-w btn-sm" style="flex:1" onclick="window.open('https://wa.me/?text='+encodeURIComponent('Instale o app de vendas da EIKO VIDA: ${esc(link)}'),'_blank')">Enviar link</button>
+      <div style="font-size:12px;color:#555;margin-bottom:8px">O vendedor abre o link no celular, instala o app e ativa com o código dele. Envie sempre pelo botão abaixo — o endereço não aparece na sua tela.</div>
+      <div style="background:#fff;border:1px solid var(--borda);border-radius:8px;padding:12px;font-size:13px;text-align:center;color:#555">
+        ${mostrarLink?`<span style="font-size:12px;word-break:break-all">${esc(link)}</span>`:'🔒 Endereço protegido'}
       </div>
+      <div class="row" style="margin-top:8px">
+        <button class="btn btn-v btn-sm" style="flex:1" onclick="copiar(linkApp(),'Link copiado ✓')">Copiar link</button>
+        <button class="btn btn-w btn-sm" style="flex:1" onclick="window.open('https://wa.me/?text='+encodeURIComponent(convitePadrao()),'_blank')">Enviar link</button>
+      </div>
+      <div style="text-align:center;margin-top:6px"><span style="font-size:11px;color:#999;cursor:pointer;text-decoration:underline" onclick="mostrarLink=!mostrarLink;render()">${mostrarLink?"ocultar endereço":"ver endereço"}</span></div>
     </div>
     <div style="font-size:13px;font-weight:700;margin:14px 0 8px">Vendedores</div>${cards}`;
 }
@@ -992,7 +995,7 @@ async function confirmarTransferencia(idDe){
     set('<span style="color:var(--verde)">✅ '+alvo.length+" cliente(s) transferido(s)</span>");
     toast("Carteira transferida ✓");
     transfDe=null;setTimeout(()=>render(),1400);
-  }catch(e){set('<span style="color:#dc2626">Erro: '+esc(e.message||"")+"</span>");}
+  }catch(e){set('<span style="color:#dc2626">Não foi possível concluir</span>');}
 }
 function toggleAtivo(id,ativar){
   const v=equipe.find(x=>x.id===id); if(!v)return;
@@ -1055,9 +1058,16 @@ function copiar(txt,msg){
 }
 function convitePara(id){
   const v=equipe.find(x=>x.id===id);if(!v)return"";
-  return "Olá "+v.nome+"! Instale o app de vendas da EIKO VIDA:\n\n"+linkApp()
-    +"\n\nAbra o link no celular, toque em 'Instalar app' e use o código de ativação:\n\nCÓDIGO: "+(v.codAtivacao||"—")
-    +"\n\nNa ativação você cria sua senha de 4 dígitos.";
+  return "Olá "+v.nome+"! Segue o acesso ao *"+(empresa.razao||"EIKO VIDA")+" Pedidos*, nosso app de vendas.\n\n"
+    +"1) Abra no celular: "+linkApp()+"\n"
+    +"2) Toque em *Instalar app*\n"
+    +"3) Toque em *Ativar meu app* e digite:\n\n"
+    +"CÓDIGO DE ATIVAÇÃO: "+(v.codAtivacao||"—")+"\n\n"
+    +"Depois crie sua senha de 4 dígitos. Guarde bem — o acesso é pessoal.";
+}
+function convitePadrao(){
+  return "Segue o acesso ao *"+(empresa.razao||"EIKO VIDA")+" Pedidos*, nosso app de vendas:\n\n"+linkApp()
+    +"\n\nAbra no celular e toque em *Instalar app*. Peça seu código de ativação.";
 }
 function enviarConvite(id){
   const t=convitePara(id);if(!t)return;
@@ -1122,15 +1132,15 @@ function viewImportacoes(){
       <div style="background:#fff;border-radius:8px;padding:8px 10px;margin-bottom:8px;font-size:13px">
         📊 No app agora: <b style="color:var(--verde)">${clientes.length}</b> clientes · <b style="color:var(--verde)">${pedidos.length}</b> pedidos
       </div>
-      <div style="font-size:12px;color:#555;margin-bottom:8px">Carregue uma base de clientes (arquivo <b>.json</b>) — pode ser a base completa ou uma base específica, como clientes de uma cidade ou segmento para um vendedor.</div>
+      <div style="font-size:12px;color:#555;margin-bottom:8px">Carregue uma base de clientes — pode ser a base completa ou uma base específica, como clientes de uma cidade ou segmento para um vendedor.</div>
       <input type="file" id="arqBase" accept=".json,application/json" style="display:none" onchange="lerArquivoBase(this)">
-      <button class="btn btn-o" style="width:100%" onclick="document.getElementById('arqBase').click()">📂 Escolher arquivo do aparelho</button>
+      <button class="btn btn-o" style="width:100%" onclick="document.getElementById('arqBase').click()">📂 Escolher base do aparelho</button>
       <div style="text-align:center;font-size:11px;color:#999;margin:6px 0">ou</div>
       <div class="row">
-        <input class="inp" id="nomeBaseSite" placeholder="nome-do-arquivo.json" style="margin-top:0">
+        <input class="inp" id="nomeBaseSite" placeholder="nome da base" style="margin-top:0">
         <button class="btn btn-g" onclick="carregarBaseSite()">Buscar</button>
       </div>
-      <div style="font-size:11px;color:#999;margin-top:4px">Ex.: clientes-seed.json · base-joao.json (arquivos publicados no site)</div>
+      <div style="font-size:11px;color:#999;margin-top:4px">Ex.: base-joao · clientes-recife (bases publicadas na central)</div>
       ${infoBase}
       <div id="impProg" style="font-size:12px;color:#333;margin-top:8px"></div>
     </div>
@@ -1207,7 +1217,7 @@ async function limparDuplicados(){
     set("✅ Pronto! "+remover.length+" duplicado(s) removido(s). Restaram <b>"+vistos.size+"</b> clientes.");
     toast("Duplicados removidos ✓");
     setTimeout(()=>render(),1500);
-  }catch(e){set('<span style="color:#dc2626">❌ Erro: '+esc(e.message||"")+"</span>");if(btn)btn.disabled=false;}
+  }catch(e){set('<span style=\'color:#dc2626\'>❌ Não foi possível concluir. Tente novamente.</span>');if(btn)btn.disabled=false;}
 }
 function normalizarBase(dados,nome){
   let cli=[],ped=[];
@@ -1229,7 +1239,7 @@ function lerArquivoBase(inp){
       const base=normalizarBase(JSON.parse(r.result),f.name);
       if(!base.clientes.length&&!base.pedidos.length){toast("Arquivo sem clientes reconhecidos");return;}
       baseCarregada=base;modoImport="add";render();
-    }catch(e){toast("Arquivo inválido (precisa ser .json)");}
+    }catch(e){toast("Arquivo de base inválido");}
   };
   r.onerror=()=>toast("Não consegui ler o arquivo");
   r.readAsText(f);
@@ -1241,11 +1251,11 @@ async function carregarBaseSite(){
   set("⏳ Buscando "+esc(nome)+"…");
   try{
     const r=await fetch(nome+"?v="+Date.now());
-    if(!r.ok)throw new Error("arquivo não encontrado no site");
+    if(!r.ok)throw new Error("base não encontrada na central de dados");
     const base=normalizarBase(await r.json(),nome);
     if(!base.clientes.length&&!base.pedidos.length)throw new Error("arquivo sem clientes reconhecidos");
     baseCarregada=base;modoImport="add";set("");render();
-  }catch(e){set('<span style="color:#dc2626">❌ '+esc(e.message)+"</span>");}
+  }catch(e){set('<span style="color:#dc2626">❌ '+"Tente novamente"+"</span>");}
 }
 async function confirmarBase(){
   if(!baseCarregada)return;
@@ -1267,7 +1277,7 @@ async function confirmarBase(){
     set("✅ Pronto! <b>"+b.clientes.length+"</b> cliente(s)"+(b.pedidos.length?" e <b>"+b.pedidos.length+"</b> pedido(s)":"")+" importado(s).");
     baseCarregada=null;importando=false;toast("Base importada ✓");
     setTimeout(()=>render(),1200);
-  }catch(e){importando=false;set('<span style="color:#dc2626">❌ Erro: '+esc(e.message||"")+"</span>");if(btn)btn.disabled=false;}
+  }catch(e){importando=false;set('<span style=\'color:#dc2626\'>❌ Não foi possível concluir. Tente novamente.</span>');if(btn)btn.disabled=false;}
 }
 async function gravarLotes(col,arr,set,label){
   const TAM=300;
@@ -1686,7 +1696,7 @@ function htmlListaCentral(){
     const corSit=/pago|conclu/i.test(sit)?"var(--verde)":"#b45309";
     const det=o.id===pedidoAberto?`<div class="det">
         ${(o.itens||[]).map(i=>`<div class="li"><span>${i.qtd}x ${esc(i.nome)}</span><span>${brl(i.qtd*i.preco)}</span></div>`).join("")}
-        ${o.historico?'<div class="pag">📦 Pedido do histórico (PedidoOK)</div>':""}
+        ${o.historico?'<div class="pag">📦 Pedido do histórico</div>':""}
         ${o.obs?`<div class="pag">📝 ${esc(o.obs)}</div>`:""}
         <div class="row" style="margin-top:10px">
           <button class="btn btn-g btn-sm" style="flex:1" onclick="copiarPed('${o.id}')">Copiar</button>
@@ -2106,10 +2116,10 @@ function construirPDFjs(id,logo){
 }
 async function enviarPDFwhats(id){
   const o=pedidos.find(x=>x.id===id); if(!o)return;
-  if(!window.jspdf||!window.jspdf.jsPDF){toast("Conecte à internet para gerar o PDF");return;}
+  if(!window.jspdf||!window.jspdf.jsPDF){toast("Sem conexão — conecte para gerar o PDF");return;}
   toast("Gerando PDF…");
   let logo=null; try{logo=await carregarLogo();}catch(_){ }
-  let doc; try{doc=construirPDFjs(id,logo);}catch(e){toast("Erro ao gerar PDF: "+(e&&e.message||""));return;}
+  let doc; try{doc=construirPDFjs(id,logo);}catch(e){toast("Erro ao gerar PDF");return;}
   if(!doc){toast("Erro ao gerar PDF");return;}
   const num=o.numero||id;
   const blob=doc.output("blob");
