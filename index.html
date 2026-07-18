@@ -44,6 +44,17 @@
 
   main{max-width:900px;margin:0 auto;padding:14px 14px 40px}
   .hbtn{background:none;border:none;color:#fff;font-size:24px;cursor:pointer;padding:0 6px 0 0;line-height:1}
+  .cli-box{border:1px solid var(--borda);border-radius:10px;margin-top:6px;max-height:290px;overflow-y:auto;background:#fff}
+  .cli-op{padding:10px 12px;border-bottom:1px solid #f2f2f0;cursor:pointer}
+  .cli-op:last-child{border-bottom:none}
+  .cli-op:active{background:#eef6ef}
+  .cli-op b{display:block;font-size:14px;line-height:1.25}
+  .cli-op small{color:var(--cinza);font-size:12px}
+  .cli-sel{display:flex;align-items:center;gap:10px;background:#eef6ef;border:1px solid var(--verde);border-radius:10px;padding:10px 12px;margin-top:4px}
+  .cli-sel>div{flex:1;min-width:0}
+  .cli-sel b{display:block;font-size:14px;line-height:1.25}
+  .cli-sel small{color:#557;font-size:12px}
+  .voltar{display:inline-flex;align-items:center;gap:6px;background:none;border:none;color:var(--verde);font-size:14px;font-weight:600;cursor:pointer;padding:2px 0 8px}
   .resumo{background:#5b6470;color:#fff;border-radius:12px;padding:12px 14px;margin-bottom:14px}
   .resumo-l{display:flex;justify-content:space-between;align-items:center;font-size:13px;padding:2px 0}
   .resumo-l b{font-size:14px}
@@ -238,7 +249,7 @@ let itemEditando=null, itemQtd="", itemPreco=0, tabelas=[];
 let ped={status:"Pedido",consumidorFinal:false,dataEmissao:new Date().toISOString().slice(0,10),dataFat:"",previsao:"",cond:"",forma:"",tabela:"",descTipo:"desc",descPerc:"",obsCli:"",obsEmp:"",ordemCompra:"",transportadora:""};
 let destaqueId=null, pedidoAberto=null;
 let filtroCli="", filtroProd="", filtroProdPedido="";
-let buscaCli="", buscaCentral="";
+let buscaCli="", buscaCentral="", buscaCliPed="";
 let editCli=null, clienteDetalhe=null, showCatCli=false, showCatProd=false;
 let prodEdit=null, filtroProdTxt="", tabEdit=null;
 
@@ -350,7 +361,10 @@ function iniciar(){
   conectarFirebase();
   // 4) se já tem internet, envia o que estiver na fila
   if(navigator.onLine)setTimeout(sincronizarAgora,1500);
-  irPara(window.innerWidth>=900?"central":"home");
+  let ultima="";
+  try{ultima=localStorage.getItem("eiko_view")||"";}catch(e){}
+  const validas=["home","novo","central","clientes","produtos","tabelas","sync","relatorios","cobrancas","transportadoras","agenda","fornecedores","empresa","equipe","importacoes"];
+  irPara(validas.includes(ultima)?ultima:(window.innerWidth>=900?"central":"home"));
 }
 function conectarFirebase(){
   db.ref("produtos").on("value",s=>{const a=toArr(s.val());if(a.length===0){if(produtos.length===0&&navigator.onLine)semear();return;}produtos=a;LS.set("produtos",a);reRender(["produtos","novo"]);});
@@ -1014,6 +1028,11 @@ function render(){
   else if(viewAtual==="empresa")c.innerHTML=viewEmpresa();
   else if(viewAtual==="equipe")c.innerHTML=viewEquipe();
   else if(viewAtual==="importacoes")c.innerHTML=viewImportacoes();
+  // seta de voltar ao início em todas as abas (exceto a própria home)
+  if(viewAtual!=="home"&&c.innerHTML){
+    c.innerHTML=`<button class="voltar" onclick="irPara('home')">← Início</button>`+c.innerHTML;
+  }
+  try{localStorage.setItem("eiko_view",viewAtual);}catch(e){}
 }
 
 /* ====== NOVO PEDIDO ====== */
@@ -1036,8 +1055,21 @@ function selecionarCliente(id){
   clienteSel=id;
   const cli=clientes.find(c=>c.id===id);
   if(cli&&cli.tabela)ped.tabela=cli.tabela;
+  buscaCliPed="";
   render();
 }
+function trocarCliente(){clienteSel="";buscaCliPed="";render();}
+function htmlListaCliPedido(){
+  const q=(buscaCliPed||"").toLowerCase().trim();
+  if(!q)return `<div style="font-size:12px;color:var(--cinza);padding:8px 2px">${clientes.length} cliente(s) cadastrado(s) — digite para buscar.</div>`;
+  const achados=clientes.filter(c=>((c.nome||"")+" "+(c.fantasia||"")+" "+(c.cidade||"")+" "+(c.cnpj||"")).toLowerCase().includes(q))
+    .sort((a,b)=>(a.nome||"").localeCompare(b.nome||""));
+  if(!achados.length)return `<div style="font-size:13px;color:var(--cinza);padding:10px 2px">Nenhum cliente encontrado.</div>`;
+  const lista=achados.slice(0,25).map(c=>`<div class="cli-op" onclick="selecionarCliente('${c.id}')">
+      <b>${esc(c.nome)}</b><small>${[esc(c.cidade),esc(c.cnpj)].filter(Boolean).join(" · ")}</small></div>`).join("");
+  return `<div class="cli-box">${lista}${achados.length>25?`<div style="font-size:11px;color:var(--cinza);padding:8px">…e mais ${achados.length-25}. Refine a busca.</div>`:""}</div>`;
+}
+function filtrarCliPedido(q){buscaCliPed=q;const el=document.getElementById("listaCliPed");if(el)el.innerHTML=htmlListaCliPedido();}
 
 function viewNovo(){
   const {bruto,total}=calcTotais();
@@ -1056,7 +1088,7 @@ function viewNovo(){
 }
 
 function viewCabecalho(){
-  const opts=clientes.map(c=>`<option value="${c.id}" ${c.id===clienteSel?"selected":""}>${esc(c.nome)}${c.cidade?" — "+esc(c.cidade):""}</option>`).join("");
+  const opts="";
   const cli=clientes.find(c=>c.id===clienteSel);
   const stOpts=STATUS_PED.map(s=>`<option ${ped.status===s?"selected":""}>${s}</option>`).join("");
   const condOpts=`<option value="">Selecione…</option>`+CONDICOES.map(c=>`<option ${ped.cond===c?"selected":""}>${esc(c)}</option>`).join("");
@@ -1068,7 +1100,11 @@ function viewCabecalho(){
         <div><label class="lb">Empresa</label><input class="inp" value="EIKO VIDA" readonly style="background:#f4f4f2"/></div>
       </div>
       <label class="lb" style="margin-top:10px;display:block">Cliente *</label>
-      <select class="inp" onchange="selecionarCliente(this.value)"><option value="">Selecione…</option>${opts}</select>
+      ${cli
+        ? `<div class="cli-sel"><div><b>${esc(cli.nome)}</b><small>${[esc(cli.cidade),esc(cli.whatsapp)].filter(Boolean).join(" · ")}</small></div>
+            <button class="btn btn-g btn-sm" onclick="trocarCliente()">Trocar</button></div>`
+        : `<input class="inp" id="buscaCliPed" placeholder="🔍 Digite o nome, cidade ou CNPJ do cliente" value="${esc(buscaCliPed)}" oninput="filtrarCliPedido(this.value)" autocomplete="off"/>
+           <div id="listaCliPed">${htmlListaCliPedido()}</div>`}
       ${catBadge}
       ${clientes.length===0?`<div style="margin-top:8px"><button class="btn btn-g btn-sm" onclick="irPara('clientes')">+ Cadastrar cliente</button></div>`:""}
       <label style="display:flex;align-items:center;gap:8px;margin-top:12px;font-size:14px">
