@@ -231,6 +231,7 @@ let agenda=[], agendaEdit=null, filtroAgenda="proximos";
 let fornecedores=[], fornEdit=null;
 let empresa={}, equipe=[], vendEdit=null;
 let impTipo="produtos", impPreview=null;
+let baseCarregada=null, modoImport="add";
 let carrinho={}, clienteSel="";
 let subAbaPedido="cab", buscaItem=false, buscaItemTxt="", filtroItemCat="";
 let itemEditando=null, itemQtd="", itemPreco=0, tabelas=[];
@@ -791,14 +792,34 @@ function viewImportacoes(){
         ${impPreview.length>20?`<div style="font-size:11px;color:var(--cinza);margin-top:6px">…e mais ${impPreview.length-20}</div>`:""}</div>`;
     }
   }
+  const infoBase=baseCarregada
+    ? `<div style="background:#fff;border:1px solid var(--verde);border-radius:8px;padding:10px;margin-top:8px">
+        <div style="font-weight:700;font-size:13px;margin-bottom:4px">📄 ${esc(baseCarregada.nome)}</div>
+        <div style="font-size:12px;color:#555">Contém <b>${baseCarregada.clientes.length}</b> cliente(s)${baseCarregada.pedidos.length?` e <b>${baseCarregada.pedidos.length}</b> pedido(s)`:""}</div>
+        ${baseCarregada.clientes.length?`<div style="font-size:11px;color:#888;margin-top:4px">Ex.: ${baseCarregada.clientes.slice(0,3).map(c=>esc(c.nome||"")).join(" · ")}${baseCarregada.clientes.length>3?"…":""}</div>`:""}
+        <div style="margin-top:8px;font-size:12px">
+          <label style="display:flex;align-items:center;gap:6px;margin-bottom:4px"><input type="radio" name="modoBase" value="add" checked onchange="modoImport='add'"> <span><b>Adicionar</b> ao que já existe</span></label>
+          <label style="display:flex;align-items:center;gap:6px"><input type="radio" name="modoBase" value="sub" onchange="modoImport='sub'"> <span><b>Substituir</b> os clientes atuais</span></label>
+        </div>
+        <button class="btn btn-v" style="width:100%;margin-top:10px" id="btnCarga" onclick="confirmarBase()">✓ Importar esta base</button>
+      </div>`
+    : "";
   return `<h2 class="tit">Importações</h2>
     <div class="card" style="border:2px solid var(--verde);background:#f2f9f2">
-      <div style="font-weight:700;font-size:14px;margin-bottom:4px">📦 Carga inicial do PedidoOK</div>
+      <div style="font-weight:700;font-size:14px;margin-bottom:4px">📦 Importar base de dados</div>
       <div style="background:#fff;border-radius:8px;padding:8px 10px;margin-bottom:8px;font-size:13px">
         📊 No app agora: <b style="color:var(--verde)">${clientes.length}</b> clientes · <b style="color:var(--verde)">${pedidos.length}</b> pedidos
       </div>
-      <div style="font-size:12px;color:#555;margin-bottom:8px">Importa sua base completa (1.402 clientes + 1.690 pedidos). Precisa ter subido os arquivos <b>clientes-seed.json</b> e <b>pedidos-seed.json</b> no GitHub. Use só uma vez.</div>
-      <button class="btn btn-v" id="btnCarga" style="width:100%" onclick="importarCargaInicial()">📥 Importar minha base do PedidoOK</button>
+      <div style="font-size:12px;color:#555;margin-bottom:8px">Carregue uma base de clientes (arquivo <b>.json</b>) — pode ser a base completa ou uma base específica, como clientes de uma cidade ou segmento para um vendedor.</div>
+      <input type="file" id="arqBase" accept=".json,application/json" style="display:none" onchange="lerArquivoBase(this)">
+      <button class="btn btn-o" style="width:100%" onclick="document.getElementById('arqBase').click()">📂 Escolher arquivo do aparelho</button>
+      <div style="text-align:center;font-size:11px;color:#999;margin:6px 0">ou</div>
+      <div class="row">
+        <input class="inp" id="nomeBaseSite" placeholder="nome-do-arquivo.json" style="margin-top:0">
+        <button class="btn btn-g" onclick="carregarBaseSite()">Buscar</button>
+      </div>
+      <div style="font-size:11px;color:#999;margin-top:4px">Ex.: clientes-seed.json · base-joao.json (arquivos publicados no site)</div>
+      ${infoBase}
       <div id="impProg" style="font-size:12px;color:#333;margin-top:8px"></div>
     </div>
     ${seletor}${instr}${area}${prev}`;
@@ -831,24 +852,63 @@ function confirmarImport(){
   db.ref(col).update(updates).then(()=>{toast(impPreview.length+" "+col+" importados ✓");impPreview=null;render();}).catch(()=>toast("Erro ao importar"));
 }
 
-async function importarCargaInicial(){
+function normalizarBase(dados,nome){
+  let cli=[],ped=[];
+  if(Array.isArray(dados)){
+    // lista simples: decide se é cliente ou pedido pelo formato
+    const am=dados[0]||{};
+    if(am.total!==undefined||am.numero!==undefined)ped=dados; else cli=dados;
+  }else if(dados&&typeof dados==="object"){
+    cli=dados.clientes||dados.clients||[];
+    ped=dados.pedidos||dados.orders||[];
+  }
+  return {nome:nome,clientes:cli.filter(c=>c&&c.nome),pedidos:ped};
+}
+function lerArquivoBase(inp){
+  const f=inp.files&&inp.files[0]; if(!f)return;
+  const r=new FileReader();
+  r.onload=()=>{
+    try{
+      const base=normalizarBase(JSON.parse(r.result),f.name);
+      if(!base.clientes.length&&!base.pedidos.length){toast("Arquivo sem clientes reconhecidos");return;}
+      baseCarregada=base;modoImport="add";render();
+    }catch(e){toast("Arquivo inválido (precisa ser .json)");}
+  };
+  r.onerror=()=>toast("Não consegui ler o arquivo");
+  r.readAsText(f);
+}
+async function carregarBaseSite(){
+  const nome=(val("nomeBaseSite")||"").trim(); if(!nome){toast("Digite o nome do arquivo");return;}
   if(!navigator.onLine){toast("Precisa estar online");return;}
-  if(!confirm("Isso importa TODA a sua base do PedidoOK (1.402 clientes + 1.690 pedidos do histórico) para o app.\n\nFaça isso apenas UMA vez. Continuar?"))return;
-  const prog=document.getElementById("impProg");
-  const set=t=>{if(prog)prog.innerHTML=t;};
+  const set=t=>{const p=document.getElementById("impProg");if(p)p.innerHTML=t;};
+  set("⏳ Buscando "+esc(nome)+"…");
+  try{
+    const r=await fetch(nome+"?v="+Date.now());
+    if(!r.ok)throw new Error("arquivo não encontrado no site");
+    const base=normalizarBase(await r.json(),nome);
+    if(!base.clientes.length&&!base.pedidos.length)throw new Error("arquivo sem clientes reconhecidos");
+    baseCarregada=base;modoImport="add";set("");render();
+  }catch(e){set('<span style="color:#dc2626">❌ '+esc(e.message)+"</span>");}
+}
+async function confirmarBase(){
+  if(!baseCarregada)return;
+  if(!navigator.onLine){toast("Precisa estar online");return;}
+  const b=baseCarregada;
+  const sub=modoImport==="sub";
+  const aviso=sub
+    ? "ATENÇÃO: isso APAGA os "+clientes.length+" clientes atuais e coloca os "+b.clientes.length+" desta base.\n\nContinuar?"
+    : "Adicionar "+b.clientes.length+" cliente(s)"+(b.pedidos.length?" e "+b.pedidos.length+" pedido(s)":"")+" ao app?";
+  if(!confirm(aviso))return;
+  const set=t=>{const p=document.getElementById("impProg");if(p)p.innerHTML=t;};
   const btn=document.getElementById("btnCarga");if(btn)btn.disabled=true;
   try{
-    set("⏳ Baixando arquivos…");
-    const cb="?v="+Date.now();
-    const [cli,ped]=await Promise.all([
-      fetch("clientes-seed.json"+cb).then(r=>{if(!r.ok)throw new Error("clientes-seed.json não encontrado no site — confirme que você subiu esse arquivo no GitHub");return r.json();}),
-      fetch("pedidos-seed.json"+cb).then(r=>{if(!r.ok)throw new Error("pedidos-seed.json não encontrado no site — confirme que você subiu esse arquivo no GitHub");return r.json();})
-    ]);
-    await gravarLotes("clientes",cli,set,"clientes");
-    await gravarLotes("pedidos",ped,set,"pedidos (histórico)");
-    set("✅ Concluído! <b>"+cli.length+" clientes</b> e <b>"+ped.length+" pedidos</b> importados.<br>Feche e abra o app para ver tudo.");
-    toast("Base do PedidoOK importada ✓");
-  }catch(e){set("❌ Erro: "+esc(e.message)+"<br>Confira se subiu os 2 arquivos .json no GitHub.");if(btn)btn.disabled=false;}
+    if(sub){set("⏳ Limpando base atual…");await db.ref("clientes").remove();}
+    if(b.clientes.length)await gravarLotes("clientes",b.clientes,set,"clientes");
+    if(b.pedidos.length)await gravarLotes("pedidos",b.pedidos,set,"pedidos");
+    set("✅ Pronto! <b>"+b.clientes.length+"</b> cliente(s)"+(b.pedidos.length?" e <b>"+b.pedidos.length+"</b> pedido(s)":"")+" importado(s).");
+    baseCarregada=null;toast("Base importada ✓");
+    setTimeout(()=>render(),1200);
+  }catch(e){set('<span style="color:#dc2626">❌ Erro: '+esc(e.message||"")+"</span>");if(btn)btn.disabled=false;}
 }
 async function gravarLotes(col,arr,set,label){
   const TAM=300;
