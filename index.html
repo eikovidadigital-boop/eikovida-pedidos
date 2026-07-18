@@ -231,7 +231,7 @@ let agenda=[], agendaEdit=null, filtroAgenda="proximos";
 let fornecedores=[], fornEdit=null;
 let empresa={}, equipe=[], vendEdit=null;
 let impTipo="produtos", impPreview=null;
-let baseCarregada=null, modoImport="add";
+let baseCarregada=null, modoImport="add", importando=false;
 let carrinho={}, clienteSel="";
 let subAbaPedido="cab", buscaItem=false, buscaItemTxt="", filtroItemCat="";
 let itemEditando=null, itemQtd="", itemPreco=0, tabelas=[];
@@ -403,6 +403,8 @@ const MENU=[
   ["📥","Importações","importacoes"],
   ["🔄","Sincronização","sync"],
   ["🌐","Catálogo Online","catalogo"],
+  ["__s","CONTA"],
+  ["🚪","Sair","__sair"],
 ];
 function toggleMenu(){
   const d=document.getElementById("drawer"),o=document.getElementById("drawerOv");
@@ -410,7 +412,12 @@ function toggleMenu(){
   if(abrir)renderMenu();
   d.classList.toggle("on",abrir);o.classList.toggle("on",abrir);
 }
-function navMenu(v){toggleMenu();if(v==="catalogo"){window.open("https://eikovida.pedidook.com.br/","_blank");return;}irPara(v);}
+function navMenu(v){toggleMenu();if(v==="catalogo"){window.open("https://eikovida.pedidook.com.br/","_blank");return;}if(v==="__sair"){sair();return;}irPara(v);}
+function sair(){
+  if(!confirm("Sair do app? Seus dados continuam salvos."))return;
+  try{localStorage.removeItem("eiko_vendedor");}catch(e){}
+  location.reload();
+}
 function renderMenu(){
   const el=document.getElementById("drawerNav");if(!el)return;
   el.innerHTML=MENU.map(m=>m[0]==="__s"
@@ -822,6 +829,11 @@ function viewImportacoes(){
       ${infoBase}
       <div id="impProg" style="font-size:12px;color:#333;margin-top:8px"></div>
     </div>
+    ${(()=>{const d=contarDuplicados();return d?`<div class="card" style="border:2px solid #dc2626;background:#fef2f2">
+      <div style="font-weight:700;font-size:14px;margin-bottom:4px;color:#b91c1c">⚠️ ${d} cliente(s) duplicado(s)</div>
+      <div style="font-size:12px;color:#555;margin-bottom:8px">Encontrei clientes repetidos na base (mesmo CNPJ ou mesmo nome e cidade). Isso acontece quando uma importação roda duas vezes. Vou manter o cadastro mais completo de cada um.</div>
+      <button class="btn btn-r" id="btnDup" style="width:100%" onclick="limparDuplicados()">🧹 Remover ${d} duplicado(s)</button>
+    </div>`:"";})()}
     ${seletor}${instr}${area}${prev}`;
 }
 function previewImport(){
@@ -852,6 +864,46 @@ function confirmarImport(){
   db.ref(col).update(updates).then(()=>{toast(impPreview.length+" "+col+" importados ✓");impPreview=null;render();}).catch(()=>toast("Erro ao importar"));
 }
 
+function chaveDup(c){
+  const cnpj=soDig(c.cnpj||"");
+  if(cnpj.length>=11)return "d:"+cnpj;
+  return "n:"+String(c.nome||"").toLowerCase().replace(/\s+/g," ").trim()+"|"+String(c.cidade||"").toLowerCase().trim();
+}
+function contarDuplicados(){
+  const vistos=new Set(); let dup=0;
+  clientes.forEach(c=>{const k=chaveDup(c);if(vistos.has(k))dup++;else vistos.add(k);});
+  return dup;
+}
+async function limparDuplicados(){
+  if(!navigator.onLine){toast("Precisa estar online");return;}
+  const vistos=new Map(), remover=[];
+  clientes.forEach(c=>{
+    const k=chaveDup(c);
+    if(vistos.has(k)){
+      // mantém o registro mais completo
+      const antigo=vistos.get(k);
+      const peso=x=>Object.values(x).filter(v=>v!==""&&v!=null).length;
+      if(peso(c)>peso(antigo)){remover.push(antigo.id);vistos.set(k,c);}
+      else remover.push(c.id);
+    }else vistos.set(k,c);
+  });
+  if(!remover.length){toast("Nenhum duplicado encontrado ✓");return;}
+  if(!confirm("Encontrei "+remover.length+" cliente(s) duplicado(s).\n\nVou manter "+vistos.size+" cliente(s) e remover as cópias.\n\nContinuar?"))return;
+  const set=t=>{const p=document.getElementById("impProg");if(p)p.innerHTML=t;};
+  const btn=document.getElementById("btnDup");if(btn)btn.disabled=true;
+  try{
+    const TAM=400;
+    for(let i=0;i<remover.length;i+=TAM){
+      const upd={};
+      remover.slice(i,i+TAM).forEach(id=>{upd[id]=null;});
+      await db.ref("clientes").update(upd);
+      set("⏳ Removendo duplicados… <b>"+Math.min(i+TAM,remover.length)+"/"+remover.length+"</b>");
+    }
+    set("✅ Pronto! "+remover.length+" duplicado(s) removido(s). Restaram <b>"+vistos.size+"</b> clientes.");
+    toast("Duplicados removidos ✓");
+    setTimeout(()=>render(),1500);
+  }catch(e){set('<span style="color:#dc2626">❌ Erro: '+esc(e.message||"")+"</span>");if(btn)btn.disabled=false;}
+}
 function normalizarBase(dados,nome){
   let cli=[],ped=[];
   if(Array.isArray(dados)){
@@ -892,6 +944,7 @@ async function carregarBaseSite(){
 }
 async function confirmarBase(){
   if(!baseCarregada)return;
+  if(importando){toast("Importação em andamento, aguarde…");return;}
   if(!navigator.onLine){toast("Precisa estar online");return;}
   const b=baseCarregada;
   const sub=modoImport==="sub";
@@ -901,14 +954,15 @@ async function confirmarBase(){
   if(!confirm(aviso))return;
   const set=t=>{const p=document.getElementById("impProg");if(p)p.innerHTML=t;};
   const btn=document.getElementById("btnCarga");if(btn)btn.disabled=true;
+  importando=true;
   try{
     if(sub){set("⏳ Limpando base atual…");await db.ref("clientes").remove();}
     if(b.clientes.length)await gravarLotes("clientes",b.clientes,set,"clientes");
     if(b.pedidos.length)await gravarLotes("pedidos",b.pedidos,set,"pedidos");
     set("✅ Pronto! <b>"+b.clientes.length+"</b> cliente(s)"+(b.pedidos.length?" e <b>"+b.pedidos.length+"</b> pedido(s)":"")+" importado(s).");
-    baseCarregada=null;toast("Base importada ✓");
+    baseCarregada=null;importando=false;toast("Base importada ✓");
     setTimeout(()=>render(),1200);
-  }catch(e){set('<span style="color:#dc2626">❌ Erro: '+esc(e.message||"")+"</span>");if(btn)btn.disabled=false;}
+  }catch(e){importando=false;set('<span style="color:#dc2626">❌ Erro: '+esc(e.message||"")+"</span>");if(btn)btn.disabled=false;}
 }
 async function gravarLotes(col,arr,set,label){
   const TAM=300;
@@ -1938,6 +1992,18 @@ function salvarTabela(){
 }
 function editarTabela(id){tabEdit=tabelas.find(t=>t.id===id);render();window.scrollTo(0,0);}
 function excluirTabela(id){if(confirm("Excluir tabela?"))db.ref("tabelas/"+id).remove();}
+
+/* ====== SESSÃO: mantém o vendedor logado ao recarregar/atualizar ====== */
+(function(){
+  let salvo="";
+  try{salvo=localStorage.getItem("eiko_vendedor")||"";}catch(e){}
+  if(salvo){
+    vendedor=salvo;
+    document.getElementById("login").classList.add("hide");
+    document.getElementById("app").classList.remove("hide");
+    iniciar();
+  }
+})();
 
 /* ====== PWA ====== */
 let deferredPrompt=null;
