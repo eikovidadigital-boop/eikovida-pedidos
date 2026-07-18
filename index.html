@@ -55,6 +55,15 @@
   .cli-sel b{display:block;font-size:14px;line-height:1.25}
   .cli-sel small{color:#557;font-size:12px}
   .voltar{display:inline-flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--borda);border-radius:10px;color:var(--verde);font-size:16px;font-weight:700;cursor:pointer;padding:10px 16px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+  .sheet-ov{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:50}
+  .sheet{position:fixed;left:0;right:0;bottom:0;background:#fff;border-radius:18px 18px 0 0;z-index:51;max-height:86vh;overflow-y:auto;box-shadow:0 -4px 20px rgba(0,0,0,.2);animation:sobe .2s ease-out}
+  @keyframes sobe{from{transform:translateY(100%)}to{transform:translateY(0)}}
+  .sheet-h{padding:16px;border-bottom:1px solid var(--borda);font-weight:700;font-size:15px}
+  .sheet-h small{display:block;font-weight:400;font-size:12px;color:var(--cinza);margin-top:2px}
+  .sheet-i{display:flex;align-items:center;gap:14px;padding:15px 18px;border-bottom:1px solid #f4f4f2;font-size:15px;cursor:pointer}
+  .sheet-i:active{background:#f2f9f2}
+  .sheet-i span{font-size:19px;width:24px;text-align:center}
+  @media(min-width:700px){.sheet{left:50%;right:auto;bottom:auto;top:50%;transform:translate(-50%,-50%);width:420px;border-radius:16px;animation:none}}
   .voltar:active{background:#eef6ef}
   .linkbox{margin-top:14px;text-align:center}
   .linkbox span{color:var(--verde);font-size:14px;font-weight:600;cursor:pointer;text-decoration:underline}
@@ -197,9 +206,18 @@
       <input id="loginCodigo" maxlength="12" placeholder="Código do vendedor ou usuário" autocapitalize="off" autocorrect="off" />
       <input id="loginSenha" type="password" inputmode="numeric" maxlength="4" placeholder="Senha (4 dígitos)" onkeydown="if(event.key==='Enter')entrar()" />
       <button onclick="entrar()">Entrar</button>
-      <div class="linkbox" style="font-size:12px;color:#888">
-        <span style="text-decoration:none;color:#888;cursor:default">Não tem acesso? Peça ao administrador para cadastrar você.</span>
+      <div class="linkbox">
+        <span onclick="mostrarAtivacao()">Primeiro acesso? Ativar meu app</span>
       </div>
+    </div>
+
+    <div id="formAtivar" class="hide">
+      <div class="avisoAtv">Digite o <b>código de ativação</b> que o administrador enviou.</div>
+      <input id="atvCodigo" maxlength="8" placeholder="Código de ativação (ex: EK4A7X)" autocapitalize="characters" autocorrect="off" />
+      <input id="atvSenha" type="password" inputmode="numeric" maxlength="4" placeholder="Crie sua senha de 4 dígitos" />
+      <input id="atvSenha2" type="password" inputmode="numeric" maxlength="4" placeholder="Repita a senha" />
+      <button onclick="ativarApp()">Ativar meu app</button>
+      <div class="linkbox"><span onclick="mostrarLogin()">← Voltar para o login</span></div>
     </div>
 
     <div id="loginMsg" class="loginmsg"></div>
@@ -253,9 +271,13 @@ const LS={get(k,def){try{const v=localStorage.getItem("eiko_"+k);return v?JSON.p
 let vendedor="", viewAtual="home";
 let vendedorCodigo="", vendedorId="", ehAdmin=false, permissoes=null;
 const ADMIN_USER="adm01eiko", ADMIN_SENHA="2904";
-const ABAS=[["home","Início"],["novo","Novo Pedido"],["central","Central de Pedidos"],["relatorios","Relatórios"],["cobrancas","Cobranças"],["clientes","Clientes"],["produtos","Produtos"],["tabelas","Tabelas de Preço"],["transportadoras","Transportadoras"],["fornecedores","Fornecedores"],["agenda","Agenda / CRM"],["equipe","Minha Equipe"],["empresa","Minha Empresa"],["importacoes","Importações"],["sync","Sincronização"],["catalogo","Catálogo Online"]];
+const ABAS=[["convites","Instalar p/ Vendedor"],["home","Início"],["novo","Novo Pedido"],["central","Central de Pedidos"],["relatorios","Relatórios"],["cobrancas","Cobranças"],["clientes","Clientes"],["produtos","Produtos"],["tabelas","Tabelas de Preço"],["transportadoras","Transportadoras"],["fornecedores","Fornecedores"],["agenda","Agenda / CRM"],["equipe","Minha Equipe"],["empresa","Minha Empresa"],["importacoes","Importações"],["sync","Sincronização"],["catalogo","Catálogo Online"]];
 const ABAS_PADRAO=["home","novo","central","clientes","produtos","agenda","sync"];
 function podeVer(v){return ehAdmin||!permissoes||permissoes.includes(v);}
+function pedidosVis(){
+  if(ehAdmin)return pedidos;
+  return pedidos.filter(p=>(p.vendedorCodigo&&String(p.vendedorCodigo)===String(vendedorCodigo))||(!p.vendedorCodigo&&p.vendedor===vendedor));
+}
 let online=(typeof navigator!=="undefined"?navigator.onLine:true), filaPendentes=[];
 let periodoRel="30";
 let transportadoras=[], transpEdit=null, filtroCobr="areceber";
@@ -404,28 +426,23 @@ function iniciarSessao(v){
   document.getElementById("app").classList.remove("hide");
   iniciar();
 }
-async function ativarVendedor(){
-  const codAtv=String(val("atvCodigo")||"").trim();
-  const nome=String(val("atvNome")||"").trim();
+async function ativarApp(){
+  const cod=String(val("atvCodigo")||"").trim().toUpperCase();
   const s1=String(val("atvSenha")||"").trim(), s2=String(val("atvSenha2")||"").trim();
-  if(!codAtv){lmsg("Digite o código de ativação","erro");return;}
-  if(nome.length<3){lmsg("Digite seu nome completo","erro");return;}
+  if(!cod){lmsg("Digite o código de ativação","erro");return;}
   if(!/^\d{4}$/.test(s1)){lmsg("A senha deve ter 4 dígitos numéricos","erro");return;}
   if(s1!==s2){lmsg("As senhas não conferem","erro");return;}
-  if(!navigator.onLine){lmsg("Precisa de internet para ativar o cadastro","erro");return;}
+  if(!navigator.onLine){lmsg("Precisa de internet para ativar","erro");return;}
   lmsg("Ativando…");
   try{
-    const cfg=(await db.ref("config").once("value")).val()||{};
-    const oficial=String(cfg.codigoAtivacao||"EIKO2026");
-    if(codAtv.toUpperCase()!==oficial.toUpperCase()){lmsg("Código de ativação inválido","erro");return;}
     const arr=toArr((await db.ref("vendedores").once("value")).val());
-    if(arr.some(x=>String(x.nome||"").toLowerCase()===nome.toLowerCase())){lmsg("Já existe vendedor com esse nome. Faça login.","erro");return;}
-    const maior=arr.reduce((m,x)=>Math.max(m,parseInt(padCod(x.codigo))||0),0);
-    const novoCod=padCod(String(maior+1));
-    const reg={nome:nome,codigo:novoCod,senha:s1,meta:0,ativo:true,admin:arr.length===0,criadoEm:new Date().toISOString()};
-    const ref=await db.ref("vendedores").push(reg);
-    lmsg("✅ Cadastro criado! Seu código é <b style='font-size:20px'>"+novoCod+"</b><br>Anote — você vai usar para entrar.","ok");
-    setTimeout(()=>iniciarSessao({...reg,id:ref.key}),2500);
+    const v=arr.find(x=>String(x.codAtivacao||"").toUpperCase()===cod);
+    if(!v){lmsg("Código de ativação inválido. Confira com o administrador.","erro");return;}
+    if(v.ativo===false){lmsg("Este acesso foi interrompido pelo administrador.","erro");return;}
+    if(v.ativado===true){lmsg("Este código já foi usado. Entre com seu código "+padCod(v.codigo)+" e sua senha.","erro");return;}
+    await db.ref("vendedores/"+v.id).update({senha:s1,ativado:true,ativadoEm:new Date().toISOString()});
+    lmsg("✅ App ativado! Seu código de acesso é <b style='font-size:22px'>"+padCod(v.codigo)+"</b><br>Guarde — você usa ele e sua senha para entrar.","ok");
+    setTimeout(()=>iniciarSessao({...v,senha:s1,ativado:true}),2600);
   }catch(e){lmsg("Erro ao ativar: "+(e&&e.message||""),"erro");}
 }
 
@@ -509,6 +526,8 @@ const MENU=[
   ["📅","Agenda / CRM","agenda"],
   ["🧑‍💼","Minha Equipe","equipe"],
   ["🏢","Minha Empresa","empresa"],
+  ["__s","ADMIN"],
+  ["📲","Instalar p/ Vendedor","convites"],
   ["__s","DADOS"],
   ["📥","Importações","importacoes"],
   ["🔄","Sincronização","sync"],
@@ -591,7 +610,7 @@ function viewSync(){
 function viewRelatorios(){
   const agora=Date.now();
   const limite = periodoRel==="hoje" ? new Date().setHours(0,0,0,0) : (periodoRel==="tudo"?0:agora-parseInt(periodoRel)*86400000);
-  const lista=pedidos.filter(p=>p.data&&new Date(p.data).getTime()>=limite);
+  const lista=pedidosVis().filter(p=>p.data&&new Date(p.data).getTime()>=limite);
   const totalVend=lista.reduce((s,p)=>s+(p.total||0),0);
   const nPed=lista.length;
   const ticket=nPed?totalVend/nPed:0;
@@ -667,7 +686,7 @@ function excluirTransp(id){if(confirm("Excluir transportadora?"))db.ref("transpo
 /* ====== COBRANÇAS ====== */
 function ehAVista(cond){return !cond||/vista/i.test(cond);}
 function viewCobrancas(){
-  const aprazo=pedidos.filter(p=>!p._pendente&&!ehAVista(p.cond));
+  const aprazo=pedidosVis().filter(p=>!p._pendente&&!ehAVista(p.cond));
   const receber=aprazo.filter(p=>!p.recebido);
   const recebidos=aprazo.filter(p=>p.recebido);
   const totalReceber=receber.reduce((s,p)=>s+(p.total||0),0);
@@ -831,6 +850,40 @@ function salvarEmpresa(){
 }
 
 /* ====== MINHA EQUIPE ====== */
+function viewConvites(){
+  if(!ehAdmin)return `<div class="vazio">Área exclusiva do administrador.</div>`;
+  const link=linkApp();
+  const cards=equipe.length?equipe.slice().sort((a,b)=>padCod(a.codigo).localeCompare(padCod(b.codigo))).map(v=>`
+    <div class="card" style="padding:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+        <div style="flex:1;min-width:0"><b>${esc(v.nome)}</b>
+          <small style="display:block;color:var(--cinza)">Código ${padCod(v.codigo)} · ${v.ativado?'<span style="color:var(--verde)">✅ App ativado</span>':'<span style="color:#b45309">⏳ Aguardando ativação</span>'}${v.ativo===false?' · <span style="color:#dc2626">acesso interrompido</span>':''}</small></div>
+      </div>
+      <div style="background:#f8f8f6;border-radius:10px;padding:10px;margin-top:8px;text-align:center">
+        <div style="font-size:11px;color:var(--cinza)">CÓDIGO DE ATIVAÇÃO</div>
+        <div style="font-size:24px;font-weight:800;letter-spacing:3px;color:var(--verde)">${esc(v.codAtivacao||"—")}</div>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <button class="btn btn-w btn-sm" style="flex:1" onclick="enviarConvite('${v.id}')">📲 Enviar convite</button>
+        <button class="btn btn-g btn-sm" onclick="copiar(convitePara('${v.id}'),'Convite copiado ✓')">Copiar</button>
+      </div>
+      <div class="row" style="margin-top:6px">
+        <button class="btn btn-g btn-sm" style="flex:1" onclick="novoCodigoAtivacao('${v.id}')">🔄 Novo código</button>
+        <button class="btn btn-r btn-sm" style="flex:1" onclick="revogarAcesso('${v.id}')">🚫 Interromper acesso</button>
+      </div>
+    </div>`).join(""):`<div class="vazio"><div class="em">👥</div><div>Cadastre vendedores em Minha Equipe primeiro.</div></div>`;
+  return `<h2 class="tit">Instalar para Vendedor</h2>
+    <div class="card" style="border:1px solid var(--verde);background:#f2f9f2">
+      <div style="font-weight:700;font-size:14px;margin-bottom:4px">🔗 Link de instalação</div>
+      <div style="font-size:12px;color:#555;margin-bottom:8px">O vendedor abre este link no celular, instala o app e ativa com o código dele.</div>
+      <div style="background:#fff;border:1px solid var(--borda);border-radius:8px;padding:10px;font-size:12px;word-break:break-all">${esc(link)}</div>
+      <div class="row" style="margin-top:8px">
+        <button class="btn btn-v btn-sm" style="flex:1" onclick="copiar('${esc(link)}','Link copiado ✓')">Copiar link</button>
+        <button class="btn btn-w btn-sm" style="flex:1" onclick="window.open('https://wa.me/?text='+encodeURIComponent('Instale o app de vendas da EIKO VIDA: ${esc(link)}'),'_blank')">Enviar link</button>
+      </div>
+    </div>
+    <div style="font-size:13px;font-weight:700;margin:14px 0 8px">Vendedores</div>${cards}`;
+}
 function viewEquipe(){
   const f=vendEdit||{nome:"",meta:"",codigo:"",senha:""};
   const permAtuais=(vendEdit&&Array.isArray(vendEdit.permissoes)&&vendEdit.permissoes.length)?vendEdit.permissoes:ABAS_PADRAO;
@@ -955,6 +1008,7 @@ function salvarVend(){
   const marcadas=[];
   try{document.querySelectorAll(".permChk").forEach(ch=>{if(ch.checked)marcadas.push(ch.value);});}catch(e){}
   o.permissoes=marcadas.length?marcadas:ABAS_PADRAO.slice();
+  if(!vendEdit){o.codAtivacao=gerarCodAtivacao();o.ativado=false;}
   let cod=padCod(val("veCod"));
   if(!val("veCod")){
     const maior=equipe.reduce((m,x)=>Math.max(m,parseInt(padCod(x.codigo))||0),0);
@@ -966,6 +1020,39 @@ function salvarVend(){
   if(navigator.onLine){if(vendEdit)db.ref("vendedores/"+vendEdit.id).update(o);else db.ref("vendedores").push(o);}
   else{if(vendEdit){const i=equipe.findIndex(x=>x.id===vendEdit.id);if(i>=0)equipe[i]={...equipe[i],...o};filaPendentes.push({col:"vendedores",op:"update",id:vendEdit.id,data:o});}else{const tempId="local_"+Date.now();equipe.push({id:tempId,...o});filaPendentes.push({col:"vendedores",op:"push",data:o,tempId});}LS.set("equipe",equipe);LS.set("fila",filaPendentes);}
   vendEdit=null;toast(navigator.onLine?"Vendedor salvo":"Salvo offline ✓");render();
+}
+function gerarCodAtivacao(){
+  const L="ABCDEFGHJKLMNPQRSTUVWXYZ23456789";let s="EK";
+  for(let i=0;i<4;i++)s+=L[Math.floor(Math.random()*L.length)];
+  if(equipe.some(v=>v.codAtivacao===s))return gerarCodAtivacao();
+  return s;
+}
+function linkApp(){try{return location.origin+location.pathname.replace(/index\.html$/,"");}catch(e){return "";}}
+function novoCodigoAtivacao(id){
+  const v=equipe.find(x=>x.id===id);if(!v)return;
+  if(!confirm("Gerar um novo código de ativação para "+v.nome+"?\n\nO código anterior deixa de funcionar."))return;
+  db.ref("vendedores/"+id).update({codAtivacao:gerarCodAtivacao(),ativado:false});
+  toast("Novo código gerado ✓");
+}
+function revogarAcesso(id){
+  const v=equipe.find(x=>x.id===id);if(!v)return;
+  if(!confirm("Interromper o acesso de "+v.nome+"?\n\nEle será desconectado e não conseguirá mais entrar. A carteira dele é preservada."))return;
+  db.ref("vendedores/"+id).update({ativo:false,ativado:false,codAtivacao:gerarCodAtivacao()});
+  toast("Acesso interrompido ✓");
+}
+function copiar(txt,msg){
+  try{navigator.clipboard.writeText(txt);toast(msg||"Copiado ✓");}
+  catch(e){toast("Copie manualmente");}
+}
+function convitePara(id){
+  const v=equipe.find(x=>x.id===id);if(!v)return"";
+  return "Olá "+v.nome+"! Instale o app de vendas da EIKO VIDA:\n\n"+linkApp()
+    +"\n\nAbra o link no celular, toque em 'Instalar app' e use o código de ativação:\n\nCÓDIGO: "+(v.codAtivacao||"—")
+    +"\n\nNa ativação você cria sua senha de 4 dígitos.";
+}
+function enviarConvite(id){
+  const t=convitePara(id);if(!t)return;
+  window.open("https://wa.me/?text="+encodeURIComponent(t),"_blank");
 }
 function marcarPerm(v){try{document.querySelectorAll(".permChk").forEach(ch=>{ch.checked=v;});}catch(e){}}
 function permPadrao(){try{document.querySelectorAll(".permChk").forEach(ch=>{ch.checked=ABAS_PADRAO.includes(ch.value);});}catch(e){}}
@@ -1224,6 +1311,7 @@ function render(){
   else if(viewAtual==="empresa")c.innerHTML=viewEmpresa();
   else if(viewAtual==="equipe")c.innerHTML=viewEquipe();
   else if(viewAtual==="importacoes")c.innerHTML=viewImportacoes();
+  else if(viewAtual==="convites")c.innerHTML=viewConvites();
   // seta de voltar ao início em todas as abas (exceto a própria home)
   if(viewAtual!=="home"&&c.innerHTML){
     c.innerHTML=`<button class="voltar" onclick="irPara('home')">← Início</button>`+c.innerHTML;
@@ -1493,7 +1581,7 @@ function finalizar(enviar){
   const pedido={
     numero,
     clienteId:clienteSel,cliente:cli.nome,cidade:cli.cidade||"",whats:cli.whatsapp||"",categoria:cli.categoria||"",
-    vendedor,itens,bruto,total,
+    vendedor,vendedorCodigo,itens,bruto,total,
     status:"aberto",tipo:ped.status,cond:ped.cond,forma:ped.forma,tabela:ped.tabela||"",
     descTipo:ped.descTipo,descPerc:parseFloat(ped.descPerc)||0,
     consumidorFinal:ped.consumidorFinal,dataEmissao:ped.dataEmissao,dataFat:ped.dataFat,previsao:ped.previsao,
@@ -1533,13 +1621,14 @@ function textoPedido(o){
 
 /* ====== CENTRAL ====== */
 function viewCentral(){
+  const base=pedidosVis();
   const hoje=new Date().toDateString();
-  const hj=pedidos.filter(p=>p.data&&new Date(p.data).toDateString()===hoje);
-  const fat=pedidos.reduce((s,p)=>s+(p.total||0),0);
-  const abertos=pedidos.filter(p=>p.status==="aberto").length;
-  const tipo=t=>pedidos.filter(p=>(p.status||"Pedido")===t);
+  const hj=base.filter(p=>p.data&&new Date(p.data).toDateString()===hoje);
+  const fat=base.reduce((s,p)=>s+(p.total||0),0);
+  const abertos=base.filter(p=>p.status==="aberto").length;
+  const tipo=t=>base.filter(p=>(p.status||"Pedido")===t);
   const soma=a=>a.reduce((s,p)=>s+(p.total||0),0);
-  const peds=pedidos.filter(p=>!p.status||p.status==="Pedido"||p.status==="aberto"||p.status==="enviado");
+  const peds=base.filter(p=>!p.status||p.status==="Pedido"||p.status==="aberto"||p.status==="enviado");
   const orc=tipo("Orçamento"), tro=tipo("Troca"), bon=tipo("Bonificação");
   const linha=(n,lbl,v)=>`<div class="resumo-l"><span>${n} ${lbl}</span><b>${brl(v)}</b></div>`;
   const kpis=`<div class="resumo">
@@ -1549,13 +1638,13 @@ function viewCentral(){
     ${bon.length?linha(bon.length,"bonificações",soma(bon)):""}
     <div class="resumo-l" style="border-top:1px solid rgba(255,255,255,.25);margin-top:4px;padding-top:6px"><span>Hoje: ${hj.length} pedido(s)</span><b>${brl(soma(hj))}</b></div>
   </div>`;
-  if(pedidos.length===0)return `<h2 class="tit">Central de pedidos</h2>${kpis}<div class="vazio"><div class="em">📋</div><div>Nenhum pedido ainda.</div></div>`;
+  if(base.length===0)return `<h2 class="tit">Central de pedidos</h2>${kpis}<div class="vazio"><div class="em">📋</div><div>Nenhum pedido ainda.</div></div>`;
   const busca=`<input class="inp" id="buscaCentralInp" placeholder="🔍 Buscar por cliente ou nº do pedido" value="${esc(buscaCentral)}" oninput="filtrarCentral(this.value)" style="margin-bottom:10px">`;
-  return `<h2 class="tit">Central de pedidos (${pedidos.length})</h2>${kpis}${busca}<div id="listaCentral">${htmlListaCentral()}</div>`;
+  return `<h2 class="tit">Central de pedidos (${base.length})${ehAdmin?' <span style="font-size:12px;color:var(--dourado)">· todos os vendedores</span>':""}</h2>${kpis}${busca}<div id="listaCentral">${htmlListaCentral()}</div>`;
 }
 function htmlListaCentral(){
   const q=(buscaCentral||"").toLowerCase().trim();
-  let arr=pedidos.slice().sort((a,b)=>new Date(b.data||0)-new Date(a.data||0));
+  let arr=pedidosVis().slice().sort((a,b)=>new Date(b.data||0)-new Date(a.data||0));
   if(q)arr=arr.filter(o=>((o.cliente||"")+" "+(o.numero||"")+" "+(o.cidade||"")).toLowerCase().includes(q));
   const total=arr.length, LIM=50, mostra=arr.slice(0,LIM);
   if(total===0)return `<div class="vazio">Nenhum pedido encontrado.</div>`;
@@ -1579,7 +1668,7 @@ function htmlListaCentral(){
         </div></div>`:"";
     return `<div class="pedcard ${nv?'novo':''}">
       <div onclick="${o._pendente?'':`abrirPed('${o.id}')`}">
-        <div class="pcnum">Número: <b>${esc(o.numero||"—")}</b>${nv?'<span class="tagnovo">NOVO</span>':''}${o._pendente?'<span class="tagnovo" style="background:#b45309">⏳ OFFLINE</span>':''}</div>
+        <div class="pcnum"><span onclick="event.stopPropagation();menuPedido('${o.id}')" style="float:right;font-size:20px;padding:0 4px;color:#666">⋮</span>Número: <b>${esc(o.numero||"—")}</b>${nv?'<span class="tagnovo">NOVO</span>':''}${o._pendente?'<span class="tagnovo" style="background:#b45309">⏳ OFFLINE</span>':''}</div>
         <div class="pccli">${esc(o.cliente||"")}</div>
         ${cli.fantasia?`<div class="pcsub">${esc(cli.fantasia)}</div>`:""}
         ${cli.cnpj?`<div class="pcsub">CNPJ: ${esc(cli.cnpj)}</div>`:""}
@@ -1595,6 +1684,70 @@ function htmlListaCentral(){
 
 function filtrarCentral(q){buscaCentral=q;const el=document.getElementById("listaCentral");if(el)el.innerHTML=htmlListaCentral();}
 
+function menuPedido(id){
+  const o=pedidos.find(x=>x.id===id); if(!o)return;
+  const cli=clientes.find(c=>c.id===o.clienteId)||clientes.find(c=>c.nome===o.cliente);
+  const fone=soDig((cli&&(cli.whatsapp||cli.telefone))||o.whats||"");
+  const email=(cli&&cli.email)||"";
+  const it=[
+    ["📄","Cópia do pedido",`gerarPDF('${id}')`],
+    ["📎","Cópia do pedido (WhatsApp)",`enviarPDFwhats('${id}')`],
+    ["📋","Copiar texto do pedido",`copiarPed('${id}')`],
+    cli?["👤","Cadastro do cliente",`abrirCadastroCliente('${cli.id}')`]:null,
+    cli?["🗂️","Ficha cadastral do cliente",`fichaCliente('${cli.id}')`]:null,
+    ["💰","Cobranças do pedido",`cobrancaDoPedido('${id}')`],
+    cli?["📅","Agenda do cliente",`agendaDoCliente('${cli.id}')`]:null,
+    ["📑","Duplicar pedido",`duplicarPedido('${id}')`],
+    fone?["📞","Ligar",`window.open('tel:${fone}')`]:null,
+    fone?["💬","WhatsApp",`window.open('https://wa.me/55${fone.replace(/^55/,"")}','_blank')`]:null,
+    email?["✉️","Enviar e-mail",`emailPedido('${id}')`]:null,
+    ["🗑️","Excluir pedido",`excluirPed('${id}')`],
+  ].filter(Boolean);
+  const html=`<div class="sheet-ov" onclick="fecharSheet()"></div>
+    <div class="sheet">
+      <div class="sheet-h">Pedido ${esc(o.numero||"")}<small>${esc(o.cliente||"")}</small></div>
+      ${it.map(x=>`<div class="sheet-i" onclick="fecharSheet();${x[2]}"><span>${x[0]}</span>${x[1]}</div>`).join("")}
+      <div class="sheet-i" style="justify-content:center;color:var(--cinza)" onclick="fecharSheet()">Fechar</div>
+    </div>`;
+  const d=document.createElement("div"); d.id="sheetWrap"; d.innerHTML=html;
+  document.body.appendChild(d);
+}
+function fecharSheet(){const d=document.getElementById("sheetWrap");if(d)d.remove();}
+function abrirCadastroCliente(id){irPara("clientes");editarCli(id);}
+function fichaCliente(id){clienteDetalhe=id;viewAtual="clientes";render();window.scrollTo(0,0);}
+function agendaDoCliente(id){
+  const c=clientes.find(x=>x.id===id); if(!c)return;
+  agendaEdit={cliente:c.nome,tipo:"Follow-up",data:new Date().toISOString().slice(0,10),hora:"",obs:""};
+  irPara("agenda");window.scrollTo(0,0);
+}
+function cobrancaDoPedido(id){
+  const o=pedidos.find(x=>x.id===id); if(!o)return;
+  if(ehAVista(o.cond)){toast("Pedido à vista — não gera cobrança");return;}
+  filtroCobr="todos";buscaCentral="";irPara("cobrancas");
+  toast(o.recebido?"Pedido já recebido":"Pedido em aberto na lista");
+}
+function duplicarPedido(id){
+  const o=pedidos.find(x=>x.id===id); if(!o)return;
+  if(!(o.itens||[]).length){toast("Este pedido não tem itens para duplicar");return;}
+  if(!confirm("Criar um novo pedido com os mesmos itens de "+(o.cliente||"")+"?"))return;
+  carrinho={};
+  (o.itens||[]).forEach(i=>{
+    const p=produtos.find(x=>x.nome===i.nome)||produtos.find(x=>x.codigo===i.codigo);
+    if(p)carrinho[p.id]={qtd:i.qtd,preco:i.preco};
+  });
+  clienteSel=o.clienteId||(clientes.find(c=>c.nome===o.cliente)||{}).id||"";
+  ped={...ped,status:"Pedido",cond:o.cond||"",forma:o.forma||"",tabela:o.tabela||"",
+       dataEmissao:new Date().toISOString().slice(0,10),dataFat:"",previsao:"",
+       obsCli:o.obsCli||"",obsEmp:"",ordemCompra:"",transportadora:o.transportadora||""};
+  subAbaPedido="itens";irPara("novo");
+  toast(Object.keys(carrinho).length+" item(ns) copiado(s) ✓");
+}
+function emailPedido(id){
+  const o=pedidos.find(x=>x.id===id); if(!o)return;
+  const cli=clientes.find(c=>c.id===o.clienteId)||clientes.find(c=>c.nome===o.cliente)||{};
+  const corpo=textoPedido(o)+"\n\n"+(empresa.razao||"EIKO VIDA");
+  window.open("mailto:"+(cli.email||"")+"?subject="+encodeURIComponent("Pedido "+(o.numero||"")+" — "+(empresa.razao||"EIKO VIDA"))+"&body="+encodeURIComponent(corpo));
+}
 function abrirPed(id){pedidoAberto=(pedidoAberto===id?null:id);render();}
 function toggleStatus(id){const p=pedidos.find(x=>x.id===id);db.ref("pedidos/"+id+"/status").set(p.status==="aberto"?"enviado":"aberto");}
 function excluirPed(id){if(confirm("Excluir este pedido?"))db.ref("pedidos/"+id).remove();}
