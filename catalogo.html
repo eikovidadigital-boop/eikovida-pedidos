@@ -7,169 +7,244 @@
 <meta name="description" content="Catálogo atacado EIKO VIDA: óleos vegetais 100% naturais e veganos. Alta margem para lojistas, farmácias e distribuidores.">
 <meta name="theme-color" content="#2F6B4F">
 <meta property="og:title" content="EIKO VIDA — Catálogo Atacado">
-<meta property="og:description" content="Óleos vegetais naturais com alta margem de revenda. Peça pelo WhatsApp.">
+<meta property="og:description" content="Óleos vegetais naturais com alta margem de revenda. Monte seu pedido online.">
 <link rel="icon" href="icon-192.png">
 <style>
   *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-  :root{--verde:#2F6B4F;--verde2:#3d8a66;--dourado:#C9A227;--bg:#faf9f6;--txt:#1f2320;--cinza:#6b7280;--borda:#e6e4de}
-  body{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--bg);color:var(--txt);padding-bottom:88px}
-
-  /* TOPO */
+  :root{--verde:#2F6B4F;--dourado:#C9A227;--bg:#faf9f6;--txt:#1f2320;--cinza:#6b7280;--borda:#e6e4de}
+  body{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--bg);color:var(--txt);padding-bottom:96px}
   header{background:linear-gradient(135deg,var(--verde) 0%,#245240 100%);color:#fff;padding:26px 18px 22px;text-align:center;position:relative;overflow:hidden}
   header::after{content:"";position:absolute;inset:0;background:radial-gradient(circle at 80% 10%,rgba(201,162,39,.22),transparent 55%)}
   header>*{position:relative;z-index:1}
   header img{width:76px;height:76px;object-fit:contain;background:#fff;border-radius:20px;padding:7px;box-shadow:0 6px 18px rgba(0,0,0,.18)}
   header h1{font-size:26px;letter-spacing:2px;margin-top:10px;font-weight:800}
-  header .tag{font-size:13px;opacity:.95;margin-top:4px}
+  header .tag{font-size:13px;opacity:.95;margin-top:4px;line-height:1.4}
   .selos{display:flex;gap:7px;justify-content:center;flex-wrap:wrap;margin-top:14px}
   .selo{background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.28);padding:5px 11px;border-radius:20px;font-size:11.5px;font-weight:600}
-
-  /* PROPOSTA */
   .pitch{background:#fff;margin:-14px 14px 0;border-radius:16px;padding:16px;box-shadow:0 4px 16px rgba(0,0,0,.07);position:relative;z-index:2}
   .pitch h2{font-size:16px;color:var(--verde);margin-bottom:8px}
-  .benef{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px}
-  .benef div{font-size:12.5px;line-height:1.45;display:flex;gap:7px;align-items:flex-start}
-  .benef b{color:var(--verde)}
-
-  /* BUSCA */
-  .barra{position:sticky;top:0;z-index:20;background:var(--bg);padding:14px;box-shadow:0 2px 10px rgba(0,0,0,.05)}
+  .benef{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .benef div{font-size:12.5px;line-height:1.45}
+  .secTit{font-size:16px;font-weight:800;color:var(--verde);padding:20px 14px 8px}
+  .dest{display:flex;gap:12px;overflow-x:auto;padding:0 14px 6px;scrollbar-width:none}
+  .dest::-webkit-scrollbar{display:none}
+  .dcard{min-width:232px;max-width:232px;background:#fff;border:2px solid var(--dourado);border-radius:14px;overflow:hidden;box-shadow:0 3px 12px rgba(201,162,39,.16)}
+  .dcard .di{width:100%;aspect-ratio:16/9;background:#f4f3ef center/cover no-repeat;display:flex;align-items:center;justify-content:center;font-size:30px}
+  .dcard .dc{padding:11px}
+  .dcard .dt{font-size:10.5px;font-weight:800;color:var(--dourado);text-transform:uppercase;letter-spacing:.4px}
+  .dcard b{font-size:14px;line-height:1.3;display:block;margin-top:3px}
+  .dcard p{font-size:12px;color:var(--cinza);line-height:1.4;margin-top:4px}
+  .dcard .dp{margin-top:7px;font-size:18px;font-weight:800;color:var(--verde)}
+  .dcard .dp s{font-size:12px;color:#aaa;font-weight:400;margin-right:5px}
+  .barra{position:sticky;top:0;z-index:20;background:var(--bg);padding:12px 14px;box-shadow:0 2px 10px rgba(0,0,0,.05)}
   .busca{width:100%;padding:13px 15px;border:1px solid var(--borda);border-radius:12px;font-size:15px;background:#fff;outline:none}
   .busca:focus{border-color:var(--verde)}
   .cats{display:flex;gap:7px;overflow-x:auto;margin-top:10px;padding-bottom:3px;scrollbar-width:none}
   .cats::-webkit-scrollbar{display:none}
   .cat{white-space:nowrap;padding:8px 14px;border-radius:20px;border:1px solid var(--borda);background:#fff;font-size:13px;font-weight:600;color:#555;cursor:pointer}
   .cat.on{background:var(--verde);color:#fff;border-color:var(--verde)}
-
-  /* PRODUTOS */
   .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(158px,1fr));gap:12px;padding:0 14px 20px}
-  .card{background:#fff;border:1px solid var(--borda);border-radius:14px;overflow:hidden;display:flex;flex-direction:column;transition:.15s}
-  .card:active{transform:scale(.98)}
-  .foto{aspect-ratio:1;background:#f4f3ef center/cover no-repeat;display:flex;align-items:center;justify-content:center;font-size:38px;position:relative}
+  .card{background:#fff;border:1px solid var(--borda);border-radius:14px;overflow:hidden;display:flex;flex-direction:column}
+  .foto{aspect-ratio:1;background:#f4f3ef center/cover no-repeat;display:flex;align-items:center;justify-content:center;font-size:38px;cursor:pointer}
   .card .info{padding:10px;display:flex;flex-direction:column;flex:1}
-  .card .nm{font-size:13px;font-weight:700;line-height:1.3;min-height:34px}
-  .card .ds{font-size:11px;color:var(--cinza);margin-top:3px;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .card .cd{font-size:10px;color:var(--cinza);font-weight:600}
+  .card .nm{font-size:13px;font-weight:700;line-height:1.3;min-height:34px;cursor:pointer}
   .card .pr{margin-top:auto;padding-top:8px}
   .card .pr .v{font-size:17px;font-weight:800;color:var(--verde)}
   .card .pr .l{font-size:10px;color:var(--cinza);display:block}
   .add{margin-top:8px;width:100%;padding:9px;border:none;border-radius:9px;background:var(--verde);color:#fff;font-weight:700;font-size:13px;cursor:pointer}
-  .add.on{background:var(--dourado)}
   .qtd{display:flex;align-items:center;gap:8px;margin-top:8px}
   .qtd button{width:32px;height:32px;border-radius:8px;border:1px solid var(--borda);background:#fff;font-size:17px;font-weight:700;cursor:pointer;color:var(--verde)}
   .qtd span{flex:1;text-align:center;font-weight:800;font-size:15px}
   .vazio{text-align:center;padding:50px 20px;color:var(--cinza)}
-
-  /* CARRINHO */
-  .barraCar{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--borda);padding:12px 14px calc(12px + env(safe-area-inset-bottom));box-shadow:0 -4px 16px rgba(0,0,0,.1);z-index:30;transform:translateY(120%);transition:.25s}
+  .ov{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:50;display:none}
+  .ov.on{display:block}
+  .modal{position:fixed;left:0;right:0;bottom:0;background:#fff;border-radius:20px 20px 0 0;z-index:51;max-height:92vh;overflow-y:auto;transform:translateY(100%);transition:.25s;padding-bottom:env(safe-area-inset-bottom)}
+  .modal.on{transform:translateY(0)}
+  .mfoto{width:100%;aspect-ratio:1;max-height:42vh;background:#f4f3ef center/contain no-repeat;display:flex;align-items:center;justify-content:center;font-size:60px}
+  .mbody{padding:16px}
+  .mbody h3{font-size:19px;line-height:1.3}
+  .mdesc{font-size:14px;color:#444;line-height:1.55;margin-top:8px}
+  .ficha{margin-top:14px;border:1px solid var(--borda);border-radius:12px;overflow:hidden}
+  .ficha .fl{display:flex;justify-content:space-between;gap:10px;padding:10px 13px;font-size:13px;border-bottom:1px solid #f2f1ed}
+  .ficha .fl:last-child{border-bottom:none}
+  .ficha .fl span{color:var(--cinza)}
+  .ficha .fl b{text-align:right;word-break:break-word}
+  .mpreco{background:#f2f9f2;border-radius:12px;padding:13px;margin-top:14px;text-align:center}
+  .mpreco .l{font-size:11px;color:var(--cinza);display:block}
+  .mpreco .v{font-size:26px;font-weight:800;color:var(--verde)}
+  .fechar{position:sticky;top:0;background:#fff;padding:12px 16px;border-bottom:1px solid var(--borda);display:flex;justify-content:space-between;align-items:center;font-weight:700;z-index:2}
+  .fechar button{background:none;border:none;font-size:26px;color:#999;cursor:pointer;line-height:1}
+  .campo{width:100%;padding:12px;border:1px solid var(--borda);border-radius:10px;font-size:15px;margin-top:4px;font-family:inherit;outline:none}
+  .campo:focus{border-color:var(--verde)}
+  .lbl{font-size:12px;color:var(--cinza);font-weight:600;display:block;margin-top:11px}
+  .resItem{display:flex;justify-content:space-between;gap:8px;padding:7px 0;border-bottom:1px solid #f2f1ed;font-size:13px}
+  .btnV{width:100%;padding:15px;border:none;border-radius:12px;background:var(--verde);color:#fff;font-size:16px;font-weight:800;cursor:pointer;margin-top:14px}
+  .btnW{width:100%;padding:15px;border:none;border-radius:12px;background:#25D366;color:#fff;font-size:16px;font-weight:800;cursor:pointer}
+  .barraCar{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--borda);padding:12px 14px calc(12px + env(safe-area-inset-bottom));box-shadow:0 -4px 16px rgba(0,0,0,.1);z-index:30;transform:translateY(130%);transition:.25s}
   .barraCar.on{transform:translateY(0)}
   .barraCar .top{display:flex;justify-content:space-between;align-items:center;margin-bottom:9px;font-size:13px;color:var(--cinza)}
   .barraCar .top b{font-size:20px;color:var(--verde)}
-  .btnW{width:100%;padding:15px;border:none;border-radius:12px;background:#25D366;color:#fff;font-size:16px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px}
   .flut{position:fixed;right:16px;bottom:18px;z-index:25;background:#25D366;color:#fff;border:none;border-radius:50px;padding:14px 20px;font-weight:800;font-size:15px;box-shadow:0 6px 20px rgba(37,211,102,.4);cursor:pointer}
   footer{text-align:center;padding:24px 18px 30px;color:var(--cinza);font-size:12px;line-height:1.7}
   footer b{color:var(--verde)}
   .load{text-align:center;padding:60px 20px;color:var(--cinza)}
+  .ok{text-align:center;padding:34px 20px}
+  .ok .ic{font-size:56px}
 </style>
 </head>
 <body>
 
 <header>
   <img src="logo.png" alt="EIKO VIDA" onerror="this.style.display='none'">
-  <h1>EIKO VIDA</h1>
-  <div class="tag">Óleos vegetais 100% naturais · Linha completa para revenda</div>
-  <div class="selos">
-    <span class="selo">🌱 100% Vegano</span>
-    <span class="selo">🧪 Registro ANVISA</span>
-    <span class="selo">🇧🇷 Produção própria</span>
-    <span class="selo">📦 Pronta entrega</span>
-  </div>
+  <h1 id="hTitulo">EIKO VIDA</h1>
+  <div class="tag" id="hSub">Óleos vegetais 100% naturais · Linha completa para revenda</div>
+  <div class="selos" id="hSelos"></div>
 </header>
 
 <div class="pitch">
-  <h2>Por que revender EIKO VIDA?</h2>
-  <div class="benef">
-    <div><span>💰</span><span><b>Margem de até 100%</b> na revenda</span></div>
-    <div><span>🔄</span><span><b>Alto giro</b> — produto de recompra</span></div>
-    <div><span>📈</span><span>Mercado natural <b>em crescimento</b></span></div>
-    <div><span>🤝</span><span><b>Suporte</b> e material de apoio</span></div>
-  </div>
+  <h2 id="hPitch">Por que revender EIKO VIDA?</h2>
+  <div class="benef" id="hBenef"></div>
 </div>
 
+<div id="destaques"></div>
+
 <div class="barra">
-  <input class="busca" id="busca" placeholder="🔍 Buscar produto…" oninput="filtrar()">
+  <input class="busca" id="busca" placeholder="🔍 Buscar por nome ou código…" oninput="filtrar()">
   <div class="cats" id="cats"></div>
 </div>
 
 <div id="lista"><div class="load">Carregando catálogo…</div></div>
 
 <footer>
-  <b>EIKO VIDA</b> — Produtos Naturais<br>
+  <b id="fNome">EIKO VIDA</b> — Produtos Naturais<br>
   Atendimento a lojistas, farmácias e distribuidores<br>
-  <span id="rodapeContato"></span>
+  <span id="fContato"></span>
 </footer>
 
-<button class="flut" id="flut" onclick="scrollTo({top:document.body.scrollHeight,behavior:'smooth'})" style="display:none">Falar no WhatsApp</button>
+<button class="flut" id="flut" onclick="abrirWhats()">💬 Falar no WhatsApp</button>
 
 <div class="barraCar" id="barraCar">
   <div class="top"><span id="resumo">0 itens</span><b id="totalCar">R$ 0,00</b></div>
-  <button class="btnW" onclick="enviarPedido()">💬 Enviar pedido pelo WhatsApp</button>
+  <button class="btnV" style="margin-top:0" onclick="abrirCheckout()">Finalizar pedido →</button>
+</div>
+
+<div class="ov" id="ov" onclick="fecharTudo()"></div>
+
+<div class="modal" id="mProd">
+  <div class="fechar"><span>Dados do produto</span><button onclick="fecharTudo()">×</button></div>
+  <div id="prodBody"></div>
+</div>
+
+<div class="modal" id="mCheck">
+  <div class="fechar"><span>Finalizar pedido</span><button onclick="fecharTudo()">×</button></div>
+  <div id="checkBody"></div>
 </div>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script>
 const CFG={apiKey:"AIzaSyCzl-w2jUWYGvMD2t5JfeW2l0iGjZt8cRw",authDomain:"eiko-vida-app.firebaseapp.com",databaseURL:"https://eiko-vida-app-default-rtdb.firebaseio.com",projectId:"eiko-vida-app",storageBucket:"eiko-vida-app.firebasestorage.app",messagingSenderId:"805340801526",appId:"1:805340801526:web:50e800c3a5ada35594ffd7"};
-const WHATS="558141410577";
+const WHATS_PADRAO="558141410577";
 firebase.initializeApp(CFG);
 const db=firebase.database();
 
-let produtos=[], empresa={}, cat="", termo="", carrinho={};
+let produtos=[],empresa={},cfg={},cat="",carrinho={},prodAberto=null;
 const brl=n=>"R$ "+(Number(n)||0).toFixed(2).replace(".",",").replace(/\B(?=(\d{3})+(?!\d))/g,".");
 const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const digitos=s=>String(s||"").replace(/\D/g,"");
+function zap(){const n=digitos(cfg.whatsapp||empresa.whats||WHATS_PADRAO);return n.length<=11?"55"+n:n;}
 
 db.ref("produtos").on("value",s=>{
   const v=s.val()||{};
   produtos=Object.keys(v).map(k=>({id:k,...v[k]})).filter(p=>p.nome&&p.catalogo!==false);
-  montarCats(); filtrar();
-  document.getElementById("flut").style.display=produtos.length?"block":"none";
+  montarCats();filtrar();
 });
-db.ref("empresa").on("value",s=>{
-  empresa=s.val()||{};
-  const c=[empresa.telefone,empresa.site].filter(Boolean).join(" · ");
-  document.getElementById("rodapeContato").textContent=c;
-});
+db.ref("empresa").on("value",s=>{empresa=s.val()||{};rodape();});
+db.ref("catalogo").on("value",s=>{cfg=s.val()||{};aplicarCfg();rodape();});
 
+function aplicarCfg(){
+  if(cfg.titulo)document.getElementById("hTitulo").textContent=cfg.titulo;
+  if(cfg.subtitulo)document.getElementById("hSub").textContent=cfg.subtitulo;
+  if(cfg.pitchTitulo)document.getElementById("hPitch").textContent=cfg.pitchTitulo;
+  const selos=(cfg.selos||"🌱 100% Vegano, 🧪 Registro ANVISA, 🇧🇷 Produção própria, 📦 Pronta entrega").split(",").map(x=>x.trim()).filter(Boolean);
+  document.getElementById("hSelos").innerHTML=selos.map(x=>`<span class="selo">${esc(x)}</span>`).join("");
+  const bens=(cfg.beneficios||"💰 Margem de até 100% na revenda\n🔄 Alto giro — produto de recompra\n📈 Mercado natural em crescimento\n🤝 Suporte e material de apoio").split("\n").map(x=>x.trim()).filter(Boolean);
+  document.getElementById("hBenef").innerHTML=bens.map(x=>`<div>${esc(x)}</div>`).join("");
+  const ds=(Array.isArray(cfg.destaques)?cfg.destaques:[]).filter(d=>d&&d.ativo!==false&&d.titulo);
+  document.getElementById("destaques").innerHTML=ds.length?
+    `<div class="secTit">🔥 Destaques e promoções</div><div class="dest">`+ds.map(d=>`
+      <div class="dcard">
+        <div class="di" ${d.imagem?`style="background-image:url('${esc(d.imagem)}')"`:""}>${d.imagem?"":"🎁"}</div>
+        <div class="dc">
+          <div class="dt">${esc(d.tipo||"⭐ Destaque")}</div>
+          <b>${esc(d.titulo)}</b>
+          ${d.texto?`<p>${esc(d.texto)}</p>`:""}
+          ${d.preco?`<div class="dp">${d.precoDe?`<s>R$ ${esc(d.precoDe)}</s>`:""}R$ ${esc(d.preco)}</div>`:""}
+        </div></div>`).join("")+`</div>`:"";
+}
+function rodape(){
+  document.getElementById("fNome").textContent=cfg.titulo||empresa.razao||"EIKO VIDA";
+  document.getElementById("fContato").textContent=[cfg.telefone||empresa.telefone,empresa.site].filter(Boolean).join(" · ");
+}
 function montarCats(){
   const cs=[...new Set(produtos.map(p=>p.categoria).filter(Boolean))].sort();
   document.getElementById("cats").innerHTML=
     `<button class="cat ${cat===""?"on":""}" onclick="setCat('')">Todos</button>`+
-    cs.map(c=>`<button class="cat ${cat===c?"on":""}" onclick="setCat('${esc(c).replace(/'/g,"\\'")}')">${esc(c)}</button>`).join("");
+    cs.map(c=>`<button class="cat ${cat===c?"on":""}" onclick="setCat(&quot;${esc(c)}&quot;)">${esc(c)}</button>`).join("");
 }
 function setCat(c){cat=c;montarCats();filtrar();}
 function filtrar(){
-  termo=(document.getElementById("busca").value||"").toLowerCase().trim();
+  const termo=(document.getElementById("busca").value||"").toLowerCase().trim();
   let lista=produtos.filter(p=>!cat||p.categoria===cat);
-  if(termo)lista=lista.filter(p=>((p.nome||"")+" "+(p.categoria||"")+" "+(p.descricao||"")).toLowerCase().includes(termo));
+  if(termo)lista=lista.filter(p=>((p.nome||"")+" "+(p.codigo||"")+" "+(p.categoria||"")+" "+(p.descricao||"")+" "+(p.codbarras||"")).toLowerCase().includes(termo));
   lista.sort((a,b)=>(a.nome||"").localeCompare(b.nome||""));
   const el=document.getElementById("lista");
   if(!lista.length){el.innerHTML=`<div class="vazio"><div style="font-size:40px">🔍</div><div style="margin-top:8px">Nenhum produto encontrado.</div></div>`;return;}
   el.innerHTML=`<div class="grid">`+lista.map(p=>{
     const q=carrinho[p.id]||0;
-    const img=p.imagem?`style="background-image:url('${esc(p.imagem)}')"`:"";
     return `<div class="card">
-      <div class="foto" ${img}>${p.imagem?"":"📦"}</div>
+      <div class="foto" onclick="verProduto('${p.id}')" ${p.imagem?`style="background-image:url('${esc(p.imagem)}')"`:""}>${p.imagem?"":"📦"}</div>
       <div class="info">
-        <div class="nm">${esc(p.nome)}</div>
-        ${p.descricao?`<div class="ds">${esc(p.descricao)}</div>`:""}
-        <div class="pr"><span class="l">Atacado a partir de</span><span class="v">${brl(p.atacado)}</span></div>
+        ${p.codigo?`<div class="cd">Cód. ${esc(p.codigo)}</div>`:""}
+        <div class="nm" onclick="verProduto('${p.id}')">${esc(p.nome)}</div>
+        <div class="pr"><span class="l">Atacado</span><span class="v">${brl(p.atacado)}</span></div>
         ${q?`<div class="qtd"><button onclick="mudar('${p.id}',-1)">−</button><span>${q}</span><button onclick="mudar('${p.id}',1)">+</button></div>`
            :`<button class="add" onclick="mudar('${p.id}',1)">+ Adicionar</button>`}
       </div></div>`;
   }).join("")+`</div>`;
 }
-function mudar(id,d){
+function verProduto(id){
+  const p=produtos.find(x=>x.id===id);if(!p)return;
+  prodAberto=id;
+  const q=carrinho[id]||0;
+  const linha=(l,v)=>v?`<div class="fl"><span>${l}</span><b>${esc(v)}</b></div>`:"";
+  document.getElementById("prodBody").innerHTML=`
+    <div class="mfoto" ${p.imagem?`style="background-image:url('${esc(p.imagem)}')"`:""}>${p.imagem?"":"📦"}</div>
+    <div class="mbody">
+      <h3>${esc(p.nome)}</h3>
+      ${p.descricao?`<div class="mdesc">${esc(p.descricao)}</div>`:""}
+      <div class="ficha">
+        ${linha("Código",p.codigo)}
+        ${linha("Código de barras",p.codbarras)}
+        ${linha("Marca",p.marca||"EIKO VIDA")}
+        ${linha("Categoria",p.categoria)}
+        ${linha("Embalagem",p.embalagem||"UN/1")}
+        ${linha("Estoque",p.estoque)}
+      </div>
+      <div class="mpreco"><span class="l">Preço de atacado (tabela padrão)</span><span class="v">${brl(p.atacado)}</span></div>
+      <div id="mQtd">${q?`<div class="qtd" style="margin-top:14px"><button onclick="mudar('${p.id}',-1,true)">−</button><span>${q} no pedido</span><button onclick="mudar('${p.id}',1,true)">+</button></div>`
+        :`<button class="btnV" onclick="mudar('${p.id}',1,true)">+ Adicionar ao pedido</button>`}</div>
+    </div>`;
+  abrir("mProd");
+}
+function abrir(id){document.getElementById("ov").classList.add("on");document.getElementById(id).classList.add("on");document.body.style.overflow="hidden";}
+function fecharTudo(){["mProd","mCheck"].forEach(i=>document.getElementById(i).classList.remove("on"));document.getElementById("ov").classList.remove("on");document.body.style.overflow="";prodAberto=null;}
+function mudar(id,d,noModal){
   const q=(carrinho[id]||0)+d;
-  if(q<=0)delete carrinho[id]; else carrinho[id]=q;
-  filtrar(); atualizarCarrinho();
+  if(q<=0)delete carrinho[id];else carrinho[id]=q;
+  filtrar();atualizarCarrinho();
+  if(noModal&&prodAberto)verProduto(prodAberto);
 }
 function atualizarCarrinho(){
   const ids=Object.keys(carrinho);
@@ -180,18 +255,78 @@ function atualizarCarrinho(){
   document.getElementById("barraCar").classList.toggle("on",itens>0);
   document.getElementById("flut").style.display=itens>0?"none":"block";
 }
+function itensPedido(){
+  return Object.keys(carrinho).map(id=>{
+    const p=produtos.find(x=>x.id===id);if(!p)return null;
+    return {codigo:p.codigo||"",nome:p.nome,qtd:carrinho[id],preco:Number(p.atacado)||0,embalagem:p.embalagem||"UN/1",codbarras:p.codbarras||""};
+  }).filter(Boolean);
+}
+function abrirCheckout(){
+  const itens=itensPedido();
+  if(!itens.length)return;
+  const total=itens.reduce((s,i)=>s+i.qtd*i.preco,0);
+  document.getElementById("checkBody").innerHTML=`
+    <div class="mbody">
+      <div style="font-weight:700;font-size:14px;margin-bottom:6px">Seu pedido</div>
+      ${itens.map(i=>`<div class="resItem"><span>${i.qtd}x ${esc(i.nome)}</span><b>${brl(i.qtd*i.preco)}</b></div>`).join("")}
+      <div class="resItem" style="border:none;padding-top:10px"><b style="font-size:15px">TOTAL</b><b style="font-size:19px;color:var(--verde)">${brl(total)}</b></div>
+      <div style="background:#f8f8f6;border-radius:10px;padding:10px;font-size:12px;color:#555;margin-top:10px">
+        💳 <b>Forma e condição de pagamento</b> serão combinadas com nossa equipe após o envio.</div>
+      <div style="font-weight:700;font-size:14px;margin-top:16px">Seus dados</div>
+      <label class="lbl">Nome da loja / razão social *</label>
+      <input class="campo" id="cLoja" placeholder="Ex: Farmácia São João">
+      <label class="lbl">Seu nome *</label>
+      <input class="campo" id="cNome" placeholder="Quem está fazendo o pedido">
+      <label class="lbl">WhatsApp *</label>
+      <input class="campo" id="cFone" inputmode="tel" placeholder="(81) 99999-9999">
+      <label class="lbl">CNPJ</label>
+      <input class="campo" id="cCnpj" inputmode="numeric" placeholder="00.000.000/0001-00">
+      <label class="lbl">Cidade / UF</label>
+      <input class="campo" id="cCidade" placeholder="Recife / PE">
+      <label class="lbl">Endereço de entrega</label>
+      <input class="campo" id="cEnd" placeholder="Rua, número, bairro">
+      <label class="lbl">Observação</label>
+      <textarea class="campo" id="cObs" style="min-height:60px" placeholder="Alguma condição ou pedido especial?"></textarea>
+      <button class="btnW" style="margin-top:16px" onclick="enviarPedido()">✓ Enviar pedido</button>
+      <div style="font-size:11px;color:var(--cinza);text-align:center;margin-top:8px;padding-bottom:10px">Você receberá a confirmação pelo WhatsApp.</div>
+    </div>`;
+  fecharTudo();abrir("mCheck");
+}
 function enviarPedido(){
-  const ids=Object.keys(carrinho);
-  let txt="*PEDIDO — CATÁLOGO EIKO VIDA*\n\n";
-  let total=0;
-  ids.forEach(id=>{
-    const p=produtos.find(x=>x.id===id); if(!p)return;
-    const sub=p.atacado*carrinho[id]; total+=sub;
-    txt+=`• ${carrinho[id]}x ${p.nome} — ${brl(sub)}\n`;
-  });
-  txt+=`\n*TOTAL: ${brl(total)}*\n\nGostaria de fechar este pedido.`;
-  const alvo=(empresa.whats||WHATS).replace(/\D/g,"");
-  window.open("https://wa.me/"+alvo+"?text="+encodeURIComponent(txt),"_blank");
+  const loja=(document.getElementById("cLoja").value||"").trim();
+  const nome=(document.getElementById("cNome").value||"").trim();
+  const fone=(document.getElementById("cFone").value||"").trim();
+  if(!loja||!nome||!fone){alert("Preencha loja, seu nome e WhatsApp.");return;}
+  const itens=itensPedido();
+  const total=itens.reduce((s,i)=>s+i.qtd*i.preco,0);
+  const dados={
+    cliente:loja,contato:nome,whats:digitos(fone),cnpj:(document.getElementById("cCnpj").value||"").trim(),
+    cidade:(document.getElementById("cCidade").value||"").trim(),endereco:(document.getElementById("cEnd").value||"").trim(),
+    obsCli:(document.getElementById("cObs").value||"").trim(),
+    itens:itens,bruto:total,total:total,status:"aberto",tipo:"Pedido",situacao:"Aguardando pagamento",
+    origem:"catalogo",vendedor:"CATÁLOGO ONLINE",tabela:"Padrão",cond:"",forma:"",
+    data:new Date().toISOString()
+  };
+  try{db.ref("pedidos").push(dados);}catch(e){}
+  let txt="*NOVO PEDIDO — CATÁLOGO ONLINE*\n\n*Loja:* "+loja+"\n*Contato:* "+nome+"\n*WhatsApp:* "+fone;
+  if(dados.cnpj)txt+="\n*CNPJ:* "+dados.cnpj;
+  if(dados.cidade)txt+="\n*Cidade:* "+dados.cidade;
+  if(dados.endereco)txt+="\n*Entrega:* "+dados.endereco;
+  txt+="\n\n*ITENS*\n";
+  itens.forEach(i=>{txt+="• "+i.qtd+"x "+i.nome+(i.codigo?" (cód "+i.codigo+")":"")+" — "+brl(i.qtd*i.preco)+"\n";});
+  txt+="\n*TOTAL: "+brl(total)+"*\n_Tabela padrão · pagamento a combinar_";
+  if(dados.obsCli)txt+="\n\n*Obs:* "+dados.obsCli;
+  window.open("https://wa.me/"+zap()+"?text="+encodeURIComponent(txt),"_blank");
+  carrinho={};filtrar();atualizarCarrinho();
+  document.getElementById("checkBody").innerHTML=`<div class="ok">
+      <div class="ic">✅</div>
+      <h3 style="margin-top:10px">Pedido enviado!</h3>
+      <p style="color:var(--cinza);font-size:14px;margin-top:8px;line-height:1.5">Recebemos seu pedido e vamos confirmar as condições de pagamento pelo WhatsApp.</p>
+      <button class="btnV" onclick="fecharTudo()">Voltar ao catálogo</button></div>`;
+}
+function abrirWhats(){
+  const t="Olá! Vim pelo catálogo online e gostaria de mais informações sobre os produtos para revenda.";
+  window.open("https://wa.me/"+zap()+"?text="+encodeURIComponent(t),"_blank");
 }
 </script>
 </body>

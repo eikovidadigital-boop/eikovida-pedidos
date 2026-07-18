@@ -265,6 +265,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 const WHATS_EMPRESA = "558141410577";
+const URL_CATALOGO = "https://app.eikovida.com/catalogo.html";
 
 /* ====== ESTADO ====== */
 let produtos=[], clientes=[], pedidos=[], catCliente=[], catProduto=[];
@@ -273,7 +274,7 @@ const LS={get(k,def){try{const v=localStorage.getItem("eiko_"+k);return v?JSON.p
 let vendedor="", viewAtual="home";
 let vendedorCodigo="", vendedorId="", ehAdmin=false, permissoes=null;
 const ADMIN_USER="adm01eiko", ADMIN_SENHA="2904";
-const ABAS=[["convites","Instalar p/ Vendedor"],["home","Início"],["novo","Novo Pedido"],["central","Central de Pedidos"],["relatorios","Relatórios"],["cobrancas","Cobranças"],["clientes","Clientes"],["produtos","Produtos"],["tabelas","Tabelas de Preço"],["transportadoras","Transportadoras"],["fornecedores","Fornecedores"],["agenda","Agenda / CRM"],["equipe","Minha Equipe"],["empresa","Minha Empresa"],["importacoes","Importações"],["sync","Sincronização"],["catalogo","Catálogo Online"]];
+const ABAS=[["convites","Instalar p/ Vendedor"],["catalogoCfg","Editar Catálogo"],["home","Início"],["novo","Novo Pedido"],["central","Central de Pedidos"],["relatorios","Relatórios"],["cobrancas","Cobranças"],["clientes","Clientes"],["produtos","Produtos"],["tabelas","Tabelas de Preço"],["transportadoras","Transportadoras"],["fornecedores","Fornecedores"],["agenda","Agenda / CRM"],["equipe","Minha Equipe"],["empresa","Minha Empresa"],["importacoes","Importações"],["sync","Sincronização"],["catalogo","Catálogo Online"]];
 const ABAS_PADRAO=["home","novo","central","clientes","produtos","agenda","sync"];
 function podeVer(v){return ehAdmin||!permissoes||permissoes.includes(v);}
 function podeEditarPed(o){
@@ -302,6 +303,7 @@ let destaqueId=null, pedidoAberto=null;
 let filtroCli="", filtroProd="", filtroProdPedido="";
 let buscaCli="", buscaCentral="", buscaCliPed="", escopoCli="todos";
 let editandoPedido=null, mostrarLink=false, fotoTmp="";
+let cfgCatalogo={}, destTmp=null, fotoDest="";
 let editCli=null, clienteDetalhe=null, showCatCli=false, showCatProd=false;
 let prodEdit=null, filtroProdTxt="", tabEdit=null;
 
@@ -497,6 +499,7 @@ function conectarFirebase(){
   db.ref("agenda").on("value",s=>{const a=toArr(s.val());if(a.length===0&&agenda.length>0)return;agenda=a;LS.set("agenda",a);reRender(["agenda","home"]);});
   db.ref("fornecedores").on("value",s=>{const a=toArr(s.val());if(a.length===0&&fornecedores.length>0)return;fornecedores=a;LS.set("fornecedores",a);reRender(["fornecedores"]);});
   db.ref("empresa").on("value",s=>{const v=s.val();if(!v&&Object.keys(empresa).length>0)return;empresa=v||{};LS.set("empresa",empresa);reRender(["empresa"]);});
+  db.ref("catalogo").on("value",s=>{cfgCatalogo=s.val()||{};reRender(["catalogoCfg"]);});
   db.ref("config").on("value",s=>{const v=s.val()||{};if(v.codigoAtivacao)codigoAtivacao=v.codigoAtivacao;reRender(["equipe"]);});
   db.ref("vendedores").on("value",s=>{const a=toArr(s.val());if(a.length===0&&equipe.length>0)return;equipe=a;LS.set("equipe",a);reRender(["equipe"]);});
   db.ref("pedidos").on("value",s=>{const a=toArr(s.val());if(a.length===0&&pedidosRemoto.length>0)return;pedidosRemoto=a;LS.set("pedidos",a);reconstruirPedidos();reRender(["central","clientes","home"]);});
@@ -537,6 +540,7 @@ const MENU=[
   ["🏢","Minha Empresa","empresa"],
   ["__s","ADMIN"],
   ["📲","Instalar p/ Vendedor","convites"],
+  ["🛍️","Editar Catálogo","catalogoCfg"],
   ["__s","DADOS"],
   ["📥","Importações","importacoes"],
   ["🔄","Sincronização","sync"],
@@ -550,7 +554,7 @@ function toggleMenu(){
   if(abrir)renderMenu();
   d.classList.toggle("on",abrir);o.classList.toggle("on",abrir);
 }
-function navMenu(v){toggleMenu();if(v==="catalogo"){window.open("catalogo.html","_blank");return;}if(v==="__sair"){sair();return;}irPara(v);}
+function navMenu(v){toggleMenu();if(v==="catalogo"){window.open(URL_CATALOGO,"_blank");return;}if(v==="__sair"){sair();return;}irPara(v);}
 function sair(){
   if(!confirm("Sair do app? Seus dados continuam salvos."))return;
   try{["eiko_vendedor","eiko_vcod","eiko_vid","eiko_admin","eiko_perm"].forEach(k=>localStorage.removeItem(k));}catch(e){}
@@ -585,7 +589,7 @@ function viewHome(){
     {ic:"🚚",cor:"#0EA5E9",tit:"Transportadoras",v:"transportadoras"},
     {ic:"🌐",cor:"#8B5CF6",tit:"Catálogo Virtual",v:"catalogo"},
   ];
-  const cards=itens.map(i=>`<button class="homecard" onclick="${i.v==='catalogo'?`window.open('catalogo.html','_blank')`:`irPara('${i.v}')`}">
+  const cards=itens.map(i=>`<button class="homecard" onclick="${i.v==='catalogo'?`window.open(URL_CATALOGO,'_blank')`:`irPara('${i.v}')`}">
     <span class="homeic" style="background:${i.cor}22;color:${i.cor}">${i.ic}</span>
     <span class="hometit">${i.tit}</span></button>`).join("");
   const pend=filaPendentes.length?`<div class="pendbar" onclick="irPara('sync')">⏳ ${filaPendentes.length} item(ns) aguardando sincronizar — toque aqui</div>`:"";
@@ -859,6 +863,175 @@ function salvarEmpresa(){
 }
 
 /* ====== MINHA EQUIPE ====== */
+
+/* ====== EDITAR CATÁLOGO VIRTUAL (somente admin) ====== */
+function viewCatalogoCfg(){
+  if(!ehAdmin)return `<div class="vazio">Área exclusiva do administrador.</div>`;
+  const c=cfgCatalogo||{};
+  const dest=Array.isArray(c.destaques)?c.destaques:[];
+  const semFoto=produtos.filter(p=>!p.imagem).length;
+  const box=(t,inner)=>`<div class="card"><div style="font-weight:700;font-size:14px;margin-bottom:8px">${t}</div>${inner}</div>`;
+
+  const contato=box("📞 Contato do catálogo",`
+    <label class="lb">WhatsApp que recebe os pedidos</label>
+    <input class="inp" id="ccWhats" inputmode="tel" placeholder="Ex: 81 99610-1540" value="${esc(c.whatsapp||"")}" style="margin-top:2px"/>
+    <div style="font-size:11px;color:var(--cinza);margin-top:4px">Pode digitar com espaços e traços. Se ficar vazio, usa o número padrão da empresa.</div>
+    <label class="lb" style="margin-top:8px;display:block">Telefone para exibir no rodapé (opcional)</label>
+    <input class="inp" id="ccFone" placeholder="(81) 4141-0577" value="${esc(c.telefone||"")}" style="margin-top:2px"/>`);
+
+  const banner=box("🖼️ Banner principal (topo)",`
+    <label class="lb">Título</label>
+    <input class="inp" id="ccTitulo" value="${esc(c.titulo||"EIKO VIDA")}" style="margin-top:2px"/>
+    <label class="lb" style="margin-top:8px;display:block">Frase de chamada</label>
+    <input class="inp" id="ccSub" value="${esc(c.subtitulo||"Óleos vegetais 100% naturais · Linha completa para revenda")}" style="margin-top:2px"/>
+    <label class="lb" style="margin-top:8px;display:block">Selos (separe por vírgula)</label>
+    <input class="inp" id="ccSelos" value="${esc(c.selos||"🌱 100% Vegano, 🧪 Registro ANVISA, 🇧🇷 Produção própria, 📦 Pronta entrega")}" style="margin-top:2px"/>
+    <label class="lb" style="margin-top:8px;display:block">Título do bloco de vantagens</label>
+    <input class="inp" id="ccPitch" value="${esc(c.pitchTitulo||"Por que revender EIKO VIDA?")}" style="margin-top:2px"/>
+    <label class="lb" style="margin-top:8px;display:block">Vantagens (uma por linha)</label>
+    <textarea class="inp" id="ccBenef" style="min-height:80px">${esc(c.beneficios||"💰 Margem de até 100% na revenda\n🔄 Alto giro — produto de recompra\n📈 Mercado natural em crescimento\n🤝 Suporte e material de apoio")}</textarea>
+    <button class="btn btn-v" style="width:100%;margin-top:10px" onclick="salvarCatalogoCfg()">Salvar banner e contato</button>`);
+
+  const fdest=destTmp?`<div class="card" style="border:2px solid var(--dourado);background:#fffdf5">
+    <div style="font-weight:700;font-size:14px;margin-bottom:8px">${destTmp.i>=0?"✎ Editar destaque":"+ Novo destaque"}</div>
+    <label class="lb">Tipo</label>
+    <select class="inp" id="dsTipo" style="margin-top:2px">
+      ${["🔥 Promoção","✨ Lançamento","⭐ Destaque","🎁 Combo"].map(t=>`<option ${destTmp.tipo===t?"selected":""}>${t}</option>`).join("")}
+    </select>
+    <label class="lb" style="margin-top:8px;display:block">Título *</label>
+    <input class="inp" id="dsTit" value="${esc(destTmp.titulo||"")}" placeholder="Ex: Óleo de Coco 200ml com 20% OFF" style="margin-top:2px"/>
+    <label class="lb" style="margin-top:8px;display:block">Texto</label>
+    <textarea class="inp" id="dsTxt" style="min-height:60px" placeholder="Condições, validade, quantidade mínima…">${esc(destTmp.texto||"")}</textarea>
+    <div class="fgrid" style="margin-top:8px">
+      <div><label class="lb">Preço promocional</label><input class="inp" id="dsPreco" inputmode="decimal" value="${esc(destTmp.preco||"")}" placeholder="Ex: 11,90"/></div>
+      <div><label class="lb">Preço "de" (riscado)</label><input class="inp" id="dsDe" inputmode="decimal" value="${esc(destTmp.precoDe||"")}" placeholder="Ex: 13,90"/></div>
+    </div>
+    <div style="margin-top:10px;background:#fff;border-radius:10px;padding:10px">
+      <div style="font-size:12px;font-weight:700;margin-bottom:6px">Imagem do destaque</div>
+      <div style="display:flex;gap:10px;align-items:center">
+        <div style="width:70px;height:70px;border-radius:10px;border:1px solid var(--borda);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:24px;background:#fff ${fotoDest?`url('${fotoDest}') center/cover no-repeat`:""}">${fotoDest?"":"🖼️"}</div>
+        <div style="flex:1">
+          <input type="file" id="arqDest" accept="image/*" style="display:none" onchange="lerFotoDest(this)"/>
+          <button class="btn btn-o btn-sm" style="width:100%" onclick="document.getElementById('arqDest').click()">📁 Escolher imagem</button>
+          ${fotoDest?`<button class="btn btn-r btn-sm" style="width:100%;margin-top:5px" onclick="fotoDest='';render()">Remover</button>`:""}
+        </div>
+      </div>
+    </div>
+    <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;margin-top:10px">
+      <input type="checkbox" id="dsAtivo" ${destTmp.ativo!==false?"checked":""} style="width:18px;height:18px"/> Mostrar no catálogo</label>
+    <div class="row" style="margin-top:10px">
+      <button class="btn btn-v" style="flex:1" onclick="salvarDestaque()">Salvar destaque</button>
+      <button class="btn btn-g" onclick="destTmp=null;fotoDest='';render()">✕</button>
+    </div></div>`:`<button class="btn btn-v" style="width:100%" onclick="novoDestaque()">+ Novo destaque / promoção</button>`;
+
+  const listaDest=dest.length?dest.map((d,i)=>`<div class="card" style="padding:12px;${d.ativo===false?'opacity:.55':''}">
+      <div style="display:flex;gap:10px">
+        ${d.imagem?`<div style="width:56px;height:56px;border-radius:8px;flex-shrink:0;background:#fff url('${esc(d.imagem)}') center/cover no-repeat;border:1px solid var(--borda)"></div>`:""}
+        <div style="flex:1;min-width:0">
+          <div style="font-size:11px;color:var(--dourado);font-weight:700">${esc(d.tipo||"⭐ Destaque")}</div>
+          <b style="font-size:14px">${esc(d.titulo||"")}</b>
+          ${d.texto?`<div style="font-size:12px;color:var(--cinza);line-height:1.35">${esc(d.texto)}</div>`:""}
+          ${d.preco?`<div style="font-size:13px;margin-top:2px">${d.precoDe?`<s style="color:#999">R$ ${esc(d.precoDe)}</s> `:""}<b style="color:var(--verde)">R$ ${esc(d.preco)}</b></div>`:""}
+        </div>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <button class="btn btn-g btn-sm" style="flex:1" onclick="editarDestaque(${i})">✎ Editar</button>
+        <button class="btn btn-g btn-sm" onclick="moverDestaque(${i},-1)">↑</button>
+        <button class="btn btn-g btn-sm" onclick="moverDestaque(${i},1)">↓</button>
+        <button class="btn btn-r btn-sm" onclick="excluirDestaque(${i})">🗑</button>
+      </div></div>`).join(""):`<div style="font-size:13px;color:var(--cinza);padding:8px 2px">Nenhum destaque ainda.</div>`;
+
+  const imgs=box("🖼️ Fotos dos produtos",`
+    <div style="font-size:13px;margin-bottom:8px">${semFoto?`<b style="color:#b45309">${semFoto} produto(s) sem foto</b> no catálogo.`:'<b style="color:var(--verde)">Todos os produtos têm foto ✓</b>'}</div>
+    <div style="font-size:12px;color:var(--cinza);margin-bottom:8px">Busca as fotos oficiais pelo código do produto. Só preenche quem está sem foto — nenhum código é alterado.</div>
+    <button class="btn btn-o" style="width:100%" id="btnImgs" onclick="preencherImagens()">🔄 Preencher fotos que faltam</button>
+    <div id="imgProg" style="font-size:12px;margin-top:8px"></div>`);
+
+  const link=box("🔗 Link do catálogo",`
+    <div style="background:#f8f8f6;border-radius:8px;padding:10px;font-size:13px;text-align:center;word-break:break-all">${esc(URL_CATALOGO)}</div>
+    <div class="row" style="margin-top:8px">
+      <button class="btn btn-v btn-sm" style="flex:1" onclick="copiar(URL_CATALOGO,'Link copiado ✓')">Copiar</button>
+      <button class="btn btn-w btn-sm" style="flex:1" onclick="compartilharCatalogo()">📲 Enviar p/ lojista</button>
+      <button class="btn btn-g btn-sm" onclick="window.open(URL_CATALOGO,'_blank')">Ver</button>
+    </div>`);
+
+  return `<h2 class="tit">Editar Catálogo Virtual</h2>${link}${contato}${banner}
+    <div style="font-weight:700;font-size:14px;margin:16px 0 8px">🔥 Destaques e promoções</div>${fdest}${listaDest}${imgs}`;
+}
+function salvarCatalogoCfg(){
+  const o={whatsapp:val("ccWhats"),telefone:val("ccFone"),titulo:val("ccTitulo"),subtitulo:val("ccSub"),
+    selos:val("ccSelos"),pitchTitulo:val("ccPitch"),beneficios:val("ccBenef"),
+    destaques:(cfgCatalogo&&cfgCatalogo.destaques)||[]};
+  cfgCatalogo={...cfgCatalogo,...o};
+  db.ref("catalogo").update(o);
+  toast("Catálogo atualizado ✓");
+}
+function novoDestaque(){destTmp={i:-1,tipo:"🔥 Promoção",titulo:"",texto:"",preco:"",precoDe:"",ativo:true};fotoDest="";render();window.scrollTo(0,0);}
+function editarDestaque(i){const d=(cfgCatalogo.destaques||[])[i]||{};destTmp={...d,i};fotoDest=d.imagem||"";render();window.scrollTo(0,0);}
+function salvarDestaque(){
+  const t=val("dsTit");
+  if(!t){toast("Informe o título");return;}
+  const d={tipo:val("dsTipo"),titulo:t,texto:val("dsTxt"),preco:val("dsPreco"),precoDe:val("dsDe"),
+    imagem:fotoDest||"",ativo:!!(document.getElementById("dsAtivo")||{}).checked};
+  const arr=(cfgCatalogo.destaques||[]).slice();
+  if(destTmp&&destTmp.i>=0)arr[destTmp.i]=d; else arr.push(d);
+  cfgCatalogo.destaques=arr;
+  db.ref("catalogo/destaques").set(arr);
+  destTmp=null;fotoDest="";toast("Destaque salvo ✓");render();
+}
+function excluirDestaque(i){
+  if(!confirm("Excluir este destaque?"))return;
+  const arr=(cfgCatalogo.destaques||[]).slice();arr.splice(i,1);
+  cfgCatalogo.destaques=arr;db.ref("catalogo/destaques").set(arr);toast("Excluído");render();
+}
+function moverDestaque(i,d){
+  const arr=(cfgCatalogo.destaques||[]).slice();const j=i+d;
+  if(j<0||j>=arr.length)return;
+  const t=arr[i];arr[i]=arr[j];arr[j]=t;
+  cfgCatalogo.destaques=arr;db.ref("catalogo/destaques").set(arr);render();
+}
+function lerFotoDest(inp){
+  const f=inp.files&&inp.files[0]; if(!f)return;
+  toast("Preparando imagem…");
+  const r=new FileReader();
+  r.onload=()=>{
+    const img=new Image();
+    img.onload=()=>{
+      const MAX=900;let w=img.naturalWidth,h=img.naturalHeight;
+      if(w>h&&w>MAX){h=Math.round(h*MAX/w);w=MAX;} else if(h>=w&&h>MAX){w=Math.round(w*MAX/h);h=MAX;}
+      const cv=document.createElement("canvas");cv.width=w;cv.height=h;
+      const ctx=cv.getContext("2d");ctx.fillStyle="#fff";ctx.fillRect(0,0,w,h);ctx.drawImage(img,0,0,w,h);
+      let q=0.72,dados=cv.toDataURL("image/jpeg",q);
+      while(dados.length>150000&&q>0.35){q-=0.1;dados=cv.toDataURL("image/jpeg",q);}
+      fotoDest=dados;render();toast("Imagem pronta ✓");
+    };
+    img.src=r.result;
+  };
+  r.readAsDataURL(f);
+}
+function compartilharCatalogo(){
+  const t="Olá! Conheça o catálogo de atacado da "+(empresa.razao||"EIKO VIDA")
+    +" — óleos vegetais 100% naturais com ótima margem para revenda.\n\n"+URL_CATALOGO
+    +"\n\nÉ só escolher os produtos e enviar o pedido por aqui mesmo. Qualquer dúvida, estou à disposição!";
+  window.open("https://wa.me/?text="+encodeURIComponent(t),"_blank");
+}
+async function preencherImagens(){
+  if(!navigator.onLine){toast("Precisa estar online");return;}
+  const set=t=>{const e=document.getElementById("imgProg");if(e)e.innerHTML=t;};
+  const btn=document.getElementById("btnImgs");if(btn)btn.disabled=true;
+  try{
+    set("⏳ Buscando fotos…");
+    const mapa=await fetch("imagens-produtos.json?v="+Date.now()).then(r=>{if(!r.ok)throw new Error("x");return r.json();});
+    const alvo=produtos.filter(p=>!p.imagem&&p.codigo&&mapa[String(p.codigo).trim()]);
+    if(!alvo.length){set('<span style="color:var(--verde)">✅ Nada a preencher.</span>');if(btn)btn.disabled=false;return;}
+    const upd={};
+    alvo.forEach(p=>{upd[p.id+"/imagem"]=mapa[String(p.codigo).trim()];});
+    await db.ref("produtos").update(upd);
+    set('<span style="color:var(--verde)">✅ '+alvo.length+" foto(s) preenchida(s).</span>");
+    toast("Fotos atualizadas ✓");
+  }catch(e){set('<span style="color:#dc2626">Não encontrei o arquivo de fotos.</span>');if(btn)btn.disabled=false;}
+}
+
 function viewConvites(){
   if(!ehAdmin)return `<div class="vazio">Área exclusiva do administrador.</div>`;
   const link=linkApp();
@@ -1331,6 +1504,7 @@ function render(){
   else if(viewAtual==="equipe")c.innerHTML=viewEquipe();
   else if(viewAtual==="importacoes")c.innerHTML=viewImportacoes();
   else if(viewAtual==="convites")c.innerHTML=viewConvites();
+  else if(viewAtual==="catalogoCfg")c.innerHTML=viewCatalogoCfg();
   // seta de voltar ao início em todas as abas (exceto a própria home)
   if(viewAtual!=="home"&&c.innerHTML){
     c.innerHTML=`<button class="voltar" onclick="irPara('home')">← Início</button>`+c.innerHTML;
