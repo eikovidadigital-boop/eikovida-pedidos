@@ -42,7 +42,7 @@
   header .dot{width:7px;height:7px;border-radius:50%;background:#7CFC9A;animation:pulse 1.6s infinite}
   @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
 
-  main{max-width:900px;margin:0 auto;padding:14px 14px 96px}
+  main{max-width:900px;margin:0 auto;padding:14px 14px 40px}
   h2.tit{font-size:16px;margin-bottom:12px;font-weight:800}
   .card{background:var(--card);border:1px solid var(--borda);border-radius:14px;padding:14px;margin-bottom:12px}
   label.lb{font-size:11px;font-weight:700;color:var(--cinza);text-transform:uppercase;letter-spacing:.4px}
@@ -156,24 +156,16 @@
 
 <div id="app" class="hide">
   <header>
-    <div class="logo" id="headerLogo">E</div>
-    <div>
+    <div class="logo" id="headerLogo" onclick="irPara('home')" style="cursor:pointer" title="Início">E</div>
+    <div onclick="irPara('home')" style="cursor:pointer">
       <div class="titulo">EikoVida Pedidos</div>
-      <div class="sub" id="subHeader">Atacado</div>
+      <div class="sub" id="subHeader">🏠 Toque para o início</div>
     </div>
     <div class="live"><span class="dot"></span> Ao vivo</div>
   </header>
 
   <main id="conteudo"></main>
   <div id="barraTotal" class="hide"></div>
-
-  <nav>
-    <button data-v="home" onclick="irPara('home')"><span class="ic">🏠</span>Início</button>
-    <button data-v="novo" onclick="irPara('novo')"><span class="ic">＋</span>Pedido</button>
-    <button data-v="central" onclick="irPara('central')"><span class="ic">📋</span>Central</button>
-    <button data-v="clientes" onclick="irPara('clientes')"><span class="ic">👥</span>Clientes</button>
-    <button data-v="produtos" onclick="irPara('produtos')"><span class="ic">📦</span>Produtos</button>
-  </nav>
 
   <button id="instalar" class="hide" onclick="instalarApp()">⬇ Instalar app</button>
   <div id="toast"></div>
@@ -212,6 +204,7 @@ let itemEditando=null, itemQtd="", itemPreco=0, tabelas=[];
 let ped={status:"Pedido",consumidorFinal:false,dataEmissao:new Date().toISOString().slice(0,10),dataFat:"",previsao:"",cond:"",forma:"",tabela:"",descTipo:"desc",descPerc:"",obsCli:"",obsEmp:"",ordemCompra:"",transportadora:""};
 let destaqueId=null, pedidoAberto=null;
 let filtroCli="", filtroProd="", filtroProdPedido="";
+let buscaCli="", buscaCentral="";
 let editCli=null, clienteDetalhe=null, showCatCli=false, showCatProd=false;
 let prodEdit=null, filtroProdTxt="", tabEdit=null;
 
@@ -354,7 +347,7 @@ function toArr(o){return o?Object.keys(o).map(k=>({id:k,...o[k]})):[];}
 function semear(){const u={};SEED.forEach(p=>{u[db.ref("produtos").push().key]=p;});db.ref("produtos").update(u);}
 
 /* ====== NAV ====== */
-function irPara(v){viewAtual=v;clienteDetalhe=null;editCli=null;tabEdit=null;prodEdit=null;document.querySelectorAll("nav button").forEach(b=>b.classList.toggle("on",b.dataset.v===v));render();}
+function irPara(v){viewAtual=v;clienteDetalhe=null;editCli=null;tabEdit=null;prodEdit=null;render();}
 
 /* ====== HOME (grade) ====== */
 function viewHome(){
@@ -1122,19 +1115,28 @@ function textoPedido(o){
 /* ====== CENTRAL ====== */
 function viewCentral(){
   const hoje=new Date().toDateString();
-  const hj=pedidos.filter(p=>new Date(p.data).toDateString()===hoje);
-  const fat=pedidos.reduce((s,p)=>s+p.total,0);
+  const hj=pedidos.filter(p=>p.data&&new Date(p.data).toDateString()===hoje);
+  const fat=pedidos.reduce((s,p)=>s+(p.total||0),0);
   const abertos=pedidos.filter(p=>p.status==="aberto").length;
   const kpis=`<div class="kpis">
     <div class="kpi"><small>Pedidos hoje</small><b>${hj.length}</b></div>
-    <div class="kpi"><small>Faturamento</small><b>${brl(fat)}</b></div>
+    <div class="kpi"><small>Faturamento total</small><b>${brl(fat)}</b></div>
     <div class="kpi"><small>Em aberto</small><b style="color:${abertos?'#b45309':'var(--verde)'}">${abertos}</b></div></div>`;
   if(pedidos.length===0)return `<h2 class="tit">Central de pedidos</h2>${kpis}<div class="vazio"><div class="em">📋</div><div>Nenhum pedido ainda.</div></div>`;
-  const lista=pedidos.map(o=>{
+  const busca=`<input class="inp" id="buscaCentralInp" placeholder="🔍 Buscar por cliente ou nº do pedido" value="${esc(buscaCentral)}" oninput="filtrarCentral(this.value)" style="margin-bottom:10px">`;
+  return `<h2 class="tit">Central de pedidos (${pedidos.length})</h2>${kpis}${busca}<div id="listaCentral">${htmlListaCentral()}</div>`;
+}
+function htmlListaCentral(){
+  const q=(buscaCentral||"").toLowerCase().trim();
+  let arr=pedidos.slice().sort((a,b)=>new Date(b.data||0)-new Date(a.data||0));
+  if(q)arr=arr.filter(o=>((o.cliente||"")+" "+(o.numero||"")+" "+(o.cidade||"")).toLowerCase().includes(q));
+  const total=arr.length, LIM=50, mostra=arr.slice(0,LIM);
+  if(total===0)return `<div class="vazio">Nenhum pedido encontrado.</div>`;
+  const lista=mostra.map(o=>{
     const nv=o.id===destaqueId;
     const det=o.id===pedidoAberto?`<div class="det">
-        ${o.itens.map(i=>`<div class="li"><span>${i.qtd}x ${esc(i.nome)}</span><span>${brl(i.qtd*i.preco)}</span></div>`).join("")}
-        ${o.cond?`<div class="pag">💳 ${esc(o.cond)}${o.forma?" · "+esc(o.forma):""}</div>`:""}${o.tipo&&o.tipo!=="Pedido"?`<div class="pag">🏷️ ${esc(o.tipo)}</div>`:""}
+        ${(o.itens||[]).map(i=>`<div class="li"><span>${i.qtd}x ${esc(i.nome)}</span><span>${brl(i.qtd*i.preco)}</span></div>`).join("")}
+        ${o.cond?`<div class="pag">💳 ${esc(o.cond)}${o.forma?" · "+esc(o.forma):""}</div>`:""}${o.historico?'<div class="pag">📦 Pedido do histórico (PedidoOK)</div>':""}
         ${o.obs?`<div class="pag">📝 ${esc(o.obs)}</div>`:""}
         <div class="row" style="margin-top:10px">
           <button class="btn btn-g btn-sm" style="flex:1" onclick="copiarPed('${o.id}')">Copiar</button>
@@ -1147,14 +1149,16 @@ function viewCentral(){
         </div></div>`:"";
     return `<div class="ped ${nv?'novo':''}">
       <div class="top" onclick="${o._pendente?'':`abrirPed('${o.id}')`}">
-        <div class="cli"><b>${esc(o.cliente)}${nv?'<span class="tagnovo">NOVO</span>':''}${o._pendente?'<span class="tagnovo" style="background:#b45309">⏳ OFFLINE</span>':''}</b>
-          <small>${esc(o.cidade||"")} · ${o.itens.reduce((s,i)=>s+i.qtd,0)} un · ${o.vendedor?esc(o.vendedor)+" · ":""}${hora(o.data)}</small></div>
+        <div class="cli"><b>${esc(o.cliente)}${o.numero?' <span style="color:#999;font-weight:400">#'+esc(o.numero)+'</span>':''}${nv?'<span class="tagnovo">NOVO</span>':''}${o._pendente?'<span class="tagnovo" style="background:#b45309">⏳ OFFLINE</span>':''}</b>
+          <small>${esc(o.cidade||"")} · ${(o.itens||[]).reduce((s,i)=>s+i.qtd,0)} un · ${dataBr(o.data)}</small></div>
         <div class="tot">${brl(o.total)}</div>
-        <span class="badge ${o._pendente?'b-aberto':(o.status==='enviado'?'b-enviado':'b-aberto')}">${o._pendente?'na fila':o.status}</span>
       </div>${o._pendente?'':det}</div>`;
   }).join("");
-  return `<h2 class="tit">Central de pedidos</h2>${kpis}${lista}`;
+  const aviso=total>LIM?`<div style="text-align:center;color:var(--cinza);font-size:12px;padding:12px">Mostrando os ${LIM} mais recentes de ${total}. Use a busca para achar outros.</div>`:"";
+  return lista+aviso;
 }
+function filtrarCentral(q){buscaCentral=q;const el=document.getElementById("listaCentral");if(el)el.innerHTML=htmlListaCentral();}
+
 function abrirPed(id){pedidoAberto=(pedidoAberto===id?null:id);render();}
 function toggleStatus(id){const p=pedidos.find(x=>x.id===id);db.ref("pedidos/"+id+"/status").set(p.status==="aberto"?"enviado":"aberto");}
 function excluirPed(id){if(confirm("Excluir este pedido?"))db.ref("pedidos/"+id).remove();}
@@ -1540,15 +1544,26 @@ function viewClientes(){
   const cats=[...new Set(clientes.map(c=>c.categoria).filter(Boolean))];
   const chips=cats.length?`<div class="chips"><button class="chip ${filtroCli===""?"on":""}" onclick="filtroCli='';render()">Todos</button>`
     +cats.map(ct=>`<button class="chip ${filtroCli===ct?"on":""}" onclick="filtroCli='${esc(ct)}';render()">${esc(ct)}</button>`).join("")+`</div>`:"";
-  const lista=clientes.filter(c=>!filtroCli||c.categoria===filtroCli);
-  const html=lista.length===0
-    ? `<div class="vazio"><div class="em">👥</div><div>Nenhum cliente aqui.</div></div>`
-    : lista.map(c=>`<div class="lista-cli" onclick="verCliente('${c.id}')"><div class="info"><b>${esc(c.nome)}</b>
+  const busca=`<input class="inp" id="buscaCliInp" placeholder="🔍 Buscar por nome, cidade ou CNPJ" value="${esc(buscaCli)}" oninput="filtrarClientes(this.value)" style="margin:4px 0 10px">`;
+  return `<h2 class="tit">Clientes (${clientes.length})</h2>${catManage}${form}${chips}${busca}<div id="listaClientes">${htmlListaClientes()}</div>`;
+}
+function htmlListaClientes(){
+  const q=(buscaCli||"").toLowerCase().trim();
+  let lista=clientes.filter(c=>!filtroCli||c.categoria===filtroCli);
+  if(q)lista=lista.filter(c=>((c.nome||"")+" "+(c.fantasia||"")+" "+(c.cidade||"")+" "+(c.cnpj||"")).toLowerCase().includes(q));
+  const total=lista.length, LIM=60;
+  lista=lista.slice().sort((a,b)=>(a.nome||"").localeCompare(b.nome||""));
+  const mostra=lista.slice(0,LIM);
+  if(total===0)return `<div class="vazio"><div class="em">👥</div><div>Nenhum cliente encontrado.</div></div>`;
+  const cards=mostra.map(c=>`<div class="lista-cli" onclick="verCliente('${c.id}')"><div class="info"><b>${esc(c.nome)}</b>
         <small>${[esc(c.cidade),esc(c.whatsapp)].filter(Boolean).join(" · ")}</small></div>
         ${c.categoria?`<span class="badge b-cat">${esc(c.categoria)}</span>`:""}
         <button class="icbtn btn-g" onclick="event.stopPropagation();editarCli('${c.id}')">✎</button></div>`).join("");
-  return `<h2 class="tit">Clientes</h2>${catManage}${form}${chips}${html}`;
+  const aviso=total>LIM?`<div style="text-align:center;color:var(--cinza);font-size:12px;padding:12px">Mostrando ${LIM} de ${total}. Use a busca para achar outros.</div>`:"";
+  return cards+aviso;
 }
+function filtrarClientes(q){buscaCli=q;const el=document.getElementById("listaClientes");if(el)el.innerHTML=htmlListaClientes();}
+
 function addCatCli(){const n=document.getElementById("novaCatCli").value.trim();if(!n)return;db.ref("categorias_cliente").push({nome:n});toast("Categoria criada");}
 function delCatCli(id){if(confirm("Excluir categoria?"))db.ref("categorias_cliente/"+id).remove();}
 function salvarCli(){
