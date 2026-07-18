@@ -1311,26 +1311,37 @@ async function enviarPDFwhats(id){
   if(typeof html2pdf==="undefined"){toast("Conecte à internet para gerar o PDF");return;}
   const m=pdfMarkup(id); if(!m)return;
   toast("Gerando PDF…");
+  // container REAL na viewport (fora da tela o html2canvas sai em branco)
   const el=document.createElement("div");
-  el.style.cssText="position:fixed;left:-9999px;top:0;width:800px;background:#fff";
+  el.style.cssText="position:fixed;left:0;top:0;width:794px;background:#ffffff;z-index:-1";
   el.innerHTML=m.inner;
   document.body.appendChild(el);
-  const opt={margin:[5,5,5,5],filename:`Pedido-${m.num}.pdf`,image:{type:'jpeg',quality:0.96},html2canvas:{scale:2,useCORS:true,backgroundColor:'#ffffff'},jsPDF:{unit:'mm',format:'a4',orientation:'portrait'}};
+  try{ window.scrollTo(0,0); }catch(_){ }
+  // espera a logo (e qualquer imagem) carregar
+  try{
+    await Promise.all([...el.querySelectorAll("img")].map(img=>(img.complete&&img.naturalWidth)?Promise.resolve():new Promise(r=>{img.onload=r;img.onerror=r;setTimeout(r,2500);})));
+  }catch(_){ }
+  await new Promise(r=>setTimeout(r,120));
+  const opt={margin:[6,6,6,6],filename:"Pedido-"+m.num+".pdf",
+    image:{type:"jpeg",quality:0.96},
+    html2canvas:{scale:2,useCORS:true,allowTaint:true,backgroundColor:"#ffffff",scrollX:0,scrollY:0,windowWidth:820},
+    jsPDF:{unit:"mm",format:"a4",orientation:"portrait"}};
   try{
     const blob=await html2pdf().set(opt).from(el).toPdf().output("blob");
-    try{document.body.removeChild(el);}catch(_){}
-    const file=new File([blob],`Pedido-${m.num}.pdf`,{type:"application/pdf"});
-    const legenda=`Segue seu pedido ${m.num} — ${(empresa.razao||"EIKO VIDA")}`;
+    try{document.body.removeChild(el);}catch(_){ }
+    if(!blob||blob.size<1000){toast("Não consegui gerar o PDF. Tente novamente.");return;}
+    const file=new File([blob],"Pedido-"+m.num+".pdf",{type:"application/pdf"});
+    const legenda="Segue seu pedido "+m.num+" — "+(empresa.razao||"EIKO VIDA");
     if(navigator.canShare&&navigator.canShare({files:[file]})){
-      await navigator.share({files:[file],title:`Pedido ${m.num}`,text:legenda});
+      await navigator.share({files:[file],title:"Pedido "+m.num,text:legenda});
     }else{
       const url=URL.createObjectURL(blob);
-      const a=document.createElement("a");a.href=url;a.download=`Pedido-${m.num}.pdf`;document.body.appendChild(a);a.click();a.remove();
+      const a=document.createElement("a");a.href=url;a.download="Pedido-"+m.num+".pdf";document.body.appendChild(a);a.click();a.remove();
       const alvo=soDig(o.whats)?("55"+soDig(o.whats).replace(/^55/,"")):WHATS_EMPRESA;
-      setTimeout(()=>{window.open(`https://wa.me/${alvo}?text=${encodeURIComponent(legenda+" (anexe o PDF que acabou de baixar).")}`,"_blank");},600);
+      setTimeout(()=>{window.open("https://wa.me/"+alvo+"?text="+encodeURIComponent(legenda+" (anexe o PDF que acabou de baixar)."),"_blank");},600);
       toast("PDF baixado — anexe no WhatsApp");
     }
-  }catch(e){try{document.body.removeChild(el);}catch(_){}toast("Erro ao gerar PDF");}
+  }catch(e){try{document.body.removeChild(el);}catch(_){ }toast("Erro ao gerar PDF: "+(e&&e.message||""));}
 }
 
 
