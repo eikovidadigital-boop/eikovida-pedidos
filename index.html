@@ -11,7 +11,7 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
 <style>
   :root{
@@ -1306,42 +1306,180 @@ function gerarPDF(id){
   w.onload=()=>setTimeout(()=>w.print(),400);
 }
 
+function carregarLogo(){
+  return new Promise(res=>{
+    try{
+      const img=new Image(); img.crossOrigin="anonymous";
+      img.onload=()=>{try{const cv=document.createElement("canvas");cv.width=img.naturalWidth;cv.height=img.naturalHeight;cv.getContext("2d").drawImage(img,0,0);res({data:cv.toDataURL("image/png"),w:img.naturalWidth,h:img.naturalHeight});}catch(e){res(null);}};
+      img.onerror=()=>res(null);
+      img.src="logo.png";
+    }catch(e){res(null);}
+  });
+}
+function construirPDFjs(id,logo){
+  const o=pedidos.find(x=>x.id===id); if(!o)return null;
+  const c=clientes.find(x=>x.id===o.clienteId)||{nome:o.cliente||"",cidade:(o.cidade||"").split("/")[0]||"",uf:(o.cidade||"").split("/")[1]||""};
+  const emp=empresa||{};
+  const nomeEmp=emp.razao||"EIKO VIDA";
+  const num=o.numero||"—";
+  const subtotal=(o.itens&&o.itens.length)?o.itens.reduce((s,i)=>s+i.qtd*i.preco,0):(o.total||0);
+  const dp=parseFloat(String(o.descPerc||"0").replace(",","."))||0;
+  const ehAcre=(o.descTipo||"").toLowerCase().startsWith("acr");
+  const descValor=subtotal*dp/100;
+  const sinal=ehAcre?"+":"-";
+  const jsPDF=window.jspdf.jsPDF;
+  const doc=new jsPDF({unit:"mm",format:"a4"});
+  const PW=210, M=8, X0=M, X1=PW-M, W=X1-X0;
+  doc.setLineWidth(0.1); doc.setDrawColor(0);
+  const T=(s,x,y,o2)=>doc.text(String(s==null?"":s),x,y,o2);
+  const fit=(s,w)=>{doc.getTextWidth;return (doc.splitTextToSize(String(s==null?"":s),w-1.6)[0]||"");};
+  function campo(x,y,w,h,rot,val,opt){
+    opt=opt||{};
+    doc.rect(x,y,w,h);
+    doc.setFont("helvetica","normal");doc.setFontSize(4.6);doc.setTextColor(90);
+    T(String(rot).toUpperCase(),x+1,y+2);
+    doc.setTextColor(0);doc.setFont("helvetica",opt.bold?"bold":"normal");doc.setFontSize(opt.size||8.5);
+    const v=fit(val,w);
+    if(opt.alignR)T(v,x+w-1,y+h-1.6,{align:"right"});
+    else if(opt.center)T(v,x+w/2,y+h-1.6,{align:"center"});
+    else T(v,x+1,y+h-1.6);
+  }
+  function secTit(t,y){doc.setFont("helvetica","bold");doc.setFontSize(7);doc.setTextColor(0);T(t,X0,y);}
+  let y=M+2;
+  // ===== CANHOTO =====
+  const chH=17, chNumW=26;
+  doc.rect(X0,y,W,chH);
+  doc.line(X1-chNumW,y,X1-chNumW,y+chH);
+  const txtW=W-chNumW-3;
+  doc.setFont("helvetica","normal");doc.setFontSize(5.2);doc.setTextColor(0);
+  const l1=doc.splitTextToSize("RECEBEMOS DE "+nomeEmp+" OS PRODUTOS E/OU SERVIÇOS CONSTANTES NO PEDIDO INDICADO AO LADO.   EMISSÃO "+dataBr(o.data), txtW);
+  T(l1.slice(0,2),X0+1.5,y+2.5);
+  doc.setFont("helvetica","bold");doc.setFontSize(6);
+  const dest="VALOR TOTAL "+brl(o.total)+" | DESTINATÁRIO: "+(c.nome||o.cliente||"")+([c.endereco,c.numero].filter(Boolean).join(", ")?" - "+[c.endereco,c.numero].filter(Boolean).join(", "):"");
+  const l2=doc.splitTextToSize(dest,txtW);
+  T(l2.slice(0,2),X0+1.5,y+2.5+l1.slice(0,2).length*2);
+  doc.setFont("helvetica","normal");doc.setFontSize(6);
+  T("VENCIMENTOS: "+(o.cond||("(0) "+dataBr(o.data))),X0+1.5,y+chH-6);
+  doc.line(X0,y+chH-4.5,X1-chNumW,y+chH-4.5);
+  doc.line(X0+52,y+chH-4.5,X0+52,y+chH);
+  doc.setFontSize(4.6);doc.setTextColor(90);
+  T("DATA DE RECEBIMENTO",X0+1.5,y+chH-2.8);
+  T("IDENTIFICAÇÃO E ASSINATURA DO RECEBEDOR",X0+54,y+chH-2.8);
+  doc.setTextColor(0);doc.setFont("helvetica","normal");doc.setFontSize(6.5);
+  T("Pedido",X1-chNumW/2,y+4,{align:"center"});
+  doc.setFont("helvetica","bold");doc.setFontSize(12);
+  T(num,X1-chNumW/2,y+11,{align:"center"});
+  y+=chH+1.5;
+  // tracejado
+  doc.setLineDashPattern([1,1],0); doc.line(X0,y,X1,y); doc.setLineDashPattern([],0);
+  y+=2.5;
+  // ===== CABEÇALHO =====
+  const cabH=22, logoW=24, numW=32;
+  doc.rect(X0,y,W,cabH);
+  doc.line(X0+logoW,y,X0+logoW,y+cabH);
+  doc.line(X1-numW,y,X1-numW,y+cabH);
+  if(logo&&logo.data){try{const s=Math.min((logoW-4)/logo.w,(cabH-4)/logo.h);const iw=logo.w*s,ih=logo.h*s;doc.addImage(logo.data,"PNG",X0+(logoW-iw)/2,y+(cabH-ih)/2,iw,ih);}catch(e){}}
+  const midX=X0+logoW+(W-logoW-numW)/2;
+  doc.setFont("helvetica","bold");doc.setFontSize(17);doc.setTextColor(47,107,79);
+  T(nomeEmp,midX,y+8,{align:"center"});
+  doc.setTextColor(60);doc.setFont("helvetica","normal");doc.setFontSize(8.5);
+  T(fit(emp.frase||"Obrigado pela Preferência!!! Deus é mais ...",W-logoW-numW-4),midX,y+13,{align:"center"});
+  doc.setTextColor(0);doc.setFont("helvetica","bold");doc.setFontSize(9.5);
+  T(o.vendedor||"",midX,y+18,{align:"center"});
+  const nx=X1-numW/2;
+  doc.setFont("helvetica","normal");doc.setFontSize(8);T("Pedido",nx,y+5,{align:"center"});
+  doc.setFont("helvetica","bold");doc.setFontSize(13);T(num,nx,y+11,{align:"center"});
+  doc.setFont("helvetica","normal");doc.setFontSize(6);
+  T("Emitido em "+dataBr(o.data),nx,y+16,{align:"center"});
+  T("Folha 1 / 1",nx,y+19,{align:"center"});
+  y+=cabH+3;
+  // ===== CLIENTE =====
+  secTit("CLIENTE",y); y+=1.5;
+  const rh=7;
+  campo(X0,y,110,rh,"Nome / Razão social",c.nome||o.cliente,{bold:true});
+  campo(X0+110,y,30,rh,"Código",c.codPedidook||c.codigo);
+  campo(X0+140,y,W-140,rh,"CNPJ / CPF",c.cnpj); y+=rh;
+  campo(X0,y,120,rh,"Nome fantasia",c.fantasia);
+  campo(X0+120,y,W-120,rh,"Inscrição estadual / RG",c.ie); y+=rh;
+  campo(X0,y,110,rh,"Endereço",[c.endereco,c.numero].filter(Boolean).join(", "));
+  campo(X0+110,y,50,rh,"Bairro",c.bairro);
+  campo(X0+160,y,W-160,rh,"CEP",c.cep); y+=rh;
+  campo(X0,y,70,rh,"Município",c.cidade);
+  campo(X0+70,y,46,rh,"Telefone",c.whatsapp);
+  campo(X0+116,y,16,rh,"UF",c.uf);
+  campo(X0+132,y,W-132,rh,"Complemento",c.complemento); y+=rh+2.5;
+  // ===== VALORES =====
+  secTit("VALORES",y); y+=1.5;
+  const cw=W/7;
+  campo(X0,y,cw,rh,"Valor total dos produtos",brl(subtotal),{alignR:true});
+  campo(X0+cw,y,cw,rh,"Desc./Acrés. %",dp?sinal+dp.toString().replace(".",",")+"%":"",{alignR:true});
+  campo(X0+cw*2,y,cw,rh,"Desc./Acrés. valor",dp?sinal+brl(descValor):"",{alignR:true});
+  campo(X0+cw*3,y,cw,rh,"Valor total do IPI","",{alignR:true});
+  campo(X0+cw*4,y,cw,rh,"Valor total da ST","",{alignR:true});
+  campo(X0+cw*5,y,cw,rh,"Valor do frete","",{alignR:true});
+  campo(X0+cw*6,y,W-cw*6,rh,"Valor total do pedido",brl(o.total),{alignR:true,bold:true}); y+=rh+2.5;
+  // ===== OUTRAS INFORMAÇÕES =====
+  secTit("OUTRAS INFORMAÇÕES",y); y+=1.5;
+  campo(X0,y,48,rh,"Previsão de entrega",o.previsao?dataBr(o.previsao):"");
+  campo(X0+48,y,48,rh,"Ordem de compra",o.ordemCompra);
+  campo(X0+96,y,38,rh,"Frete por conta","");
+  campo(X0+134,y,W-134,rh,"Transportadora",o.transportadora); y+=rh;
+  campo(X0,y,58,rh,"Tabela de preço",o.tabela);
+  campo(X0+58,y,58,rh,"Forma de pagamento",o.forma);
+  campo(X0+116,y,26,rh,"Volumes","");
+  campo(X0+142,y,20,rh,"Itens",String((o.itens||[]).length));
+  campo(X0+162,y,W-162,rh,"Peso bruto kg",""); y+=rh;
+  campo(X0,y,W,rh,"Condição de pagamento",o.cond); y+=rh;
+  campo(X0,y,W,rh,"Observação",o.obsCli||o.obsEmp); y+=rh;
+  campo(X0,y,W/2,rh,"E-mail para envio da cópia do pedido",c.email);
+  campo(X0+W/2,y,W/2,rh,"E-mail para envio do XML da NFe",c.email); y+=rh+2.5;
+  // ===== DADOS DOS PRODUTOS =====
+  secTit("DADOS DOS PRODUTOS",y); y+=1.5;
+  const cols=[["Código",20,"l"],["Descrição do produto",58,"l"],["NCM",18,"c"],["Unid.",12,"c"],["Quant.",14,"r"],["Valor unit.",18,"r"],["Valor total",20,"r"],["% IPI",10,"c"],["Cód. barra",W-170,"l"]];
+  function header(){
+    doc.setFillColor(238,238,238);doc.rect(X0,y,W,6,"F");
+    let x=X0;doc.setFont("helvetica","bold");doc.setFontSize(5.6);doc.setTextColor(0);
+    cols.forEach(cc=>{doc.rect(x,y,cc[1],6);T(fit(cc[0].toUpperCase(),cc[1]),x+ (cc[2]==="r"?cc[1]-1:cc[2]==="c"?cc[1]/2:1),y+3.8,{align:cc[2]==="r"?"right":cc[2]==="c"?"center":"left"});x+=cc[1];});
+    y+=6;
+  }
+  header();
+  doc.setFont("helvetica","normal");doc.setFontSize(7);
+  const irh=5;
+  (o.itens||[]).forEach(i=>{
+    if(y+irh>288){doc.addPage();y=M+2;header();doc.setFont("helvetica","normal");doc.setFontSize(7);}
+    const prod=produtos.find(p=>p.nome===i.nome)||{};
+    const vals=[i.codigo||prod.codigo||"",i.nome,prod.ncm||"",prod.embalagem||"UN/1",String(i.qtd),brl(i.preco),brl(i.qtd*i.preco),"",prod.codbarras||""];
+    let x=X0;
+    cols.forEach((cc,ci)=>{doc.rect(x,y,cc[1],irh);const al=cc[2]==="r"?"right":cc[2]==="c"?"center":"left";const tx=cc[2]==="r"?x+cc[1]-1:cc[2]==="c"?x+cc[1]/2:x+1;T(fit(vals[ci],cc[1]),tx,y+3.4,{align:al});x+=cc[1];});
+    y+=irh;
+  });
+  if(!(o.itens||[]).length){doc.setTextColor(120);doc.setFontSize(8);T("Pedido do histórico (sem itens detalhados)",X0+2,y+4);doc.rect(X0,y,W,6);y+=6;}
+  // rodapé
+  doc.setFont("helvetica","normal");doc.setFontSize(6.5);doc.setTextColor(120);
+  T(nomeEmp+(emp.site?" · "+emp.site:"")+(emp.telefone?" · "+emp.telefone:"")+" — gerado em "+new Date().toLocaleString("pt-BR"),PW/2,292,{align:"center"});
+  return doc;
+}
 async function enviarPDFwhats(id){
   const o=pedidos.find(x=>x.id===id); if(!o)return;
-  if(typeof html2pdf==="undefined"){toast("Conecte à internet para gerar o PDF");return;}
-  const m=pdfMarkup(id); if(!m)return;
+  if(!window.jspdf||!window.jspdf.jsPDF){toast("Conecte à internet para gerar o PDF");return;}
   toast("Gerando PDF…");
-  // container REAL na viewport (fora da tela o html2canvas sai em branco)
-  const el=document.createElement("div");
-  el.style.cssText="position:fixed;left:0;top:0;width:794px;background:#ffffff;z-index:-1";
-  el.innerHTML=m.inner;
-  document.body.appendChild(el);
-  try{ window.scrollTo(0,0); }catch(_){ }
-  // espera a logo (e qualquer imagem) carregar
+  let logo=null; try{logo=await carregarLogo();}catch(_){ }
+  let doc; try{doc=construirPDFjs(id,logo);}catch(e){toast("Erro ao gerar PDF: "+(e&&e.message||""));return;}
+  if(!doc){toast("Erro ao gerar PDF");return;}
+  const num=o.numero||id;
+  const blob=doc.output("blob");
+  const file=new File([blob],"Pedido-"+num+".pdf",{type:"application/pdf"});
+  const legenda="Segue seu pedido "+num+" — "+(empresa.razao||"EIKO VIDA");
   try{
-    await Promise.all([...el.querySelectorAll("img")].map(img=>(img.complete&&img.naturalWidth)?Promise.resolve():new Promise(r=>{img.onload=r;img.onerror=r;setTimeout(r,2500);})));
-  }catch(_){ }
-  await new Promise(r=>setTimeout(r,120));
-  const opt={margin:[6,6,6,6],filename:"Pedido-"+m.num+".pdf",
-    image:{type:"jpeg",quality:0.96},
-    html2canvas:{scale:2,useCORS:true,allowTaint:true,backgroundColor:"#ffffff",scrollX:0,scrollY:0,windowWidth:820},
-    jsPDF:{unit:"mm",format:"a4",orientation:"portrait"}};
-  try{
-    const blob=await html2pdf().set(opt).from(el).toPdf().output("blob");
-    try{document.body.removeChild(el);}catch(_){ }
-    if(!blob||blob.size<1000){toast("Não consegui gerar o PDF. Tente novamente.");return;}
-    const file=new File([blob],"Pedido-"+m.num+".pdf",{type:"application/pdf"});
-    const legenda="Segue seu pedido "+m.num+" — "+(empresa.razao||"EIKO VIDA");
     if(navigator.canShare&&navigator.canShare({files:[file]})){
-      await navigator.share({files:[file],title:"Pedido "+m.num,text:legenda});
+      await navigator.share({files:[file],title:"Pedido "+num,text:legenda});
     }else{
-      const url=URL.createObjectURL(blob);
-      const a=document.createElement("a");a.href=url;a.download="Pedido-"+m.num+".pdf";document.body.appendChild(a);a.click();a.remove();
+      doc.save("Pedido-"+num+".pdf");
       const alvo=soDig(o.whats)?("55"+soDig(o.whats).replace(/^55/,"")):WHATS_EMPRESA;
       setTimeout(()=>{window.open("https://wa.me/"+alvo+"?text="+encodeURIComponent(legenda+" (anexe o PDF que acabou de baixar)."),"_blank");},600);
       toast("PDF baixado — anexe no WhatsApp");
     }
-  }catch(e){try{document.body.removeChild(el);}catch(_){ }toast("Erro ao gerar PDF: "+(e&&e.message||""));}
+  }catch(e){ if(e&&e.name==="AbortError")return; toast("Não consegui compartilhar. PDF será baixado."); try{doc.save("Pedido-"+num+".pdf");}catch(_){ } }
 }
 
 
