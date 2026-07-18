@@ -11,6 +11,7 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js"></script>
 
 <style>
   :root{
@@ -1137,7 +1138,7 @@ function viewCentral(){
         ${o.obs?`<div class="pag">📝 ${esc(o.obs)}</div>`:""}
         <div class="row" style="margin-top:10px">
           <button class="btn btn-g btn-sm" style="flex:1" onclick="copiarPed('${o.id}')">Copiar</button>
-          <button class="btn btn-w btn-sm" style="flex:1" onclick="whatsPed('${o.id}')">WhatsApp</button>
+          <button class="btn btn-w btn-sm" style="flex:1" onclick="enviarPDFwhats('${o.id}')">📎 WhatsApp</button>
           <button class="btn btn-o btn-sm" style="flex:1" onclick="gerarPDF('${o.id}')">📄 PDF</button>
         </div>
         <div class="row" style="margin-top:6px">
@@ -1160,8 +1161,8 @@ function excluirPed(id){if(confirm("Excluir este pedido?"))db.ref("pedidos/"+id)
 function copiarPed(id){const o=pedidos.find(x=>x.id===id);navigator.clipboard?.writeText(textoPedido(o));toast("Copiado");}
 function whatsPed(id){const o=pedidos.find(x=>x.id===id);const alvo=soDig(o.whats)?("55"+soDig(o.whats).replace(/^55/,"")):WHATS_EMPRESA;window.open(`https://wa.me/${alvo}?text=${encodeURIComponent(textoPedido(o))}`,"_blank");}
 
-function gerarPDF(id){
-  const o=pedidos.find(x=>x.id===id); if(!o)return;
+function pdfMarkup(id){
+  const o=pedidos.find(x=>x.id===id); if(!o)return null;
   const c=clientes.find(x=>x.id===o.clienteId)||{nome:o.cliente||"",cidade:(o.cidade||"").split("/")[0]||"",uf:(o.cidade||"").split("/")[1]||""};
   const num=o.numero||"—";
   const emp=empresa||{};
@@ -1193,8 +1194,7 @@ function gerarPDF(id){
       <td>${esc(prod.codbarras||"")}</td>
     </tr>`;
   }).join("");
-  const doc=`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>Pedido ${num}</title>
-  <style>
+  const inner=`<style>
     *{box-sizing:border-box;margin:0;padding:0;font-family:Arial,Helvetica,sans-serif}
     body{padding:10px;color:#000;font-size:11px}
     .lb{display:block;font-size:6.5px;line-height:1.15;text-transform:uppercase;color:#000}
@@ -1237,7 +1237,7 @@ function gerarPDF(id){
     td.l{text-align:left}td.r{text-align:right}
     .rodape{margin-top:8px;text-align:center;font-size:8px;color:#555;border-top:1px solid #ccc;padding-top:3px}
     @media print{body{padding:0}@page{margin:8mm}}
-  </style></head><body>
+  </style>
     <!-- CANHOTO -->
     <div class="canhoto">
       <div class="cbtxt">
@@ -1293,12 +1293,46 @@ function gerarPDF(id){
       <tbody>${linhas||'<tr><td colspan="9" style="padding:8px;color:#777">Pedido do histórico (sem itens detalhados)</td></tr>'}</tbody>
     </table>
     <div class="rodape">${esc(nomeEmp)}${emp.site?" · "+esc(emp.site):""}${emp.telefone?" · "+esc(emp.telefone):""} — gerado em ${new Date().toLocaleString("pt-BR")}</div>
-  </body></html>`;
+  `;
+  return {inner, num, pedido:o, cliente:c};
+}
+
+function gerarPDF(id){
+  const m=pdfMarkup(id); if(!m)return;
+  const doc=`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>Pedido ${m.num}</title></head><body>${m.inner}</body></html>`;
   const w=window.open("","_blank");
   if(!w){toast("Permita pop-ups para gerar o PDF");return;}
   w.document.write(doc); w.document.close();
   w.onload=()=>setTimeout(()=>w.print(),400);
 }
+
+async function enviarPDFwhats(id){
+  const o=pedidos.find(x=>x.id===id); if(!o)return;
+  if(typeof html2pdf==="undefined"){toast("Conecte à internet para gerar o PDF");return;}
+  const m=pdfMarkup(id); if(!m)return;
+  toast("Gerando PDF…");
+  const el=document.createElement("div");
+  el.style.cssText="position:fixed;left:-9999px;top:0;width:800px;background:#fff";
+  el.innerHTML=m.inner;
+  document.body.appendChild(el);
+  const opt={margin:[5,5,5,5],filename:`Pedido-${m.num}.pdf`,image:{type:'jpeg',quality:0.96},html2canvas:{scale:2,useCORS:true,backgroundColor:'#ffffff'},jsPDF:{unit:'mm',format:'a4',orientation:'portrait'}};
+  try{
+    const blob=await html2pdf().set(opt).from(el).toPdf().output("blob");
+    try{document.body.removeChild(el);}catch(_){}
+    const file=new File([blob],`Pedido-${m.num}.pdf`,{type:"application/pdf"});
+    const legenda=`Segue seu pedido ${m.num} — ${(empresa.razao||"EIKO VIDA")}`;
+    if(navigator.canShare&&navigator.canShare({files:[file]})){
+      await navigator.share({files:[file],title:`Pedido ${m.num}`,text:legenda});
+    }else{
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement("a");a.href=url;a.download=`Pedido-${m.num}.pdf`;document.body.appendChild(a);a.click();a.remove();
+      const alvo=soDig(o.whats)?("55"+soDig(o.whats).replace(/^55/,"")):WHATS_EMPRESA;
+      setTimeout(()=>{window.open(`https://wa.me/${alvo}?text=${encodeURIComponent(legenda+" (anexe o PDF que acabou de baixar).")}`,"_blank");},600);
+      toast("PDF baixado — anexe no WhatsApp");
+    }
+  }catch(e){try{document.body.removeChild(el);}catch(_){}toast("Erro ao gerar PDF");}
+}
+
 
 /* ====== CLIENTES ====== */
 function viewClientes(){
