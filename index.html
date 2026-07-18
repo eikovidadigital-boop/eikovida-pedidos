@@ -301,7 +301,7 @@ let ped={status:"Pedido",consumidorFinal:false,dataEmissao:new Date().toISOStrin
 let destaqueId=null, pedidoAberto=null;
 let filtroCli="", filtroProd="", filtroProdPedido="";
 let buscaCli="", buscaCentral="", buscaCliPed="", escopoCli="todos";
-let editandoPedido=null, mostrarLink=false;
+let editandoPedido=null, mostrarLink=false, fotoTmp="";
 let editCli=null, clienteDetalhe=null, showCatCli=false, showCatProd=false;
 let prodEdit=null, filtroProdTxt="", tabEdit=null;
 
@@ -540,7 +540,7 @@ const MENU=[
   ["__s","DADOS"],
   ["📥","Importações","importacoes"],
   ["🔄","Sincronização","sync"],
-  ["🌐","Catálogo Online","catalogo"],
+  ["🌐","Catálogo Virtual","catalogo"],
   ["__s","CONTA"],
   ["🚪","Sair","__sair"],
 ];
@@ -550,7 +550,7 @@ function toggleMenu(){
   if(abrir)renderMenu();
   d.classList.toggle("on",abrir);o.classList.toggle("on",abrir);
 }
-function navMenu(v){toggleMenu();if(v==="catalogo"){window.open("https://eikovida.pedidook.com.br/","_blank");return;}if(v==="__sair"){sair();return;}irPara(v);}
+function navMenu(v){toggleMenu();if(v==="catalogo"){window.open("catalogo.html","_blank");return;}if(v==="__sair"){sair();return;}irPara(v);}
 function sair(){
   if(!confirm("Sair do app? Seus dados continuam salvos."))return;
   try{["eiko_vendedor","eiko_vcod","eiko_vid","eiko_admin","eiko_perm"].forEach(k=>localStorage.removeItem(k));}catch(e){}
@@ -583,9 +583,9 @@ function viewHome(){
     {ic:"🧑‍💼",cor:"#7C3AED",tit:"Minha Equipe",v:"equipe"},
     {ic:"📥",cor:"#2563EB",tit:"Importações",v:"importacoes"},
     {ic:"🚚",cor:"#0EA5E9",tit:"Transportadoras",v:"transportadoras"},
-    {ic:"🌐",cor:"#8B5CF6",tit:"Catálogo Online",v:"catalogo"},
+    {ic:"🌐",cor:"#8B5CF6",tit:"Catálogo Virtual",v:"catalogo"},
   ];
-  const cards=itens.map(i=>`<button class="homecard" onclick="${i.v==='catalogo'?`window.open('https://eikovida.pedidook.com.br/','_blank')`:`irPara('${i.v}')`}">
+  const cards=itens.map(i=>`<button class="homecard" onclick="${i.v==='catalogo'?`window.open('catalogo.html','_blank')`:`irPara('${i.v}')`}">
     <span class="homeic" style="background:${i.cor}22;color:${i.cor}">${i.ic}</span>
     <span class="hometit">${i.tit}</span></button>`).join("");
   const pend=filaPendentes.length?`<div class="pendbar" onclick="irPara('sync')">⏳ ${filaPendentes.length} item(ns) aguardando sincronizar — toque aqui</div>`:"";
@@ -2347,11 +2347,29 @@ function viewProdutos(){
       <div><label class="lb">Categoria</label><select class="inp" id="pCat"><option value="">—</option>${catProduto.map(c=>`<option ${prodEdit&&prodEdit.categoria===c.nome?"selected":""}>${esc(c.nome)}</option>`).join("")}${(prodEdit&&prodEdit.categoria&&!catProduto.find(c=>c.nome===prodEdit.categoria))?`<option selected>${esc(prodEdit.categoria)}</option>`:""}</select></div>
       <div><label class="lb">Embalagem</label><input class="inp" id="pEmb" value="${prodEdit?esc(prodEdit.embalagem||'UN/1'):'UN/1'}"/></div>
     </div>
-    <label class="lb" style="margin-top:8px;display:block">URL da imagem</label>
-    <input class="inp" id="pImg" placeholder="https://…" value="${prodEdit?esc(prodEdit.imagem||''):''}" style="margin-top:2px"/>
+    <div style="margin-top:12px;background:#f8f8f6;border-radius:10px;padding:10px">
+      <div style="font-weight:700;font-size:13px;margin-bottom:6px">📷 Foto do produto</div>
+      <div style="display:flex;gap:10px;align-items:center">
+        <div style="width:78px;height:78px;border-radius:10px;border:1px solid var(--borda);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:26px;background:#fff ${fotoTmp?`url('${fotoTmp}') center/cover no-repeat`:""}">${fotoTmp?"":"📦"}</div>
+        <div style="flex:1">
+          <input type="file" id="arqFoto" accept="image/*" style="display:none" onchange="lerFoto(this)"/>
+          <button class="btn btn-o btn-sm" style="width:100%" onclick="escolherFoto(false)">📁 Escolher da galeria</button>
+          <button class="btn btn-g btn-sm" style="width:100%;margin-top:5px" onclick="escolherFoto(true)">📸 Tirar foto</button>
+          ${fotoTmp?`<button class="btn btn-r btn-sm" style="width:100%;margin-top:5px" onclick="limparFoto()">Remover foto</button>`:""}
+        </div>
+      </div>
+      <label class="lb" style="margin-top:8px;display:block">…ou cole o endereço de uma imagem</label>
+      <input class="inp" id="pImg" placeholder="https://…" value="${prodEdit?esc((prodEdit.imagem||"").indexOf("data:")===0?"":(prodEdit.imagem||"")):''}" style="margin-top:2px"/>
+    </div>
+    <div style="margin-top:10px;background:#f2f9f2;border-radius:10px;padding:10px">
+      <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600">
+        <input type="checkbox" id="pCatalogo" ${(!prodEdit||prodEdit.catalogo!==false)?"checked":""} style="width:18px;height:18px"/> Mostrar no catálogo virtual</label>
+      <label class="lb" style="margin-top:8px;display:block">Descrição para o catálogo (opcional)</label>
+      <textarea class="inp" id="pDesc" style="min-height:56px" placeholder="Benefícios, indicações, diferenciais…">${prodEdit?esc(prodEdit.descricao||""):""}</textarea>
+    </div>
     <div class="row" style="margin-top:10px">
       <button class="btn btn-v" style="flex:1" onclick="salvarProduto()">${prodEdit?"Salvar alterações":"Adicionar"}</button>
-      ${prodEdit?`<button class="btn btn-g" onclick="prodEdit=null;render()">✕</button>`:""}
+      ${prodEdit?`<button class="btn btn-g" onclick="prodEdit=null;limparFoto()">✕</button>`:""}
     </div></div>`;
   const cats=[...new Set(produtos.map(p=>p.categoria).filter(Boolean))];
   const chips=cats.length?`<div class="chips"><button class="chip ${filtroProd===""?"on":""}" onclick="filtroProd='';render()">Todos (${produtos.length})</button>`
@@ -2379,14 +2397,49 @@ function salvarProduto(){
   const o={
     nome:val("pNome"),codigo:val("pCod"),codbarras:val("pBar"),
     atacado:parseFloat(String(val("pAtac")).replace(',','.'))||0,varejo:parseFloat(String(val("pAtac")).replace(',','.'))||0,
-    estoque:val("pEst"),categoria:val("pCat"),embalagem:val("pEmb")||"UN/1",marca:"EIKO VIDA",imagem:val("pImg")
+    estoque:val("pEst"),categoria:val("pCat"),embalagem:val("pEmb")||"UN/1",marca:"EIKO VIDA",
+    imagem:fotoTmp||val("pImg")||"",
+    descricao:val("pDesc")||"",
+    catalogo:!!(document.getElementById("pCatalogo")||{}).checked
   };
   if(!o.nome){toast("Informe o nome");return;}
   if(prodEdit){db.ref("produtos/"+prodEdit.id).update(o);prodEdit=null;toast("Produto atualizado");}
   else{db.ref("produtos").push(o);toast("Produto adicionado");}
-  render();
+  fotoTmp="";render();
 }
-function editarProduto(id){prodEdit=produtos.find(p=>p.id===id);render();window.scrollTo(0,0);}
+function escolherFoto(camera){
+  const el=document.getElementById("arqFoto");
+  if(camera)el.setAttribute("capture","environment"); else el.removeAttribute("capture");
+  el.click();
+}
+function limparFoto(){fotoTmp="";render();}
+function lerFoto(inp){
+  const f=inp.files&&inp.files[0]; if(!f)return;
+  toast("Preparando foto\u2026");
+  const r=new FileReader();
+  r.onload=()=>{
+    const img=new Image();
+    img.onload=()=>{
+      const MAX=800;
+      let w=img.naturalWidth,h=img.naturalHeight;
+      if(w>h&&w>MAX){h=Math.round(h*MAX/w);w=MAX;}
+      else if(h>=w&&h>MAX){w=Math.round(w*MAX/h);h=MAX;}
+      const cv=document.createElement("canvas");cv.width=w;cv.height=h;
+      const ctx=cv.getContext("2d");
+      ctx.fillStyle="#fff";ctx.fillRect(0,0,w,h);
+      ctx.drawImage(img,0,0,w,h);
+      let q=0.72,dados=cv.toDataURL("image/jpeg",q);
+      while(dados.length>140000&&q>0.35){q-=0.1;dados=cv.toDataURL("image/jpeg",q);}
+      fotoTmp=dados;render();
+      toast("Foto pronta \u2713 ("+Math.round(dados.length/1024)+" KB)");
+    };
+    img.onerror=()=>toast("N\u00e3o consegui abrir a imagem");
+    img.src=r.result;
+  };
+  r.onerror=()=>toast("N\u00e3o consegui ler o arquivo");
+  r.readAsDataURL(f);
+}
+function editarProduto(id){prodEdit=produtos.find(p=>p.id===id);fotoTmp=(prodEdit&&(prodEdit.imagem||"").indexOf("data:")===0)?prodEdit.imagem:"";render();window.scrollTo(0,0);}
 function excluirProd(id){if(confirm("Excluir produto?"))db.ref("produtos/"+id).remove();}
 function recarregarCatalogo(){
   if(!confirm("Isto vai APAGAR todos os produtos atuais e cadastrar os 42 do catálogo oficial (com códigos e imagens). Continuar?"))return;
