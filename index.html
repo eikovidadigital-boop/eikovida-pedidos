@@ -63,6 +63,7 @@
   .sheet-i{display:flex;align-items:center;gap:14px;padding:15px 18px;border-bottom:1px solid #f4f4f2;font-size:15px;cursor:pointer}
   .sheet-i:active{background:#f2f9f2}
   .sheet-i.destaque{background:#eef6ef;font-weight:700;color:var(--verde);border-bottom:2px solid var(--verde)}
+  .sheet-i.aceitar{background:#f0fdf4;font-weight:800;color:#15803d;border-bottom:2px solid #22c55e}
   .sheet-i.off{opacity:.45;cursor:not-allowed}
   .sheet-i span{font-size:19px;width:24px;text-align:center}
   @media(min-width:700px){.sheet{left:50%;right:auto;bottom:auto;top:50%;transform:translate(-50%,-50%);width:420px;border-radius:16px;animation:none}}
@@ -1871,6 +1872,7 @@ function htmlListaCentral(){
     const det=o.id===pedidoAberto?`<div class="det">
         ${(o.itens||[]).map(i=>`<div class="li"><span>${i.qtd}x ${esc(i.nome)}</span><span>${brl(i.qtd*i.preco)}</span></div>`).join("")}
         ${o.historico?'<div class="pag">📦 Pedido do histórico</div>':""}
+        ${o.origem==="catalogo"?'<div class="pag">🛍️ Veio do catálogo online'+(o.contato?" · contato: "+esc(o.contato):"")+'</div>':""}
         ${o.obs?`<div class="pag">📝 ${esc(o.obs)}</div>`:""}
         <div class="row" style="margin-top:10px">
           <button class="btn btn-g btn-sm" style="flex:1" onclick="copiarPed('${o.id}')">Copiar</button>
@@ -1907,6 +1909,7 @@ function menuPedido(id){
   const pode=podeEditarPed(o);
   const it=[
     ["✏️","Editar pedido",pode?`editarPedido('${id}')`:`toast('Pedido já sincronizado — só o administrador pode editar')`,pode?"destaque":"off"],
+    (ehAdmin&&!/aceit|confirmad/i.test(o.situacao||""))?["✅","Aceitar pedido",`aceitarPedido('${id}')`,"aceitar"]:null,
     ["📄","Cópia do pedido",`gerarPDF('${id}')`],
     ["📎","Cópia do pedido (WhatsApp)",`enviarPDFwhats('${id}')`],
     ["📋","Copiar texto do pedido",`copiarPed('${id}')`],
@@ -1942,6 +1945,22 @@ function cobrancaDoPedido(id){
   if(ehAVista(o.cond)){toast("Pedido à vista — não gera cobrança");return;}
   filtroCobr="todos";buscaCentral="";irPara("cobrancas");
   toast(o.recebido?"Pedido já recebido":"Pedido em aberto na lista");
+}
+function aceitarPedido(id){
+  const o=pedidos.find(x=>x.id===id); if(!o)return;
+  if(!ehAdmin){toast("Somente o administrador pode aceitar");return;}
+  if(!confirm("Aceitar o pedido de "+(o.cliente||"")+"?\n\nO cliente recebe o aviso no celular e você pode confirmar por WhatsApp."))return;
+  const upd={situacao:"Aceito",aceitoEm:new Date().toISOString(),aceitoPor:vendedor};
+  if(navigator.onLine)db.ref("pedidos/"+id).update(upd);
+  else{filaPendentes.push({col:"pedidos",op:"update",id:id,data:upd});LS.set("fila",filaPendentes);}
+  toast("Pedido aceito ✓");
+  const fone=soDig(o.whats||(clientes.find(c=>c.id===o.clienteId)||{}).whatsapp||"");
+  if(fone){
+    const t="Olá"+(o.contato?" "+o.contato:"")+"! Seu pedido na "+(empresa.razao||"EIKO VIDA")+" foi *CONFIRMADO* ✅\n\n"
+      +"Total: "+brl(o.total)+"\n\nVamos combinar a forma de pagamento e a entrega. Obrigado pela preferência!";
+    setTimeout(()=>window.open("https://wa.me/55"+fone.replace(/^55/,"")+"?text="+encodeURIComponent(t),"_blank"),400);
+  }
+  render();
 }
 function editarPedido(id){
   const o=pedidos.find(x=>x.id===id); if(!o)return;

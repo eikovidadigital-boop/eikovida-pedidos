@@ -122,6 +122,7 @@
   <span id="fContato"></span>
 </footer>
 
+<div style="text-align:center;padding:0 18px 26px"><span id="linkStatus" style="display:none;font-size:13px;color:var(--verde);text-decoration:underline;cursor:pointer" onclick="abrirStatus()">🔔 Acompanhar meu último pedido</span></div>
 <button class="flut" id="flut" onclick="abrirWhats()">💬 Falar no WhatsApp</button>
 
 <div class="barraCar" id="barraCar">
@@ -136,11 +137,17 @@
   <div id="prodBody"></div>
 </div>
 
+<div class="modal" id="mStatus">
+  <div class="fechar"><span>Meu pedido</span><button onclick="fecharTudo()">×</button></div>
+  <div id="statusBody"></div>
+</div>
+
 <div class="modal" id="mCheck">
   <div class="fechar"><span>Finalizar pedido</span><button onclick="fecharTudo()">×</button></div>
   <div id="checkBody"></div>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script>
@@ -150,6 +157,7 @@ firebase.initializeApp(CFG);
 const db=firebase.database();
 
 let produtos=[],empresa={},cfg={},cat="",carrinho={},prodAberto=null;
+let clientes=[],cliIdent=null,modoCad="escolha",pedidoAtual=null,unsubPed=null;
 const brl=n=>"R$ "+(Number(n)||0).toFixed(2).replace(".",",").replace(/\B(?=(\d{3})+(?!\d))/g,".");
 const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const digitos=s=>String(s||"").replace(/\D/g,"");
@@ -160,6 +168,7 @@ db.ref("produtos").on("value",s=>{
   produtos=Object.keys(v).map(k=>({id:k,...v[k]})).filter(p=>p.nome&&p.catalogo!==false);
   montarCats();filtrar();
 });
+db.ref("clientes").on("value",s=>{const v=s.val()||{};clientes=Object.keys(v).map(k=>({id:k,...v[k]}));});
 db.ref("empresa").on("value",s=>{empresa=s.val()||{};rodape();});
 db.ref("catalogo").on("value",s=>{cfg=s.val()||{};aplicarCfg();rodape();});
 
@@ -184,6 +193,7 @@ function aplicarCfg(){
         </div></div>`).join("")+`</div>`:"";
 }
 function rodape(){
+  try{const e=document.getElementById("linkStatus");if(e&&localStorage.getItem("eiko_meupedido"))e.style.display="inline";}catch(x){}
   document.getElementById("fNome").textContent=cfg.titulo||empresa.razao||"EIKO VIDA";
   document.getElementById("fContato").textContent=[cfg.telefone||empresa.telefone,empresa.site].filter(Boolean).join(" · ");
 }
@@ -239,7 +249,7 @@ function verProduto(id){
   abrir("mProd");
 }
 function abrir(id){document.getElementById("ov").classList.add("on");document.getElementById(id).classList.add("on");document.body.style.overflow="hidden";}
-function fecharTudo(){["mProd","mCheck"].forEach(i=>document.getElementById(i).classList.remove("on"));document.getElementById("ov").classList.remove("on");document.body.style.overflow="";prodAberto=null;}
+function fecharTudo(){["mProd","mCheck","mStatus"].forEach(i=>document.getElementById(i).classList.remove("on"));document.getElementById("ov").classList.remove("on");document.body.style.overflow="";prodAberto=null;}
 function mudar(id,d,noModal){
   const q=(carrinho[id]||0)+d;
   if(q<=0)delete carrinho[id];else carrinho[id]=q;
@@ -264,65 +274,259 @@ function itensPedido(){
 function abrirCheckout(){
   const itens=itensPedido();
   if(!itens.length)return;
+  modoCad="escolha";cliIdent=null;
+  fecharTudo();abrir("mCheck");renderCheckout();
+}
+function renderCheckout(){
+  const itens=itensPedido();
   const total=itens.reduce((s,i)=>s+i.qtd*i.preco,0);
-  document.getElementById("checkBody").innerHTML=`
-    <div class="mbody">
-      <div style="font-weight:700;font-size:14px;margin-bottom:6px">Seu pedido</div>
-      ${itens.map(i=>`<div class="resItem"><span>${i.qtd}x ${esc(i.nome)}</span><b>${brl(i.qtd*i.preco)}</b></div>`).join("")}
-      <div class="resItem" style="border:none;padding-top:10px"><b style="font-size:15px">TOTAL</b><b style="font-size:19px;color:var(--verde)">${brl(total)}</b></div>
-      <div style="background:#f8f8f6;border-radius:10px;padding:10px;font-size:12px;color:#555;margin-top:10px">
-        💳 <b>Forma e condição de pagamento</b> serão combinadas com nossa equipe após o envio.</div>
-      <div style="font-weight:700;font-size:14px;margin-top:16px">Seus dados</div>
+  const resumo=`<div style="font-weight:700;font-size:14px;margin-bottom:6px">Seu pedido</div>
+    ${itens.map(i=>`<div class="resItem"><span>${i.qtd}x ${esc(i.nome)}</span><b>${brl(i.qtd*i.preco)}</b></div>`).join("")}
+    <div class="resItem" style="border:none;padding-top:10px"><b style="font-size:15px">TOTAL</b><b style="font-size:19px;color:var(--verde)">${brl(total)}</b></div>
+    <div style="background:#f8f8f6;border-radius:10px;padding:10px;font-size:12px;color:#555;margin-top:10px">
+      💳 <b>Forma e condição de pagamento</b> serão combinadas com nossa equipe após o envio.</div>`;
+
+  let corpo="";
+  if(modoCad==="escolha"){
+    corpo=`<div style="font-weight:700;font-size:15px;margin-top:18px">Você já compra com a gente?</div>
+      <button class="btnV" onclick="modoCad='cnpj';renderCheckout()">✅ Já sou cliente — buscar meu cadastro</button>
+      <button class="btnV" style="background:#fff;color:var(--verde);border:2px solid var(--verde)" onclick="modoCad='novo';renderCheckout()">🆕 Primeira compra — quero me cadastrar</button>`;
+  }else if(modoCad==="cnpj"){
+    corpo=`<div style="font-weight:700;font-size:15px;margin-top:18px">Buscar meu cadastro</div>
+      <label class="lbl">CNPJ ou CPF</label>
+      <input class="campo" id="bCnpj" inputmode="numeric" placeholder="00.000.000/0001-00" value="${esc((cliIdent&&cliIdent.cnpj)||"")}">
+      <button class="btnV" onclick="buscarCadastro()">🔍 Buscar</button>
+      <div id="bMsg" style="font-size:13px;margin-top:10px"></div>
+      <div style="text-align:center;margin-top:12px"><span style="font-size:13px;color:var(--verde);text-decoration:underline;cursor:pointer" onclick="modoCad='escolha';renderCheckout()">← voltar</span></div>`;
+  }else if(modoCad==="confirma"&&cliIdent){
+    const l=(t,v)=>v?`<div class="fl"><span>${t}</span><b>${esc(v)}</b></div>`:"";
+    corpo=`<div style="font-weight:700;font-size:15px;margin-top:18px">Confirme seus dados</div>
+      <div class="ficha" style="margin-top:8px">
+        ${l("Loja",cliIdent.nome)}${l("Fantasia",cliIdent.fantasia)}${l("CNPJ",cliIdent.cnpj)}
+        ${l("Cidade",[cliIdent.cidade,cliIdent.uf].filter(Boolean).join("/"))}
+        ${l("Endereço",[cliIdent.endereco,cliIdent.numero,cliIdent.bairro].filter(Boolean).join(", "))}
+        ${l("WhatsApp",cliIdent.whatsapp)}
+      </div>
+      <label class="lbl">WhatsApp para contato *</label>
+      <input class="campo" id="cFone" inputmode="tel" value="${esc(cliIdent.whatsapp||"")}" placeholder="(81) 99999-9999">
+      <label class="lbl">Seu nome (quem está pedindo) *</label>
+      <input class="campo" id="cNome" placeholder="Ex: Maria">
+      <label class="lbl">Observação</label>
+      <textarea class="campo" id="cObs" style="min-height:56px" placeholder="Alguma condição ou pedido especial?"></textarea>
+      <button class="btnW" style="margin-top:16px" onclick="enviarPedido()">✓ Enviar pedido</button>
+      <div style="text-align:center;margin-top:10px;padding-bottom:10px"><span style="font-size:13px;color:var(--verde);text-decoration:underline;cursor:pointer" onclick="modoCad='cnpj';cliIdent=null;renderCheckout()">buscar outro cadastro</span></div>`;
+  }else{
+    corpo=`<div style="font-weight:700;font-size:15px;margin-top:18px">Cadastro da sua loja</div>
       <label class="lbl">Nome da loja / razão social *</label>
       <input class="campo" id="cLoja" placeholder="Ex: Farmácia São João">
+      <label class="lbl">Nome fantasia</label>
+      <input class="campo" id="cFant" placeholder="Como sua loja é conhecida">
+      <label class="lbl">CNPJ / CPF *</label>
+      <div style="display:flex;gap:8px;align-items:flex-end">
+        <input class="campo" id="cCnpj" inputmode="numeric" placeholder="00.000.000/0001-00" style="flex:1">
+        <button class="btnV" style="width:auto;margin:0;padding:12px 14px;font-size:14px" onclick="buscarReceita()">🔍</button>
+      </div>
+      <div id="rMsg" style="font-size:12px;margin-top:5px;color:var(--cinza)">Toque na lupa para preencher tudo pelo CNPJ.</div>
       <label class="lbl">Seu nome *</label>
       <input class="campo" id="cNome" placeholder="Quem está fazendo o pedido">
       <label class="lbl">WhatsApp *</label>
       <input class="campo" id="cFone" inputmode="tel" placeholder="(81) 99999-9999">
-      <label class="lbl">CNPJ</label>
-      <input class="campo" id="cCnpj" inputmode="numeric" placeholder="00.000.000/0001-00">
-      <label class="lbl">Cidade / UF</label>
-      <input class="campo" id="cCidade" placeholder="Recife / PE">
-      <label class="lbl">Endereço de entrega</label>
-      <input class="campo" id="cEnd" placeholder="Rua, número, bairro">
+      <label class="lbl">E-mail</label>
+      <input class="campo" id="cEmail" inputmode="email" placeholder="contato@loja.com">
+      <label class="lbl">CEP</label>
+      <input class="campo" id="cCep" inputmode="numeric" placeholder="50000-000">
+      <label class="lbl">Endereço</label>
+      <input class="campo" id="cEnd" placeholder="Rua, número">
+      <label class="lbl">Bairro</label>
+      <input class="campo" id="cBairro" placeholder="Bairro">
+      <div style="display:flex;gap:8px">
+        <div style="flex:2"><label class="lbl">Cidade</label><input class="campo" id="cCidade" placeholder="Recife"></div>
+        <div style="flex:1"><label class="lbl">UF</label><input class="campo" id="cUf" maxlength="2" placeholder="PE"></div>
+      </div>
       <label class="lbl">Observação</label>
-      <textarea class="campo" id="cObs" style="min-height:60px" placeholder="Alguma condição ou pedido especial?"></textarea>
-      <button class="btnW" style="margin-top:16px" onclick="enviarPedido()">✓ Enviar pedido</button>
-      <div style="font-size:11px;color:var(--cinza);text-align:center;margin-top:8px;padding-bottom:10px">Você receberá a confirmação pelo WhatsApp.</div>
-    </div>`;
-  fecharTudo();abrir("mCheck");
+      <textarea class="campo" id="cObs" style="min-height:56px" placeholder="Alguma condição ou pedido especial?"></textarea>
+      <button class="btnW" style="margin-top:16px" onclick="enviarPedido()">✓ Cadastrar e enviar pedido</button>
+      <div style="text-align:center;margin-top:10px;padding-bottom:10px"><span style="font-size:13px;color:var(--verde);text-decoration:underline;cursor:pointer" onclick="modoCad='escolha';renderCheckout()">← voltar</span></div>`;
+  }
+  document.getElementById("checkBody").innerHTML=`<div class="mbody">${resumo}${corpo}</div>`;
+}
+function buscarCadastro(){
+  const d=digitos(document.getElementById("bCnpj").value);
+  const msg=document.getElementById("bMsg");
+  if(d.length<11){msg.innerHTML='<span style="color:#b45309">Digite o CNPJ ou CPF completo.</span>';return;}
+  const achado=clientes.find(c=>digitos(c.cnpj)===d);
+  if(!achado){
+    msg.innerHTML='<span style="color:#b45309">Não encontrei esse cadastro.</span> <span style="color:var(--verde);text-decoration:underline;cursor:pointer" onclick="modoCad=\'novo\';renderCheckout()">Fazer cadastro novo</span>';
+    return;
+  }
+  cliIdent=achado;modoCad="confirma";renderCheckout();
+}
+async function buscarReceita(){
+  const d=digitos(document.getElementById("cCnpj").value);
+  const msg=document.getElementById("rMsg");
+  if(d.length!==14){msg.innerHTML='<span style="color:#b45309">Digite os 14 números do CNPJ.</span>';return;}
+  const jaTem=clientes.find(c=>digitos(c.cnpj)===d);
+  if(jaTem){cliIdent=jaTem;modoCad="confirma";renderCheckout();return;}
+  msg.textContent="Buscando…";
+  try{
+    const r=await fetch("https://brasilapi.com.br/api/cnpj/v1/"+d);
+    if(!r.ok)throw new Error("x");
+    const j=await r.json();
+    const set=(id,v)=>{const e=document.getElementById(id);if(e&&v)e.value=v;};
+    set("cLoja",j.razao_social);set("cFant",j.nome_fantasia);
+    set("cCep",j.cep);set("cEnd",[j.logradouro,j.numero].filter(Boolean).join(", "));
+    set("cBairro",j.bairro);set("cCidade",j.municipio);set("cUf",j.uf);
+    if(j.ddd_telefone_1)set("cFone",j.ddd_telefone_1);
+    if(j.email)set("cEmail",j.email);
+    msg.innerHTML='<span style="color:var(--verde)">✓ Dados preenchidos. Confira e complete.</span>';
+  }catch(e){msg.innerHTML='<span style="color:#b45309">Não consegui buscar. Preencha manualmente.</span>';}
 }
 function enviarPedido(){
-  const loja=(document.getElementById("cLoja").value||"").trim();
-  const nome=(document.getElementById("cNome").value||"").trim();
-  const fone=(document.getElementById("cFone").value||"").trim();
-  if(!loja||!nome||!fone){alert("Preencha loja, seu nome e WhatsApp.");return;}
+  const v=id=>{const e=document.getElementById(id);return e?(e.value||"").trim():"";};
   const itens=itensPedido();
   const total=itens.reduce((s,i)=>s+i.qtd*i.preco,0);
-  const dados={
-    cliente:loja,contato:nome,whats:digitos(fone),cnpj:(document.getElementById("cCnpj").value||"").trim(),
-    cidade:(document.getElementById("cCidade").value||"").trim(),endereco:(document.getElementById("cEnd").value||"").trim(),
-    obsCli:(document.getElementById("cObs").value||"").trim(),
-    itens:itens,bruto:total,total:total,status:"aberto",tipo:"Pedido",situacao:"Aguardando pagamento",
-    origem:"catalogo",vendedor:"CATÁLOGO ONLINE",tabela:"Padrão",cond:"",forma:"",
-    data:new Date().toISOString()
-  };
-  try{db.ref("pedidos").push(dados);}catch(e){}
-  let txt="*NOVO PEDIDO — CATÁLOGO ONLINE*\n\n*Loja:* "+loja+"\n*Contato:* "+nome+"\n*WhatsApp:* "+fone;
+  let dados,cadastro=null;
+  if(modoCad==="confirma"&&cliIdent){
+    const fone=v("cFone"),nome=v("cNome");
+    if(!fone||!nome){alert("Preencha seu nome e WhatsApp.");return;}
+    dados={cliente:cliIdent.nome,clienteId:cliIdent.id,contato:nome,whats:digitos(fone),cnpj:cliIdent.cnpj||"",
+      cidade:[cliIdent.cidade,cliIdent.uf].filter(Boolean).join("/"),
+      endereco:[cliIdent.endereco,cliIdent.numero,cliIdent.bairro].filter(Boolean).join(", "),
+      email:cliIdent.email||"",obsCli:v("cObs")};
+  }else{
+    const loja=v("cLoja"),nome=v("cNome"),fone=v("cFone"),cnpj=v("cCnpj");
+    if(!loja||!nome||!fone||!cnpj){alert("Preencha loja, CNPJ/CPF, seu nome e WhatsApp.");return;}
+    cadastro={nome:loja,fantasia:v("cFant"),cnpj:cnpj,whatsapp:digitos(fone),email:v("cEmail"),
+      cep:v("cCep"),endereco:v("cEnd"),bairro:v("cBairro"),cidade:v("cCidade"),uf:v("cUf").toUpperCase(),
+      categoria:"",origem:"catalogo",criadoEm:new Date().toISOString()};
+    dados={cliente:loja,contato:nome,whats:digitos(fone),cnpj:cnpj,
+      cidade:[v("cCidade"),v("cUf")].filter(Boolean).join("/"),
+      endereco:[v("cEnd"),v("cBairro")].filter(Boolean).join(", "),
+      email:v("cEmail"),obsCli:v("cObs")};
+  }
+  Object.assign(dados,{itens:itens,bruto:total,total:total,status:"aberto",tipo:"Pedido",
+    situacao:"Aguardando confirmação",origem:"catalogo",vendedor:"CATÁLOGO ONLINE",
+    tabela:"Padrão",cond:"",forma:"",data:new Date().toISOString()});
+  let chave="";
+  try{
+    if(cadastro){const rc=db.ref("clientes").push(cadastro);dados.clienteId=rc.key;}
+    const ref=db.ref("pedidos").push(dados);
+    chave=ref.key;
+  }catch(e){}
+  pedidoAtual={id:chave,...dados};
+  try{localStorage.setItem("eiko_meupedido",chave);}catch(e){}
+
+  let txt="*NOVO PEDIDO — CATÁLOGO ONLINE*\n\n*Loja:* "+dados.cliente+"\n*Contato:* "+dados.contato+"\n*WhatsApp:* "+dados.whats;
   if(dados.cnpj)txt+="\n*CNPJ:* "+dados.cnpj;
   if(dados.cidade)txt+="\n*Cidade:* "+dados.cidade;
   if(dados.endereco)txt+="\n*Entrega:* "+dados.endereco;
+  if(cadastro)txt+="\n_(cliente novo — cadastro criado pelo catálogo)_";
   txt+="\n\n*ITENS*\n";
   itens.forEach(i=>{txt+="• "+i.qtd+"x "+i.nome+(i.codigo?" (cód "+i.codigo+")":"")+" — "+brl(i.qtd*i.preco)+"\n";});
   txt+="\n*TOTAL: "+brl(total)+"*\n_Tabela padrão · pagamento a combinar_";
   if(dados.obsCli)txt+="\n\n*Obs:* "+dados.obsCli;
   window.open("https://wa.me/"+zap()+"?text="+encodeURIComponent(txt),"_blank");
+
   carrinho={};filtrar();atualizarCarrinho();
   document.getElementById("checkBody").innerHTML=`<div class="ok">
       <div class="ic">✅</div>
       <h3 style="margin-top:10px">Pedido enviado!</h3>
-      <p style="color:var(--cinza);font-size:14px;margin-top:8px;line-height:1.5">Recebemos seu pedido e vamos confirmar as condições de pagamento pelo WhatsApp.</p>
-      <button class="btnV" onclick="fecharTudo()">Voltar ao catálogo</button></div>`;
+      <p style="color:var(--cinza);font-size:14px;margin-top:8px;line-height:1.5">${cadastro?"Seu cadastro foi criado e o pedido registrado.":"Pedido registrado."} Vamos confirmar as condições de pagamento pelo WhatsApp.</p>
+      <button class="btnV" onclick="baixarEspelho()">📄 Baixar cópia do pedido</button>
+      <button class="btnV" style="background:#fff;color:var(--verde);border:2px solid var(--verde)" onclick="abrirStatus()">🔔 Acompanhar meu pedido</button>
+      <button class="btnV" style="background:#eee;color:#555" onclick="fecharTudo()">Voltar ao catálogo</button></div>`;
+}
+function baixarEspelho(){
+  const o=pedidoAtual;if(!o){alert("Pedido não encontrado.");return;}
+  if(!window.jspdf||!window.jspdf.jsPDF){alert("Não consegui gerar o PDF agora.");return;}
+  const {jsPDF}=window.jspdf;
+  const doc=new jsPDF({unit:"mm",format:"a4"});
+  const M=14,W=182;let y=18;
+  doc.setFont("helvetica","bold");doc.setFontSize(19);doc.setTextColor(47,107,79);
+  doc.text(cfg.titulo||empresa.razao||"EIKO VIDA",105,y,{align:"center"});y+=6;
+  doc.setFont("helvetica","normal");doc.setFontSize(9);doc.setTextColor(90);
+  doc.text("Cópia do pedido — catálogo online",105,y,{align:"center"});y+=9;
+  doc.setDrawColor(200);doc.line(M,y,M+W,y);y+=8;
+  doc.setTextColor(0);doc.setFontSize(10);
+  const dt=new Date(o.data);
+  const lin=(a,b)=>{doc.setFont("helvetica","bold");doc.text(a,M,y);doc.setFont("helvetica","normal");
+    doc.text(doc.splitTextToSize(String(b||"—"),W-38),M+36,y);y+=6;};
+  lin("Data:",dt.toLocaleString("pt-BR"));
+  lin("Loja:",o.cliente);
+  lin("Contato:",o.contato);
+  if(o.cnpj)lin("CNPJ/CPF:",o.cnpj);
+  if(o.cidade)lin("Cidade:",o.cidade);
+  if(o.endereco)lin("Entrega:",o.endereco);
+  lin("Situação:",o.situacao||"Aguardando confirmação");
+  y+=3;doc.line(M,y,M+W,y);y+=7;
+  doc.setFont("helvetica","bold");doc.setFontSize(9);
+  doc.text("CÓD.",M,y);doc.text("PRODUTO",M+20,y);doc.text("QTD",M+120,y,{align:"right"});
+  doc.text("UNIT.",M+146,y,{align:"right"});doc.text("TOTAL",M+W,y,{align:"right"});y+=2;
+  doc.line(M,y,M+W,y);y+=5;
+  doc.setFont("helvetica","normal");
+  (o.itens||[]).forEach(i=>{
+    if(y>272){doc.addPage();y=20;}
+    doc.text(String(i.codigo||""),M,y);
+    doc.text(doc.splitTextToSize(String(i.nome||""),95)[0],M+20,y);
+    doc.text(String(i.qtd),M+120,y,{align:"right"});
+    doc.text(brl(i.preco),M+146,y,{align:"right"});
+    doc.text(brl(i.qtd*i.preco),M+W,y,{align:"right"});
+    y+=5.6;
+  });
+  y+=2;doc.line(M,y,M+W,y);y+=8;
+  doc.setFont("helvetica","bold");doc.setFontSize(13);
+  doc.text("TOTAL: "+brl(o.total),M+W,y,{align:"right"});y+=10;
+  doc.setFont("helvetica","normal");doc.setFontSize(9);doc.setTextColor(90);
+  const nota=doc.splitTextToSize("Forma e condição de pagamento serão combinadas com nossa equipe. Este documento é uma cópia do seu pedido, não é documento fiscal.",W);
+  doc.text(nota,M,y);y+=nota.length*4.5+4;
+  const ct=[cfg.telefone||empresa.telefone,empresa.site].filter(Boolean).join(" · ");
+  if(ct)doc.text(ct,105,285,{align:"center"});
+  doc.save("Pedido-"+(o.cliente||"catalogo").replace(/[^\w]/g,"_").slice(0,20)+".pdf");
+}
+function abrirStatus(){
+  const id=(pedidoAtual&&pedidoAtual.id)||(function(){try{return localStorage.getItem("eiko_meupedido")||"";}catch(e){return "";}})();
+  if(!id){alert("Nenhum pedido recente neste aparelho.");return;}
+  fecharTudo();abrir("mStatus");
+  if(unsubPed)try{unsubPed();}catch(e){}
+  const ref=db.ref("pedidos/"+id);
+  const cb=ref.on("value",sn=>{
+    const o=sn.val();
+    if(!o){document.getElementById("statusBody").innerHTML='<div class="ok">Pedido não encontrado.</div>';return;}
+    pedidoAtual={id:id,...o};
+    const st=o.situacao||"Aguardando confirmação";
+    const aceito=/aceit|confirmad|aprovad/i.test(st);
+    if(aceito&&localStorage.getItem("eiko_avisado_"+id)!=="1"){
+      try{localStorage.setItem("eiko_avisado_"+id,"1");
+        if(window.Notification&&Notification.permission==="granted")
+          new Notification("Pedido confirmado! 🎉",{body:"Seu pedido foi aceito pela "+(cfg.titulo||empresa.razao||"EIKO VIDA")+".",icon:"icon-192.png"});
+      }catch(e){}
+    }
+    const passos=[["📝","Pedido enviado",true],["✅","Aceito pela empresa",aceito],["📦","Em separação",/separa|prepar/i.test(st)],["🚚","Enviado",/envi|transport|entreg/i.test(st)]];
+    const permitir=(window.Notification&&Notification.permission!=="granted")
+      ?`<button class="btnV" onclick="pedirAviso()">🔔 Quero ser avisado neste celular</button>`:
+       `<div style="background:#f2f9f2;border-radius:10px;padding:10px;font-size:12.5px;color:#2F6B4F;margin-top:12px">🔔 Avisos ativados neste aparelho.</div>`;
+    document.getElementById("statusBody").innerHTML=`<div class="mbody">
+      <div style="text-align:center;padding:6px 0 14px">
+        <div style="font-size:13px;color:var(--cinza)">Situação atual</div>
+        <div style="font-size:20px;font-weight:800;color:${aceito?"var(--verde)":"#b45309"};margin-top:3px">${esc(st)}</div>
+      </div>
+      ${passos.map(p=>`<div style="display:flex;align-items:center;gap:11px;padding:9px 0;border-bottom:1px solid #f2f1ed;opacity:${p[2]?1:.4}">
+        <span style="font-size:20px">${p[0]}</span><b style="font-size:14px">${p[1]}</b>
+        ${p[2]?'<span style="margin-left:auto;color:var(--verde);font-weight:800">✓</span>':""}</div>`).join("")}
+      <div style="margin-top:14px;font-size:13px;color:var(--cinza)">Pedido de <b>${esc(o.cliente||"")}</b> · ${brl(o.total)}</div>
+      ${permitir}
+      <button class="btnV" style="background:#fff;color:var(--verde);border:2px solid var(--verde)" onclick="baixarEspelho()">📄 Baixar cópia do pedido</button>
+      <button class="btnV" style="background:#eee;color:#555;margin-bottom:14px" onclick="fecharTudo()">Fechar</button>
+    </div>`;
+  });
+  unsubPed=()=>ref.off("value",cb);
+}
+function pedirAviso(){
+  if(!window.Notification){alert("Seu navegador não suporta avisos.");return;}
+  Notification.requestPermission().then(p=>{
+    if(p==="granted"){try{new Notification("Avisos ativados ✓",{body:"Você será avisado quando seu pedido for confirmado.",icon:"icon-192.png"});}catch(e){}}
+    abrirStatus();
+  });
 }
 function abrirWhats(){
   const t="Olá! Vim pelo catálogo online e gostaria de mais informações sobre os produtos para revenda.";
