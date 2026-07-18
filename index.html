@@ -62,6 +62,8 @@
   .sheet-h small{display:block;font-weight:400;font-size:12px;color:var(--cinza);margin-top:2px}
   .sheet-i{display:flex;align-items:center;gap:14px;padding:15px 18px;border-bottom:1px solid #f4f4f2;font-size:15px;cursor:pointer}
   .sheet-i:active{background:#f2f9f2}
+  .sheet-i.destaque{background:#eef6ef;font-weight:700;color:var(--verde);border-bottom:2px solid var(--verde)}
+  .sheet-i.off{opacity:.45;cursor:not-allowed}
   .sheet-i span{font-size:19px;width:24px;text-align:center}
   @media(min-width:700px){.sheet{left:50%;right:auto;bottom:auto;top:50%;transform:translate(-50%,-50%);width:420px;border-radius:16px;animation:none}}
   .voltar:active{background:#eef6ef}
@@ -274,6 +276,12 @@ const ADMIN_USER="adm01eiko", ADMIN_SENHA="2904";
 const ABAS=[["convites","Instalar p/ Vendedor"],["home","Início"],["novo","Novo Pedido"],["central","Central de Pedidos"],["relatorios","Relatórios"],["cobrancas","Cobranças"],["clientes","Clientes"],["produtos","Produtos"],["tabelas","Tabelas de Preço"],["transportadoras","Transportadoras"],["fornecedores","Fornecedores"],["agenda","Agenda / CRM"],["equipe","Minha Equipe"],["empresa","Minha Empresa"],["importacoes","Importações"],["sync","Sincronização"],["catalogo","Catálogo Online"]];
 const ABAS_PADRAO=["home","novo","central","clientes","produtos","agenda","sync"];
 function podeVer(v){return ehAdmin||!permissoes||permissoes.includes(v);}
+function podeEditarPed(o){
+  if(!o)return false;
+  if(ehAdmin)return true;                       // admin sempre pode
+  if(o._pendente)return true;                   // ainda não sincronizado
+  return false;                                 // já sincronizado: bloqueado p/ vendedor
+}
 function pedidosVis(){
   if(ehAdmin)return pedidos;
   return pedidos.filter(p=>(p.vendedorCodigo&&String(p.vendedorCodigo)===String(vendedorCodigo))||(!p.vendedorCodigo&&p.vendedor===vendedor));
@@ -293,6 +301,7 @@ let ped={status:"Pedido",consumidorFinal:false,dataEmissao:new Date().toISOStrin
 let destaqueId=null, pedidoAberto=null;
 let filtroCli="", filtroProd="", filtroProdPedido="";
 let buscaCli="", buscaCentral="", buscaCliPed="", escopoCli="todos";
+let editandoPedido=null;
 let editCli=null, clienteDetalhe=null, showCatCli=false, showCatProd=false;
 let prodEdit=null, filtroProdTxt="", tabEdit=null;
 
@@ -1358,7 +1367,10 @@ function filtrarCliPedido(q){buscaCliPed=q;const el=document.getElementById("lis
 function viewNovo(){
   const {bruto,total}=calcTotais();
   const nItens=Object.keys(carrinho).length;
-  const abas=`<div class="subabas">
+  const avisoEd=editandoPedido?`<div style="background:#fff7e6;border:1px solid #f0d488;color:#92600a;border-radius:10px;padding:10px 12px;margin-bottom:10px;display:flex;align-items:center;gap:10px">
+    <span style="font-size:18px">✏️</span><div style="flex:1;font-size:13px"><b>Editando o pedido ${esc(String(editandoPedido.numero||""))}</b><div style="font-size:11px">As alterações substituem o pedido original.</div></div>
+    <button class="btn btn-g btn-sm" onclick="cancelarEdicao()">Cancelar</button></div>`:"";
+  const abas=`${avisoEd}<div class="subabas">
     <button class="subaba ${subAbaPedido==='cab'?'on':''}" onclick="subAbaPedido='cab';buscaItem=false;itemEditando=null;render()">CABEÇALHO</button>
     <button class="subaba ${subAbaPedido==='itens'?'on':''}" onclick="subAbaPedido='itens';render()">ITENS${nItens?` (${nItens})`:''}</button>
   </div>`;
@@ -1564,8 +1576,8 @@ function renderBarra(){
       <span style="color:var(--cinza);font-size:13px">${qtd} item(s)${descTxt}</span>
       <span style="font-size:20px;font-weight:800;color:var(--verde)">${brl(total)}</span></div>
     <div class="row">
-      <button class="btn btn-g" style="flex:1" onclick="finalizar(false)">✓ Salvar</button>
-      <button class="btn btn-w" style="flex:1" onclick="finalizar(true)">Salvar + WhatsApp</button>
+      <button class="btn btn-g" style="flex:1" onclick="finalizar(false)">${editandoPedido?"✓ Salvar alterações":"✓ Salvar"}</button>
+      ${editandoPedido?`<button class="btn btn-r" onclick="cancelarEdicao()">Cancelar</button>`:`<button class="btn btn-w" style="flex:1" onclick="finalizar(true)">Salvar + WhatsApp</button>`}
     </div></div>`;
 }
 
@@ -1577,7 +1589,7 @@ function finalizar(enviar){
   const cli=clientes.find(c=>c.id===clienteSel);
   const itens=linhas.map(([id,it])=>{const p=produtos.find(x=>x.id===id);return{nome:p.nome,codigo:p.codigo||"",qtd:it.qtd,preco:it.preco};});
   const {bruto,total}=calcTotais();
-  const numero=pedidos.reduce((m,p)=>Math.max(m,p.numero||0),1000)+1;
+  const numero=editandoPedido?editandoPedido.numero:(pedidos.reduce((m,p)=>Math.max(m,p.numero||0),1000)+1);
   const pedido={
     numero,
     clienteId:clienteSel,cliente:cli.nome,cidade:cli.cidade||"",whats:cli.whatsapp||"",categoria:cli.categoria||"",
@@ -1588,7 +1600,26 @@ function finalizar(enviar){
     obsCli:ped.obsCli,obsEmp:ped.obsEmp,ordemCompra:ped.ordemCompra,transportadora:ped.transportadora,
     data:new Date().toISOString()
   };
-  if(navigator.onLine){
+  if(editandoPedido){
+    const alvo=pedidos.find(p=>p.id===editandoPedido.id)||{};
+    pedido.data=alvo.data||pedido.data;
+    pedido.editadoEm=new Date().toISOString();
+    pedido.editadoPor=vendedor;
+    if(editandoPedido.pendente){
+      // ainda na fila: atualiza o item pendente
+      const f=filaPendentes.find(x=>x.tempId===editandoPedido.id||x.tempId===editandoPedido.tempId);
+      if(f)f.data={...f.data,...pedido};
+      LS.set("fila",filaPendentes);
+      reconstruirPedidos();
+    }else if(navigator.onLine){
+      db.ref("pedidos/"+editandoPedido.id).update(pedido);
+    }else{
+      filaPendentes.push({col:"pedidos",op:"update",id:editandoPedido.id,data:pedido});
+      LS.set("fila",filaPendentes);
+    }
+    toast("Pedido "+numero+" atualizado ✓");
+    editandoPedido=null;
+  }else if(navigator.onLine){
     db.ref("pedidos").push(pedido);
   }else{
     const tempId="local_"+Date.now();
@@ -1689,7 +1720,9 @@ function menuPedido(id){
   const cli=clientes.find(c=>c.id===o.clienteId)||clientes.find(c=>c.nome===o.cliente);
   const fone=soDig((cli&&(cli.whatsapp||cli.telefone))||o.whats||"");
   const email=(cli&&cli.email)||"";
+  const pode=podeEditarPed(o);
   const it=[
+    ["✏️","Editar pedido",pode?`editarPedido('${id}')`:`toast('Pedido já sincronizado — só o administrador pode editar')`,pode?"destaque":"off"],
     ["📄","Cópia do pedido",`gerarPDF('${id}')`],
     ["📎","Cópia do pedido (WhatsApp)",`enviarPDFwhats('${id}')`],
     ["📋","Copiar texto do pedido",`copiarPed('${id}')`],
@@ -1706,7 +1739,7 @@ function menuPedido(id){
   const html=`<div class="sheet-ov" onclick="fecharSheet()"></div>
     <div class="sheet">
       <div class="sheet-h">Pedido ${esc(o.numero||"")}<small>${esc(o.cliente||"")}</small></div>
-      ${it.map(x=>`<div class="sheet-i" onclick="fecharSheet();${x[2]}"><span>${x[0]}</span>${x[1]}</div>`).join("")}
+      ${it.map(x=>`<div class="sheet-i ${x[3]||""}" onclick="${x[3]==="off"?`${x[2]}`:`fecharSheet();${x[2]}`}"><span>${x[0]}</span>${x[1]}${x[3]==="off"?'<small style="margin-left:auto;font-size:11px;color:#999">bloqueado</small>':""}</div>`).join("")}
       <div class="sheet-i" style="justify-content:center;color:var(--cinza)" onclick="fecharSheet()">Fechar</div>
     </div>`;
   const d=document.createElement("div"); d.id="sheetWrap"; d.innerHTML=html;
@@ -1726,6 +1759,25 @@ function cobrancaDoPedido(id){
   filtroCobr="todos";buscaCentral="";irPara("cobrancas");
   toast(o.recebido?"Pedido já recebido":"Pedido em aberto na lista");
 }
+function editarPedido(id){
+  const o=pedidos.find(x=>x.id===id); if(!o)return;
+  if(!podeEditarPed(o)){toast("Pedido já sincronizado — só o administrador pode editar");return;}
+  carrinho={};
+  (o.itens||[]).forEach(i=>{
+    const p=produtos.find(x=>x.nome===i.nome)||produtos.find(x=>x.codigo===i.codigo);
+    if(p)carrinho[p.id]={qtd:i.qtd,preco:i.preco};
+  });
+  clienteSel=o.clienteId||(clientes.find(c=>c.nome===o.cliente)||{}).id||"";
+  ped={status:o.tipo||"Pedido",consumidorFinal:!!o.consumidorFinal,
+    dataEmissao:o.dataEmissao||(o.data||"").slice(0,10),dataFat:o.dataFat||"",previsao:o.previsao||"",
+    cond:o.cond||"",forma:o.forma||"",tabela:o.tabela||"",descTipo:o.descTipo||"desc",
+    descPerc:o.descPerc||"",obsCli:o.obsCli||"",obsEmp:o.obsEmp||"",
+    ordemCompra:o.ordemCompra||"",transportadora:o.transportadora||""};
+  editandoPedido={id:o.id,numero:o.numero,pendente:!!o._pendente,tempId:o._tempId||null};
+  subAbaPedido="itens";irPara("novo");window.scrollTo(0,0);
+  toast("Editando pedido "+(o.numero||""));
+}
+function cancelarEdicao(){editandoPedido=null;carrinho={};clienteSel="";toast("Edição cancelada");irPara("central");}
 function duplicarPedido(id){
   const o=pedidos.find(x=>x.id===id); if(!o)return;
   if(!(o.itens||[]).length){toast("Este pedido não tem itens para duplicar");return;}
