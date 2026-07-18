@@ -194,22 +194,12 @@
     <p>Atacado · óleos vegetais</p>
 
     <div id="formLogin">
-      <input id="loginCodigo" inputmode="numeric" maxlength="4" placeholder="Código do vendedor (ex: 001)" />
+      <input id="loginCodigo" maxlength="12" placeholder="Código do vendedor ou usuário" autocapitalize="off" autocorrect="off" />
       <input id="loginSenha" type="password" inputmode="numeric" maxlength="4" placeholder="Senha (4 dígitos)" onkeydown="if(event.key==='Enter')entrar()" />
       <button onclick="entrar()">Entrar</button>
-      <div class="linkbox">
-        <span onclick="mostrarAtivacao()">Primeiro acesso? Ativar meu cadastro</span>
+      <div class="linkbox" style="font-size:12px;color:#888">
+        <span style="text-decoration:none;color:#888;cursor:default">Não tem acesso? Peça ao administrador para cadastrar você.</span>
       </div>
-    </div>
-
-    <div id="formAtivar" class="hide">
-      <div class="avisoAtv">Peça o <b>código de ativação</b> ao administrador.</div>
-      <input id="atvCodigo" placeholder="Código de ativação" />
-      <input id="atvNome" placeholder="Seu nome completo" />
-      <input id="atvSenha" type="password" inputmode="numeric" maxlength="4" placeholder="Crie uma senha de 4 dígitos" />
-      <input id="atvSenha2" type="password" inputmode="numeric" maxlength="4" placeholder="Repita a senha" />
-      <button onclick="ativarVendedor()">Ativar cadastro</button>
-      <div class="linkbox"><span onclick="mostrarLogin()">← Voltar para o login</span></div>
     </div>
 
     <div id="loginMsg" class="loginmsg"></div>
@@ -261,7 +251,11 @@ let produtos=[], clientes=[], pedidos=[], catCliente=[], catProduto=[];
 let pedidosRemoto=[];
 const LS={get(k,def){try{const v=localStorage.getItem("eiko_"+k);return v?JSON.parse(v):def;}catch(e){return def;}},set(k,v){try{localStorage.setItem("eiko_"+k,JSON.stringify(v));}catch(e){}}};
 let vendedor="", viewAtual="home";
-let vendedorCodigo="", vendedorId="", ehAdmin=false;
+let vendedorCodigo="", vendedorId="", ehAdmin=false, permissoes=null;
+const ADMIN_USER="adm01eiko", ADMIN_SENHA="2904";
+const ABAS=[["home","Início"],["novo","Novo Pedido"],["central","Central de Pedidos"],["relatorios","Relatórios"],["cobrancas","Cobranças"],["clientes","Clientes"],["produtos","Produtos"],["tabelas","Tabelas de Preço"],["transportadoras","Transportadoras"],["fornecedores","Fornecedores"],["agenda","Agenda / CRM"],["equipe","Minha Equipe"],["empresa","Minha Empresa"],["importacoes","Importações"],["sync","Sincronização"],["catalogo","Catálogo Online"]];
+const ABAS_PADRAO=["home","novo","central","clientes","produtos","agenda","sync"];
+function podeVer(v){return ehAdmin||!permissoes||permissoes.includes(v);}
 let online=(typeof navigator!=="undefined"?navigator.onLine:true), filaPendentes=[];
 let periodoRel="30";
 let transportadoras=[], transpEdit=null, filtroCobr="areceber";
@@ -359,9 +353,16 @@ function mostrarLogin(){document.getElementById("formAtivar").classList.add("hid
 function padCod(c){return String(c||"").replace(/\D/g,"").padStart(3,"0");}
 
 async function entrar(){
-  const cod=padCod(val("loginCodigo"));
+  const bruto=String(val("loginCodigo")||"").trim();
   const senha=String(val("loginSenha")||"").trim();
-  if(!cod||cod==="000"){lmsg("Digite o código do vendedor","erro");return;}
+  // administrador do sistema
+  if(bruto.toLowerCase()===ADMIN_USER){
+    if(senha!==ADMIN_SENHA){lmsg("Senha incorreta","erro");return;}
+    iniciarSessao({nome:"Administrador",codigo:"000",id:"admin",admin:true});
+    return;
+  }
+  const cod=padCod(bruto);
+  if(!bruto||cod==="000"){lmsg("Digite o código do vendedor","erro");return;}
   if(senha.length!==4){lmsg("A senha tem 4 dígitos","erro");return;}
   lmsg("Verificando…");
   let v=null;
@@ -390,12 +391,14 @@ async function entrar(){
 }
 function iniciarSessao(v){
   vendedor=v.nome; vendedorCodigo=padCod(v.codigo); vendedorId=v.id||"";
-  ehAdmin = v.admin===true || vendedorCodigo==="001";
+  ehAdmin = v.admin===true;
+  permissoes = ehAdmin?null:(Array.isArray(v.permissoes)&&v.permissoes.length?v.permissoes.slice():ABAS_PADRAO.slice());
   try{
     localStorage.setItem("eiko_vendedor",v.nome);
     localStorage.setItem("eiko_vcod",vendedorCodigo);
     localStorage.setItem("eiko_vid",vendedorId);
     localStorage.setItem("eiko_admin",ehAdmin?"1":"0");
+    localStorage.setItem("eiko_perm",JSON.stringify(permissoes));
   }catch(e){}
   document.getElementById("login").classList.add("hide");
   document.getElementById("app").classList.remove("hide");
@@ -488,7 +491,7 @@ function toArr(o){return o?Object.keys(o).map(k=>({id:k,...o[k]})):[];}
 function semear(){const u={};SEED.forEach(p=>{u[db.ref("produtos").push().key]=p;});db.ref("produtos").update(u);}
 
 /* ====== NAV ====== */
-function irPara(v){viewAtual=v;clienteDetalhe=null;editCli=null;tabEdit=null;prodEdit=null;const d=document.getElementById("drawer");if(d&&d.classList.contains("on"))toggleMenu();render();}
+function irPara(v){if(!podeVer(v)){toast("Você não tem acesso a esta área");return;}viewAtual=v;clienteDetalhe=null;editCli=null;tabEdit=null;prodEdit=null;const d=document.getElementById("drawer");if(d&&d.classList.contains("on"))toggleMenu();render();}
 const MENU=[
   ["__s","VENDAS"],
   ["🏠","Início","home"],
@@ -522,14 +525,16 @@ function toggleMenu(){
 function navMenu(v){toggleMenu();if(v==="catalogo"){window.open("https://eikovida.pedidook.com.br/","_blank");return;}if(v==="__sair"){sair();return;}irPara(v);}
 function sair(){
   if(!confirm("Sair do app? Seus dados continuam salvos."))return;
-  try{["eiko_vendedor","eiko_vcod","eiko_vid","eiko_admin"].forEach(k=>localStorage.removeItem(k));}catch(e){}
+  try{["eiko_vendedor","eiko_vcod","eiko_vid","eiko_admin","eiko_perm"].forEach(k=>localStorage.removeItem(k));}catch(e){}
   location.reload();
 }
 function renderMenu(){
   const el=document.getElementById("drawerNav");if(!el)return;
-  el.innerHTML=MENU.map(m=>m[0]==="__s"
-    ?`<div class="dsep">${m[1]}</div>`
-    :`<div class="ditem ${viewAtual===m[2]?'on':''}" onclick="navMenu('${m[2]}')"><span class="di">${m[0]}</span>${m[1]}</div>`).join("");
+  const vis=MENU.filter(m=>m[0]==="__s"||m[2]==="__sair"||podeVer(m[2]));
+  el.innerHTML=vis.map((m,i)=>{
+    if(m[0]==="__s"){const prox=vis.slice(i+1).find(x=>x[0]!=="__s");return prox?`<div class="dsep">${m[1]}</div>`:"";}
+    return `<div class="ditem ${viewAtual===m[2]?'on':''}" onclick="navMenu('${m[2]}')"><span class="di">${m[0]}</span>${m[1]}</div>`;
+  }).join("");
   const dv=document.getElementById("drawerVend");if(dv)dv.textContent="Vendedor: "+(vendedor||"—");
 }
 
@@ -828,18 +833,31 @@ function salvarEmpresa(){
 /* ====== MINHA EQUIPE ====== */
 function viewEquipe(){
   const f=vendEdit||{nome:"",meta:"",codigo:"",senha:""};
-  const form=`<div class="card">
-    <div style="font-weight:700;font-size:14px;margin-bottom:8px">${vendEdit?"✎ Editar vendedor":"+ Novo vendedor"}</div>
+  const permAtuais=(vendEdit&&Array.isArray(vendEdit.permissoes)&&vendEdit.permissoes.length)?vendEdit.permissoes:ABAS_PADRAO;
+  const gridPerm=ABAS.map(([k,lbl])=>`<label style="display:flex;align-items:center;gap:7px;font-size:13px;padding:5px 0">
+      <input type="checkbox" class="permChk" value="${k}" ${permAtuais.includes(k)?"checked":""} style="width:17px;height:17px"/> ${lbl}</label>`).join("");
+  const form=!ehAdmin?"":`<div class="card">
+    <div style="font-weight:700;font-size:14px;margin-bottom:8px">${vendEdit?"✎ Editar vendedor":"+ Cadastrar vendedor"}</div>
     <div class="fgrid">
       <div><label class="lb">Nome *</label><input class="inp" id="veNome" value="${esc(f.nome)}"/></div>
-      <div><label class="lb">Código ${vendEdit?"":"(deixe vazio p/ automático)"}</label><input class="inp" id="veCod" inputmode="numeric" maxlength="4" value="${esc(String(f.codigo||''))}"/></div>
+      <div><label class="lb">Código ${vendEdit?"":"(vazio = automático)"}</label><input class="inp" id="veCod" inputmode="numeric" maxlength="4" value="${esc(String(f.codigo||''))}"/></div>
     </div>
     <div class="fgrid" style="margin-top:8px">
-      <div><label class="lb">Senha (4 dígitos)</label><input class="inp" id="veSenha" inputmode="numeric" maxlength="4" value="${esc(String(f.senha||''))}"/></div>
+      <div><label class="lb">Senha (4 dígitos) *</label><input class="inp" id="veSenha" inputmode="numeric" maxlength="4" value="${esc(String(f.senha||''))}"/></div>
       <div><label class="lb">Meta mensal (R$)</label><input class="inp" id="veMeta" inputmode="decimal" value="${esc(String(f.meta||''))}"/></div>
     </div>
-    <div class="row" style="margin-top:10px">
-      <button class="btn btn-v" style="flex:1" onclick="salvarVend()">${vendEdit?"Salvar":"Adicionar"}</button>
+    <div style="margin-top:12px;background:#f8f8f6;border-radius:10px;padding:10px">
+      <div style="font-weight:700;font-size:13px;margin-bottom:2px">🔒 Abas liberadas para este vendedor</div>
+      <div style="font-size:11px;color:var(--cinza);margin-bottom:6px">Ele só verá o que estiver marcado.</div>
+      <div class="row" style="margin-bottom:6px">
+        <button class="btn btn-g btn-sm" onclick="marcarPerm(true)">Marcar todas</button>
+        <button class="btn btn-g btn-sm" onclick="marcarPerm(false)">Desmarcar</button>
+        <button class="btn btn-g btn-sm" onclick="permPadrao()">Padrão</button>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 12px">${gridPerm}</div>
+    </div>
+    <div class="row" style="margin-top:12px">
+      <button class="btn btn-v" style="flex:1" onclick="salvarVend()">${vendEdit?"Salvar alterações":"Cadastrar vendedor"}</button>
       ${vendEdit?`<button class="btn btn-g" onclick="vendEdit=null;render()">✕</button>`:""}
     </div></div>`;
   const mes0=new Date();mes0.setDate(1);mes0.setHours(0,0,0,0);
@@ -859,22 +877,21 @@ function viewEquipe(){
           <b>${esc(v.nome)}</b>${v.nome===vendedor?' <span class="badge b-cat">você</span>':''}${v.ativo===false?' <span class="badge" style="background:#fee2e2;color:#b91c1c">inativo</span>':''}
           <small style="display:block;color:var(--cinza)">Código <b style="color:var(--verde)">${padCod(v.codigo)}</b> · ${peds.length} pedido(s) no mês · 👥 ${carteira} cliente(s)</small>
         </div>
-        <button class="icbtn btn-g" onclick="editarVend('${v.id}')">✎</button>
+        ${ehAdmin?`<button class="icbtn btn-g" onclick="editarVend('${v.id}')">✎</button>`:""}
       </div>${barra}
+      ${ehAdmin?`<div style="font-size:11px;color:var(--cinza);margin-top:5px">🔒 ${(Array.isArray(v.permissoes)&&v.permissoes.length?v.permissoes:ABAS_PADRAO).length} aba(s) liberada(s)</div>
       <div class="row" style="margin-top:8px">
         <button class="btn btn-g btn-sm" style="flex:1" onclick="abrirTransferencia('${v.id}')">🔁 Transferir carteira</button>
         <button class="btn ${v.ativo===false?'btn-v':'btn-r'} btn-sm" onclick="toggleAtivo('${v.id}',${v.ativo===false})">${v.ativo===false?'Reativar':'Desativar'}</button>
-      </div>
+      </div>`:""}
       ${transfDe===v.id?boxTransferencia(v):""}
     </div>`;
   }).join("");
   const semCod=[...new Set(pedidos.map(p=>p.vendedor).filter(n=>n&&!equipe.some(v=>v.nome===n)))];
   const antigos=semCod.length?`<div class="card" style="padding:12px"><div style="font-size:12px;color:var(--cinza)">Vendedores que aparecem em pedidos antigos, sem cadastro: ${semCod.map(esc).join(", ")}</div></div>`:"";
   const cfgAtv=ehAdmin?`<div class="card" style="border:1px solid var(--dourado);background:#fffdf5">
-    <div style="font-weight:700;font-size:14px;margin-bottom:4px">🔑 Código de ativação</div>
-    <div style="font-size:12px;color:#555;margin-bottom:8px">Passe este código para um vendedor novo criar o acesso dele no primeiro login.</div>
-    <div class="row"><input class="inp" id="cfgAtv" value="${esc(codigoAtivacao)}" style="margin-top:0"/><button class="btn btn-v" onclick="salvarCodigoAtivacao()">Salvar</button></div>
-  </div>`:"";
+    <div style="font-size:13px;color:#7a5c00">👑 Você está como <b>Administrador</b> — só você cadastra vendedores e define as abas de cada um.</div>
+  </div>`:`<div class="card" style="background:#f8f8f6"><div style="font-size:13px;color:#555">Somente o administrador pode cadastrar vendedores.</div></div>`;
   return `<h2 class="tit">Minha Equipe</h2>${cfgAtv}${form}${cards||'<div class="vazio">Nenhum vendedor cadastrado</div>'}${antigos}`;
 }
 function boxTransferencia(v){
@@ -930,9 +947,14 @@ function salvarCodigoAtivacao(){
 function salvarVend(){
   const o={nome:val("veNome"),meta:parseFloat(String(val("veMeta")).replace(/\./g,'').replace(',','.'))||0};
   if(!o.nome){toast("Informe o nome");return;}
+  if(!ehAdmin){toast("Somente o administrador pode cadastrar vendedores");return;}
   const senha=String(val("veSenha")||"").trim();
+  if(!vendEdit&&!/^\d{4}$/.test(senha)){toast("Defina a senha de 4 dígitos");return;}
   if(senha&&!/^\d{4}$/.test(senha)){toast("A senha deve ter 4 dígitos");return;}
   if(senha)o.senha=senha;
+  const marcadas=[];
+  try{document.querySelectorAll(".permChk").forEach(ch=>{if(ch.checked)marcadas.push(ch.value);});}catch(e){}
+  o.permissoes=marcadas.length?marcadas:ABAS_PADRAO.slice();
   let cod=padCod(val("veCod"));
   if(!val("veCod")){
     const maior=equipe.reduce((m,x)=>Math.max(m,parseInt(padCod(x.codigo))||0),0);
@@ -945,6 +967,8 @@ function salvarVend(){
   else{if(vendEdit){const i=equipe.findIndex(x=>x.id===vendEdit.id);if(i>=0)equipe[i]={...equipe[i],...o};filaPendentes.push({col:"vendedores",op:"update",id:vendEdit.id,data:o});}else{const tempId="local_"+Date.now();equipe.push({id:tempId,...o});filaPendentes.push({col:"vendedores",op:"push",data:o,tempId});}LS.set("equipe",equipe);LS.set("fila",filaPendentes);}
   vendEdit=null;toast(navigator.onLine?"Vendedor salvo":"Salvo offline ✓");render();
 }
+function marcarPerm(v){try{document.querySelectorAll(".permChk").forEach(ch=>{ch.checked=v;});}catch(e){}}
+function permPadrao(){try{document.querySelectorAll(".permChk").forEach(ch=>{ch.checked=ABAS_PADRAO.includes(ch.value);});}catch(e){}}
 function addVendRapido(nome){vendEdit={nome,meta:""};render();window.scrollTo(0,0);}
 function editarVend(id){vendEdit=equipe.find(x=>x.id===id);render();window.scrollTo(0,0);}
 function excluirVend(id){if(confirm("Excluir vendedor?"))db.ref("vendedores/"+id).remove();}
@@ -1183,6 +1207,7 @@ function sincronizarAgora(){
 
 function render(){
   const c=document.getElementById("conteudo");
+  if(!podeVer(viewAtual)){viewAtual=podeVer("home")?"home":((permissoes&&permissoes[0])||"home");}
   document.getElementById("barraTotal").classList.add("hide");
   if(viewAtual==="home")c.innerHTML=viewHome();
   else if(viewAtual==="novo"){c.innerHTML=viewNovo();renderBarra();}
@@ -2207,15 +2232,17 @@ function excluirTabela(id){if(confirm("Excluir tabela?"))db.ref("tabelas/"+id).r
 
 /* ====== SESSÃO: mantém o vendedor logado ao recarregar/atualizar ====== */
 (function(){
-  let n="",c="",id="",ad="";
+  let n="",c="",id="",ad="",pm="";
   try{
     n=localStorage.getItem("eiko_vendedor")||"";
     c=localStorage.getItem("eiko_vcod")||"";
     id=localStorage.getItem("eiko_vid")||"";
     ad=localStorage.getItem("eiko_admin")||"0";
+    pm=localStorage.getItem("eiko_perm")||"";
   }catch(e){}
   if(n&&c){
     vendedor=n;vendedorCodigo=c;vendedorId=id;ehAdmin=(ad==="1");
+    try{permissoes=ehAdmin?null:(pm?JSON.parse(pm):ABAS_PADRAO.slice());}catch(e){permissoes=ABAS_PADRAO.slice();}
     document.getElementById("login").classList.add("hide");
     document.getElementById("app").classList.remove("hide");
     iniciar();
