@@ -942,12 +942,18 @@ function viewCatalogoCfg(){
         <button class="btn btn-r btn-sm" onclick="excluirDestaque(${i})">🗑</button>
       </div></div>`).join(""):`<div style="font-size:13px;color:var(--cinza);padding:8px 2px">Nenhum destaque ainda.</div>`;
 
-  const imgs=box("🖼️ Fotos dos produtos",`
-    <div style="font-size:13px;margin-bottom:8px">${semFoto?`<b style="color:#b45309">${semFoto} produto(s) sem foto</b> no catálogo.`:'<b style="color:var(--verde)">Todos os produtos têm foto ✓</b>'}</div>
-    <div style="font-size:12px;color:var(--cinza);margin-bottom:8px">Busca as fotos oficiais pelo código do produto. Só preenche quem está sem foto — nenhum código é alterado.</div>
-    <button class="btn btn-o" style="width:100%" id="btnImgs" onclick="preencherImagens()">🔄 Preencher fotos que faltam</button>
+  const semFoto2=produtos.filter(p=>!p.imagem).length;
+  const semBarra=produtos.filter(p=>!p.codbarras).length;
+  const semNcm=produtos.filter(p=>!p.ncm).length;
+  const imgs=box("📦 Completar dados dos produtos",`
+    <div style="font-size:13px;margin-bottom:8px;line-height:1.7">
+      ${semFoto2?`<div>🖼️ <b style="color:#b45309">${semFoto2}</b> sem foto</div>`:'<div>🖼️ <b style="color:var(--verde)">Todos com foto ✓</b></div>'}
+      ${semBarra?`<div>🏷️ <b style="color:#b45309">${semBarra}</b> sem código de barras</div>`:'<div>🏷️ <b style="color:var(--verde)">Todos com código de barras ✓</b></div>'}
+      ${semNcm?`<div>📄 <b style="color:#b45309">${semNcm}</b> sem NCM</div>`:'<div>📄 <b style="color:var(--verde)">Todos com NCM ✓</b></div>'}
+    </div>
+    <div style="font-size:12px;color:var(--cinza);margin-bottom:8px">Preenche <b>código de barras, NCM, embalagem e foto</b> a partir do relatório oficial, casando <b>pelo código do produto</b>. Só completa o que está vazio — nenhum código é alterado.</div>
+    <button class="btn btn-o" style="width:100%" id="btnImgs" onclick="preencherImagens()">🔄 Completar dados que faltam</button>
     <div id="imgProg" style="font-size:12px;margin-top:8px"></div>`);
-
   const link=box("🔗 Link do catálogo",`
     <div style="background:#f8f8f6;border-radius:8px;padding:10px;font-size:13px;text-align:center;word-break:break-all">${esc(URL_CATALOGO)}</div>
     <div class="row" style="margin-top:8px">
@@ -1021,16 +1027,28 @@ async function preencherImagens(){
   const set=t=>{const e=document.getElementById("imgProg");if(e)e.innerHTML=t;};
   const btn=document.getElementById("btnImgs");if(btn)btn.disabled=true;
   try{
-    set("⏳ Buscando fotos…");
-    const mapa=await fetch("imagens-produtos.json?v="+Date.now()).then(r=>{if(!r.ok)throw new Error("x");return r.json();});
-    const alvo=produtos.filter(p=>!p.imagem&&p.codigo&&mapa[String(p.codigo).trim()]);
-    if(!alvo.length){set('<span style="color:var(--verde)">✅ Nada a preencher.</span>');if(btn)btn.disabled=false;return;}
-    const upd={};
-    alvo.forEach(p=>{upd[p.id+"/imagem"]=mapa[String(p.codigo).trim()];});
+    set("⏳ Buscando dados oficiais…");
+    const mapa=await fetch("dados-produtos.json?v="+Date.now()).then(r=>{if(!r.ok)throw new Error("x");return r.json();});
+    const upd={};let nImg=0,nBar=0,nNcm=0,nEmb=0,nProd=0;
+    produtos.forEach(p=>{
+      const d=mapa[String(p.codigo||"").trim()];
+      if(!d)return;
+      let mexeu=false;
+      if(!p.imagem&&d.imagem){upd[p.id+"/imagem"]=d.imagem;nImg++;mexeu=true;}
+      if(!p.codbarras&&d.codbarras){upd[p.id+"/codbarras"]=d.codbarras;nBar++;mexeu=true;}
+      if(!p.ncm&&d.ncm){upd[p.id+"/ncm"]=d.ncm;nNcm++;mexeu=true;}
+      if(!p.embalagem&&d.embalagem){upd[p.id+"/embalagem"]=d.embalagem;nEmb++;mexeu=true;}
+      if(mexeu)nProd++;
+    });
+    if(!Object.keys(upd).length){set('<span style="color:var(--verde)">✅ Tudo já está preenchido.</span>');if(btn)btn.disabled=false;return;}
     await db.ref("produtos").update(upd);
-    set('<span style="color:var(--verde)">✅ '+alvo.length+" foto(s) preenchida(s).</span>");
-    toast("Fotos atualizadas ✓");
-  }catch(e){set('<span style="color:#dc2626">Não encontrei o arquivo de fotos.</span>');if(btn)btn.disabled=false;}
+    set('<span style="color:var(--verde)">✅ '+nProd+" produto(s) atualizado(s):</span><br>"
+      +(nBar?"🏷️ "+nBar+" código(s) de barras<br>":"")
+      +(nNcm?"📄 "+nNcm+" NCM<br>":"")
+      +(nImg?"🖼️ "+nImg+" foto(s)<br>":"")
+      +(nEmb?"📦 "+nEmb+" embalagem(ns)":""));
+    toast("Dados completados ✓");
+  }catch(e){set('<span style="color:#dc2626">Não encontrei o arquivo de dados.</span>');if(btn)btn.disabled=false;}
 }
 
 function viewConvites(){
@@ -2551,7 +2569,11 @@ function viewProdutos(){
           ${fotoTmp?`<button class="btn btn-r btn-sm" style="width:100%;margin-top:5px" onclick="limparFoto()">Remover foto</button>`:""}
         </div>
       </div>
-      <label class="lb" style="margin-top:8px;display:block">…ou cole o endereço de uma imagem</label>
+      <div class="fgrid" style="margin-top:10px">
+      <div><label class="lb">Código de barras</label><input class="inp" id="pBarra" inputmode="numeric" value="${prodEdit?esc(prodEdit.codbarras||''):''}"/></div>
+      <div><label class="lb">NCM</label><input class="inp" id="pNcm" inputmode="numeric" value="${prodEdit?esc(prodEdit.ncm||''):''}"/></div>
+    </div>
+    <label class="lb" style="margin-top:8px;display:block">…ou cole o endereço de uma imagem</label>
       <input class="inp" id="pImg" placeholder="https://…" value="${prodEdit?esc((prodEdit.imagem||"").indexOf("data:")===0?"":(prodEdit.imagem||"")):''}" style="margin-top:2px"/>
     </div>
     <div style="margin-top:10px;background:#f2f9f2;border-radius:10px;padding:10px">
@@ -2592,6 +2614,7 @@ function salvarProduto(){
     atacado:parseFloat(String(val("pAtac")).replace(',','.'))||0,varejo:parseFloat(String(val("pAtac")).replace(',','.'))||0,
     estoque:val("pEst"),categoria:val("pCat"),embalagem:val("pEmb")||"UN/1",marca:"EIKO VIDA",
     imagem:fotoTmp||val("pImg")||"",
+    codbarras:val("pBarra")||"",ncm:val("pNcm")||"",
     descricao:val("pDesc")||"",
     catalogo:!!(document.getElementById("pCatalogo")||{}).checked
   };
