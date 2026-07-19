@@ -156,11 +156,23 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script>
 const CFG={apiKey:"AIzaSyCzl-w2jUWYGvMD2t5JfeW2l0iGjZt8cRw",authDomain:"eiko-vida-app.firebaseapp.com",databaseURL:"https://eiko-vida-app-default-rtdb.firebaseio.com",projectId:"eiko-vida-app",storageBucket:"eiko-vida-app.firebasestorage.app",messagingSenderId:"805340801526",appId:"1:805340801526:web:50e800c3a5ada35594ffd7"};
 const WHATS_PADRAO="558141410577";
 firebase.initializeApp(CFG);
 const db=firebase.database();
+
+/* ====== ACESSO SEGURO A NUVEM (identificacao automatica do aparelho) ====== */
+let acessoPronto=false;const acessoFila=[];
+function quandoAcesso(fn){if(acessoPronto){try{fn();}catch(e){}}else acessoFila.push(fn);}
+function aguardarAcesso(ms){return new Promise(r=>{if(acessoPronto)return r(true);const t=setTimeout(()=>r(acessoPronto),ms||8000);acessoFila.push(()=>{clearTimeout(t);r(true);});});}
+(function(){
+  function liberar(){if(acessoPronto)return;acessoPronto=true;acessoFila.splice(0).forEach(f=>{try{f();}catch(e){}});}
+  function tentar(){try{firebase.auth().signInAnonymously().catch(()=>setTimeout(tentar,8000));}catch(e){setTimeout(tentar,8000);}}
+  try{firebase.auth().onAuthStateChanged(u=>{if(u)liberar();else tentar();});}catch(e){liberar();}
+})();
+
 
 let produtos=[],empresa={},cfg={},cat="",carrinho={},prodAberto=null;
 let clientes=[],cliIdent=null,modoCad="escolha",pedidoAtual=null,unsubPed=null;
@@ -169,6 +181,7 @@ const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;"
 const digitos=s=>String(s||"").replace(/\D/g,"");
 function zap(){const n=digitos(cfg.whatsapp||empresa.whats||WHATS_PADRAO);return n.length<=11?"55"+n:n;}
 
+function conectarNuvem(){
 db.ref("produtos").on("value",s=>{
   const v=s.val()||{};
   produtos=Object.keys(v).map(k=>({id:k,...v[k]})).filter(p=>p.nome&&p.catalogo!==false);
@@ -177,6 +190,8 @@ db.ref("produtos").on("value",s=>{
 db.ref("clientes").on("value",s=>{const v=s.val()||{};clientes=Object.keys(v).map(k=>({id:k,...v[k]}));});
 db.ref("empresa").on("value",s=>{empresa=s.val()||{};rodape();});
 db.ref("catalogo").on("value",s=>{cfg=s.val()||{};aplicarCfg();rodape();});
+}
+quandoAcesso(conectarNuvem);
 
 function aplicarCfg(){
   if(cfg.titulo)document.getElementById("hTitulo").textContent=cfg.titulo;
@@ -392,6 +407,7 @@ async function buscarReceita(){
   }catch(e){msg.innerHTML='<span style="color:#b45309">Não consegui buscar. Preencha manualmente.</span>';}
 }
 function enviarPedido(){
+  if(navigator.onLine&&!acessoPronto){alert("Um instante — finalizando a conexão. Tente novamente em alguns segundos.");return;}
   const v=id=>{const e=document.getElementById(id);return e?(e.value||"").trim():"";};
   const itens=itensPedido();
   const total=itens.reduce((s,i)=>s+i.qtd*i.preco,0);
@@ -498,6 +514,7 @@ function abrirStatus(){
   if(!id){alert("Nenhum pedido recente neste aparelho.");return;}
   fecharTudo();abrir("mStatus");
   if(unsubPed)try{unsubPed();}catch(e){}
+  quandoAcesso(function(){
   const ref=db.ref("pedidos/"+id);
   const cb=ref.on("value",sn=>{
     const o=sn.val();
@@ -530,6 +547,7 @@ function abrirStatus(){
     </div>`;
   });
   unsubPed=()=>ref.off("value",cb);
+  });
 }
 function pedirAviso(){
   if(!window.Notification){alert("Seu navegador não suporta avisos.");return;}

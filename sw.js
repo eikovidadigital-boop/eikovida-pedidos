@@ -1,5 +1,5 @@
 // EikoVida Pedidos - service worker
-const CACHE = "eiko-pedidos-v5";
+const CACHE = "eiko-pedidos-v6";
 const SHELL = ["./", "./index.html", "./manifest.json", "./icon-192.png", "./icon-512.png", "./logo.png", "./simbolo.png"];
 
 self.addEventListener("install", (e) => {

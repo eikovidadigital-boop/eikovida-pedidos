@@ -11,6 +11,7 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
 <style>
@@ -265,6 +266,17 @@ const firebaseConfig = {
 };
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
+
+/* ====== ACESSO SEGURO A NUVEM (identificacao automatica do aparelho) ====== */
+let acessoPronto=false;const acessoFila=[];
+function quandoAcesso(fn){if(acessoPronto){try{fn();}catch(e){}}else acessoFila.push(fn);}
+function aguardarAcesso(ms){return new Promise(r=>{if(acessoPronto)return r(true);const t=setTimeout(()=>r(acessoPronto),ms||8000);acessoFila.push(()=>{clearTimeout(t);r(true);});});}
+(function(){
+  function liberar(){if(acessoPronto)return;acessoPronto=true;acessoFila.splice(0).forEach(f=>{try{f();}catch(e){}});}
+  function tentar(){try{firebase.auth().signInAnonymously().catch(()=>setTimeout(tentar,8000));}catch(e){setTimeout(tentar,8000);}}
+  try{firebase.auth().onAuthStateChanged(u=>{if(u)liberar();else tentar();});}catch(e){liberar();}
+})();
+
 const WHATS_EMPRESA = "558141410577";
 const URL_CATALOGO = "https://app.eikovida.com/catalogo.html";
 
@@ -399,6 +411,7 @@ async function entrar(){
   if(!bruto||cod==="000"){lmsg("Digite o código do vendedor","erro");return;}
   if(senha.length!==4){lmsg("A senha tem 4 dígitos","erro");return;}
   lmsg("Verificando…");
+  if(navigator.onLine)await aguardarAcesso(9000);
   let v=null;
   try{
     if(navigator.onLine){
@@ -446,6 +459,7 @@ async function ativarApp(){
   if(s1!==s2){lmsg("As senhas não conferem","erro");return;}
   if(!navigator.onLine){lmsg("Precisa de internet para ativar","erro");return;}
   lmsg("Ativando…");
+  await aguardarAcesso(9000);
   try{
     const arr=toArr((await db.ref("vendedores").once("value")).val());
     const v=arr.find(x=>String(x.codAtivacao||"").toUpperCase()===cod);
@@ -491,6 +505,7 @@ function iniciar(){
   irPara(viewAtual);
 }
 function conectarFirebase(){
+  if(!acessoPronto){quandoAcesso(conectarFirebase);return;}
   db.ref("produtos").on("value",s=>{const a=toArr(s.val());if(a.length===0){if(produtos.length===0&&navigator.onLine)semear();return;}produtos=a;LS.set("produtos",a);reRender(["produtos","novo"]);});
   db.ref("clientes").on("value",s=>{const a=toArr(s.val());if(a.length===0&&clientes.length>0)return;clientes=a;LS.set("clientes",a);reRender(["clientes","novo"]);});
   db.ref("categorias_cliente").on("value",s=>{const a=toArr(s.val());if(a.length===0&&catCliente.length>0)return;catCliente=a;LS.set("catCliente",a);reRender(["clientes"]);});
@@ -1490,6 +1505,7 @@ function atualizarStatusRede(){
 function aoVoltarOnline(){atualizarStatusRede();sincronizarAgora();}
 function sincronizarAgora(){
   if(!navigator.onLine){toast("Sem internet ainda");return;}
+  if(!acessoPronto){quandoAcesso(sincronizarAgora);return;}
   if(filaPendentes.length===0){atualizarStatusRede();return;}
   const fila=[...filaPendentes];
   fila.forEach(f=>{
