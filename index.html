@@ -277,6 +277,27 @@ function aguardarAcesso(ms){return new Promise(r=>{if(acessoPronto)return r(true
   try{firebase.auth().onAuthStateChanged(u=>{if(u)liberar();else tentar();});}catch(e){liberar();}
 })();
 
+/* ====== FOTOS POR CODIGO (pasta img/) ====== */
+const GAL_EXTS=["jpg","png","jpeg","webp"];
+function galUrl(cod,n,ext){return "img/"+encodeURIComponent(cod)+(n>1?"_"+n:"")+"."+ext;}
+function fotoChain(p){
+  const cod=String((p&&p.codigo)||"").trim();
+  const cadeia=[];
+  if(cod)GAL_EXTS.forEach(e=>cadeia.push(galUrl(cod,1,e)));
+  if(p&&p.imagem)cadeia.push(p.imagem);
+  return cadeia;
+}
+function thumbFoto(p){
+  const cadeia=fotoChain(p);
+  if(!cadeia.length)return "\ud83d\udce6";
+  return `<img src="${esc(cadeia[0])}" data-resto="${esc(cadeia.slice(1).join("|"))}" onerror="galErr(this)" loading="lazy" alt=""/>`;
+}
+function galErr(img){
+  const resto=(img.getAttribute("data-resto")||"").split("|").filter(Boolean);
+  if(resto.length){img.setAttribute("data-resto",resto.slice(1).join("|"));img.src=resto[0];}
+  else{img.style.display="none";const pai=img.parentNode;if(pai)pai.innerHTML="\ud83d\udce6";}
+}
+
 const WHATS_EMPRESA = "558141410577";
 const URL_CATALOGO = "https://app.eikovida.com/catalogo.html";
 
@@ -744,7 +765,7 @@ function marcarRecebido(id,val){
   const p=pedidos.find(x=>x.id===id);
   if(p&&p._pendente){toast("Pedido ainda não sincronizado");return;}
   if(navigator.onLine)db.ref("pedidos/"+id+"/recebido").set(val);
-  else{filaPendentes.push({col:"pedidos/"+id,op:"update",id:"pedidos/"+id,data:{recebido:val}});const pr=pedidosRemoto.find(x=>x.id===id);if(pr)pr.recebido=val;LS.set("fila",filaPendentes);reconstruirPedidos();render();}
+  else{filaPendentes.push({col:"pedidos",op:"update",id:id,data:{recebido:val}});const pr=pedidosRemoto.find(x=>x.id===id);if(pr)pr.recebido=val;LS.set("fila",filaPendentes);reconstruirPedidos();render();}
 }
 
 /* ====== AGENDA / CRM ====== */
@@ -1510,6 +1531,7 @@ function sincronizarAgora(){
   const fila=[...filaPendentes];
   fila.forEach(f=>{
     if(f.op==="update"&&f.id)db.ref(f.col+"/"+f.id).update(f.data);
+    else if(f.op==="set")db.ref(f.col).set(f.data);
     else db.ref(f.col).push(f.data);
   });
   filaPendentes=[];
@@ -1700,7 +1722,7 @@ function viewBuscaItem(){
   const prods=lista.map(p=>{
     const noped=carrinho[p.id]?`<span class="badge b-cat">no pedido: ${carrinho[p.id].qtd}</span>`:'<span class="editpen">＋</span>';
     return `<div class="pitem" onclick="abrirEditor('${p.id}')" style="cursor:pointer">
-      <div class="thumb" style="width:40px;height:40px;font-size:18px">${p.imagem?`<img src="${esc(p.imagem)}" onerror="this.style.display='none';this.parentNode.innerHTML='📦'"/>`:'📦'}</div>
+      <div class="thumb" style="width:40px;height:40px;font-size:18px">${thumbFoto(p)}</div>
       <div class="nome"><b>${esc(p.nome)}</b><small>${p.codigo?"Ref: "+esc(p.codigo)+" · ":""}${brl(precoComTabela(p))}${p.estoque!=null&&p.estoque!==""?" · Est: "+p.estoque:""}</small></div>
       ${noped}</div>`;
   }).join("");
@@ -1738,7 +1760,7 @@ function viewEditarItem(){
     </div>
     <div class="card">
       <div style="display:flex;gap:10px;align-items:center">
-        <div class="thumb" style="width:56px;height:56px">${p.imagem?`<img src="${esc(p.imagem)}" onerror="this.style.display='none';this.parentNode.innerHTML='📦'"/>`:'📦'}</div>
+        <div class="thumb" style="width:56px;height:56px">${thumbFoto(p)}</div>
         <div style="flex:1;min-width:0">
           <div style="font-weight:800;font-size:15px">${esc(p.nome)}</div>
           <div style="font-size:12px;color:var(--cinza);margin-top:2px">
@@ -2577,7 +2599,7 @@ function viewProdutos(){
     <div style="margin-top:12px;background:#f8f8f6;border-radius:10px;padding:10px">
       <div style="font-weight:700;font-size:13px;margin-bottom:6px">📷 Foto do produto</div>
       <div style="display:flex;gap:10px;align-items:center">
-        <div style="width:78px;height:78px;border-radius:10px;border:1px solid var(--borda);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:26px;background:#fff ${fotoTmp?`url('${fotoTmp}') center/cover no-repeat`:""}">${fotoTmp?"":"📦"}</div>
+        <div class="thumb" style="width:78px;height:78px;border-radius:10px;border:1px solid var(--borda);font-size:26px;background:#fff ${fotoTmp?`url('${fotoTmp}') center/cover no-repeat`:""}">${fotoTmp?"":(prodEdit?thumbFoto(prodEdit):"📦")}</div>
         <div style="flex:1">
           <input type="file" id="arqFoto" accept="image/*" style="display:none" onchange="lerFoto(this)"/>
           <button class="btn btn-o btn-sm" style="width:100%" onclick="escolherFoto(false)">📁 Escolher da galeria</button>
@@ -2611,7 +2633,7 @@ function viewProdutos(){
     .filter(p=>(!filtroProd||p.categoria===filtroProd)&&(!termo||(p.nome||'').toLowerCase().includes(termo)||(p.codigo||'').toLowerCase().includes(termo)))
     .sort((a,b)=>(a.nome||'').localeCompare(b.nome||''))
     .map(p=>`<div class="card" style="padding:10px;display:flex;gap:10px;align-items:center">
-      <div class="thumb">${p.imagem?`<img src="${esc(p.imagem)}" onerror="this.style.display='none';this.parentNode.innerHTML='📦'" />`:'📦'}</div>
+      <div class="thumb">${thumbFoto(p)}</div>
       <div style="flex:1;min-width:0">
         <b style="font-size:13px;display:block">${esc(p.nome)}</b>
         <small style="color:var(--cinza)">${p.codigo?"Cód: "+esc(p.codigo)+" · ":""}<b style="color:var(--verde)">${brl(p.atacado)}</b>${p.estoque!==""&&p.estoque!=null?" · Est: "+esc(String(p.estoque)):""}</small>
