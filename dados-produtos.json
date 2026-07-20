@@ -1,257 +1,215 @@
 {
-"100101": {
-"codbarras": "7898683170133",
-"ncm": "22072019",
-"embalagem": "UN/1",
-"imagem": "https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_17714431.png"
-},
-"300101": {
-"codbarras": "7898683170010",
-"ncm": "33059000",
-"embalagem": "UN/1"
-},
-"300102": {
-"codbarras": "7898683170027",
-"ncm": "33059000",
-"embalagem": "UN/1",
-"imagem": "https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_17714429.png"
-},
-"CH001": {
-"ncm": "21069030",
-"embalagem": "UN/1",
-"imagem": "https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_31010760.png"
-},
-"700104": {
-"codbarras": "7898956235033",
-"ncm": "15131900",
-"embalagem": "UN/1",
-"imagem": "https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_17714425.png"
-},
-"700105": {
-"codbarras": "7898956235026",
-"ncm": "15131900",
-"embalagem": "UN/1",
-"imagem": "https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_17714424.png"
-},
-"700106": {
-"codbarras": "7898956235019",
-"ncm": "15131900",
-"embalagem": "UN/1",
-"imagem": "https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_17714423.png"
-},
-"700107": {
-"codbarras": "7898956235064",
-"ncm": "15131900",
-"embalagem": "UN/1",
-"imagem": "https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_17714422.png"
-},
-"700117": {
-"codbarras": "7898683170225",
-"ncm": "15131900",
-"embalagem": "UN/1",
-"imagem": "https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_20357099.png"
-},
-"700101": {
-"codbarras": "7898956235217",
-"ncm": "15159090",
-"embalagem": "UN/1",
-"imagem": "https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_17714428.png"
-},
-"700102": {
-"codbarras": "7898956235224",
-"ncm": "15159090",
-"embalagem": "UN/1",
-"imagem": "https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_17714427.png"
-},
-"700103": {
-"codbarras": "7898956235392",
-"ncm": "15159090",
-"embalagem": "UN/1",
-"imagem": "https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_17714426.png"
-},
-"700108": {
-"codbarras": "7898956235255",
-"ncm": "15159090",
-"embalagem": "UN/1",
-"imagem": "https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_17714421.png"
-},
-"700109": {
-"codbarras": "7898956235262",
-"ncm": "15155000",
-"embalagem": "UN/1",
-"imagem": "https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_17714420.png"
-},
-"700110": {
-"codbarras": "7898956235354",
-"ncm": "15121919",
-"embalagem": "UN/1",
-"imagem": "https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_17714419.png"
-},
-"700111": {
-"codbarras": "7898956235347",
-"ncm": "15159090",
-"embalagem": "UN/1",
-"imagem": "https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_17714418.png"
-},
-"700112": {
-"codbarras": "7898956235408",
-"ncm": "15152990",
-"embalagem": "UN/1",
-"imagem": "https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_17714417.png"
-},
-"700113": {
-"codbarras": "7898956235248",
-"ncm": "15153000",
-"embalagem": "UN/1",
-"imagem": "https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_17714416.png"
-},
-"700114": {
-"codbarras": "7898956235286",
-"ncm": "15159090",
-"embalagem": "UN/1",
-"imagem": "https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_17714415.png"
-},
-"700115": {
-"codbarras": "7898956235309",
-"ncm": "15159090",
-"embalagem": "UN/1",
-"imagem": "https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_17714414.png"
-},
-"700116": {
-"codbarras": "7898956235316",
-"ncm": "15159090",
-"embalagem": "UN/1",
-"imagem": "https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_17714413.png"
-},
-"700118": {
-"codbarras": "7898956235293",
-"ncm": "15159090",
-"embalagem": "UN/1",
-"imagem": "https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_21396805.png"
-},
-"700119": {
-"codbarras": "7898683170232",
-"ncm": "15131900",
-"embalagem": "UN/1",
-"imagem": "https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_27610794.png"
-},
-"700120": {
-"codbarras": "7898956235323",
-"ncm": "15131900",
-"embalagem": "UN/1",
-"imagem": "https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_30821854.png"
-},
-"700126": {
-"codbarras": "7898956235231",
-"ncm": "15121120",
-"embalagem": "UN/1",
-"imagem": "https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_30312823.png"
-},
-"700127": {
-"codbarras": "7898683170263",
-"ncm": "15159090",
-"embalagem": "UN/1",
-"imagem": "https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_35194797.png"
-},
-"700130": {
-"codbarras": "7898683170287",
-"ncm": "15131900",
-"embalagem": "UN/1",
-"imagem": "https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_40289699.png"
-},
-"700131": {
-"codbarras": "7898683170317",
-"ncm": "15131900",
-"embalagem": "UN/1",
-"imagem": "https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_40289772.png"
-},
-"700132": {
-"codbarras": "7898683170294",
-"ncm": "15131900",
-"embalagem": "UN/1",
-"imagem": "https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_40289780.png"
-},
-"700133": {
-"codbarras": "7898983170256",
-"ncm": "15131900",
-"embalagem": "UN/1",
-"imagem": "https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_40289807.png"
-},
-"700134": {
-"codbarras": "7898683170324",
-"ncm": "15131900",
-"embalagem": "UN/1",
-"imagem": "https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_40289825.png"
-},
-"700135": {
-"codbarras": "7898683170270",
-"ncm": "15131900",
-"embalagem": "UN/1",
-"imagem": "https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_40289832.png"
-},
-"700136": {
-"codbarras": "7898683170416",
-"ncm": "15131900",
-"embalagem": "UN/1",
-"imagem": "https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_40289837.png"
-},
-"700137": {
-"codbarras": "7898683170331",
-"ncm": "15131900",
-"embalagem": "UN/1",
-"imagem": "https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_40414341.png"
-},
-"700138": {
-"codbarras": "7898683170348",
-"ncm": "15131900",
-"embalagem": "UN/1",
-"imagem": "https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_40414353.png"
-},
-"700139": {
-"codbarras": "7898683170355",
-"ncm": "15131900",
-"embalagem": "UN/1",
-"imagem": "https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_40414488.png"
-},
-"700140": {
-"codbarras": "7898683170362",
-"ncm": "15131900",
-"embalagem": "UN/1",
-"imagem": "https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_40415533.png"
-},
-"700141": {
-"codbarras": "7898683170379",
-"ncm": "15131900",
-"embalagem": "UN/1",
-"imagem": "https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_40415541.png"
-},
-"700142": {
-"codbarras": "7898683170386",
-"ncm": "15131900",
-"embalagem": "UN/1",
-"imagem": "https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_40415567.png"
-},
-"700143": {
-"codbarras": "7898683170393",
-"ncm": "15131900",
-"embalagem": "UN/1",
-"imagem": "https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_40415569.png"
-},
-"700144": {
-"codbarras": "7898683170409",
-"ncm": "15131900",
-"embalagem": "UN/1",
-"imagem": "https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_40415574.png"
-},
-"700145": {
-"codbarras": "7898683170423",
-"ncm": "15131900",
-"embalagem": "UN/1",
-"imagem": "https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_40415576.png"
-},
-"700129": {
-"codbarras": "7898683170300",
-"embalagem": "UN/1",
-"imagem": "https://pedidook.s3-sa-east-1.amazonaws.com/136299/produto/foto_40289633.png"
-}
+ "100101": {
+  "codbarras": "7898683170133",
+  "ncm": "22072019",
+  "embalagem": "UN/1"
+ },
+ "300101": {
+  "codbarras": "7898683170010",
+  "ncm": "33059000",
+  "embalagem": "UN/1"
+ },
+ "300102": {
+  "codbarras": "7898683170027",
+  "ncm": "33059000",
+  "embalagem": "UN/1"
+ },
+ "CH001": {
+  "ncm": "21069030",
+  "embalagem": "UN/1"
+ },
+ "700104": {
+  "codbarras": "7898956235033",
+  "ncm": "15131900",
+  "embalagem": "UN/1"
+ },
+ "700105": {
+  "codbarras": "7898956235026",
+  "ncm": "15131900",
+  "embalagem": "UN/1"
+ },
+ "700106": {
+  "codbarras": "7898956235019",
+  "ncm": "15131900",
+  "embalagem": "UN/1"
+ },
+ "700107": {
+  "codbarras": "7898956235064",
+  "ncm": "15131900",
+  "embalagem": "UN/1"
+ },
+ "700117": {
+  "codbarras": "7898683170225",
+  "ncm": "15131900",
+  "embalagem": "UN/1"
+ },
+ "700101": {
+  "codbarras": "7898956235217",
+  "ncm": "15159090",
+  "embalagem": "UN/1"
+ },
+ "700102": {
+  "codbarras": "7898956235224",
+  "ncm": "15159090",
+  "embalagem": "UN/1"
+ },
+ "700103": {
+  "codbarras": "7898956235392",
+  "ncm": "15159090",
+  "embalagem": "UN/1"
+ },
+ "700108": {
+  "codbarras": "7898956235255",
+  "ncm": "15159090",
+  "embalagem": "UN/1"
+ },
+ "700109": {
+  "codbarras": "7898956235262",
+  "ncm": "15155000",
+  "embalagem": "UN/1"
+ },
+ "700110": {
+  "codbarras": "7898956235354",
+  "ncm": "15121919",
+  "embalagem": "UN/1"
+ },
+ "700111": {
+  "codbarras": "7898956235347",
+  "ncm": "15159090",
+  "embalagem": "UN/1"
+ },
+ "700112": {
+  "codbarras": "7898956235408",
+  "ncm": "15152990",
+  "embalagem": "UN/1"
+ },
+ "700113": {
+  "codbarras": "7898956235248",
+  "ncm": "15153000",
+  "embalagem": "UN/1"
+ },
+ "700114": {
+  "codbarras": "7898956235286",
+  "ncm": "15159090",
+  "embalagem": "UN/1"
+ },
+ "700115": {
+  "codbarras": "7898956235309",
+  "ncm": "15159090",
+  "embalagem": "UN/1"
+ },
+ "700116": {
+  "codbarras": "7898956235316",
+  "ncm": "15159090",
+  "embalagem": "UN/1"
+ },
+ "700118": {
+  "codbarras": "7898956235293",
+  "ncm": "15159090",
+  "embalagem": "UN/1"
+ },
+ "700119": {
+  "codbarras": "7898683170232",
+  "ncm": "15131900",
+  "embalagem": "UN/1"
+ },
+ "700120": {
+  "codbarras": "7898956235323",
+  "ncm": "15131900",
+  "embalagem": "UN/1"
+ },
+ "700126": {
+  "codbarras": "7898956235231",
+  "ncm": "15121120",
+  "embalagem": "UN/1"
+ },
+ "700127": {
+  "codbarras": "7898683170263",
+  "ncm": "15159090",
+  "embalagem": "UN/1"
+ },
+ "700130": {
+  "codbarras": "7898683170287",
+  "ncm": "15131900",
+  "embalagem": "UN/1"
+ },
+ "700131": {
+  "codbarras": "7898683170317",
+  "ncm": "15131900",
+  "embalagem": "UN/1"
+ },
+ "700132": {
+  "codbarras": "7898683170294",
+  "ncm": "15131900",
+  "embalagem": "UN/1"
+ },
+ "700133": {
+  "codbarras": "7898983170256",
+  "ncm": "15131900",
+  "embalagem": "UN/1"
+ },
+ "700134": {
+  "codbarras": "7898683170324",
+  "ncm": "15131900",
+  "embalagem": "UN/1"
+ },
+ "700135": {
+  "codbarras": "7898683170270",
+  "ncm": "15131900",
+  "embalagem": "UN/1"
+ },
+ "700136": {
+  "codbarras": "7898683170416",
+  "ncm": "15131900",
+  "embalagem": "UN/1"
+ },
+ "700137": {
+  "codbarras": "7898683170331",
+  "ncm": "15131900",
+  "embalagem": "UN/1"
+ },
+ "700138": {
+  "codbarras": "7898683170348",
+  "ncm": "15131900",
+  "embalagem": "UN/1"
+ },
+ "700139": {
+  "codbarras": "7898683170355",
+  "ncm": "15131900",
+  "embalagem": "UN/1"
+ },
+ "700140": {
+  "codbarras": "7898683170362",
+  "ncm": "15131900",
+  "embalagem": "UN/1"
+ },
+ "700141": {
+  "codbarras": "7898683170379",
+  "ncm": "15131900",
+  "embalagem": "UN/1"
+ },
+ "700142": {
+  "codbarras": "7898683170386",
+  "ncm": "15131900",
+  "embalagem": "UN/1"
+ },
+ "700143": {
+  "codbarras": "7898683170393",
+  "ncm": "15131900",
+  "embalagem": "UN/1"
+ },
+ "700144": {
+  "codbarras": "7898683170409",
+  "ncm": "15131900",
+  "embalagem": "UN/1"
+ },
+ "700145": {
+  "codbarras": "7898683170423",
+  "ncm": "15131900",
+  "embalagem": "UN/1"
+ },
+ "700129": {
+  "codbarras": "7898683170300",
+  "embalagem": "UN/1"
+ }
 }
