@@ -97,6 +97,16 @@
   .load{text-align:center;padding:60px 20px;color:var(--cinza)}
   .ok{text-align:center;padding:34px 20px}
   .ok .ic{font-size:56px}
+
+  /* galeria de fotos */
+  .foto .fimg{width:100%;height:100%;object-fit:cover;display:block}
+  .mfoto{position:relative;overflow:hidden}
+  .mfoto .gimg{width:100%;height:100%;object-fit:contain;display:block}
+  .gseta{position:absolute;top:50%;transform:translateY(-50%);width:38px;height:38px;border-radius:50%;border:none;background:rgba(255,255,255,.92);color:var(--verde);font-size:24px;line-height:1;font-weight:800;cursor:pointer;box-shadow:0 1px 6px rgba(0,0,0,.2);display:flex;align-items:center;justify-content:center;padding:0}
+  .ge{left:10px}.gd{right:10px}
+  .gpontos{position:absolute;left:0;right:0;bottom:8px;display:flex;gap:6px;justify-content:center}
+  .gp{width:8px;height:8px;border-radius:50%;background:rgba(0,0,0,.18);cursor:pointer}
+  .gp.on{background:var(--verde)}
 </style>
 </head>
 <body>
@@ -235,7 +245,7 @@ function filtrar(){
   el.innerHTML=`<div class="grid">`+lista.map(p=>{
     const q=carrinho[p.id]||0;
     return `<div class="card">
-      <div class="foto" onclick="verProduto('${p.id}')" ${p.imagem?`style="background-image:url('${esc(p.imagem)}')"`:""}>${p.imagem?"":"📦"}</div>
+      <div class="foto" onclick="verProduto('${p.id}')">${miniFoto(p)}</div>
       <div class="info">
         ${p.codigo?`<div class="cd">Cód. ${esc(p.codigo)}</div>`:""}
         <div class="nm" onclick="verProduto('${p.id}')">${esc(p.nome)}</div>
@@ -245,13 +255,73 @@ function filtrar(){
       </div></div>`;
   }).join("")+`</div>`;
 }
+/* ====== GALERIA DE FOTOS (pasta img/, arquivos nomeados pelo codigo) ====== */
+const GAL_EXTS=["jpg","png","jpeg","webp"];
+const galCache={};
+let galFotos=[],galIdx=0,galUltimo=null;
+function galUrl(cod,n,ext){return "img/"+encodeURIComponent(cod)+(n>1?"_"+n:"")+"."+ext;}
+function galTesta(u){return new Promise(r=>{const i=new Image();i.onload=()=>r(true);i.onerror=()=>r(false);i.src=u;});}
+async function galeriaDo(cod){
+  cod=String(cod||"").trim();
+  if(!cod)return [];
+  if(galCache[cod])return galCache[cod];
+  const fotos=[];
+  for(let n=1;n<=8;n++){
+    let ok=null;
+    for(const e of GAL_EXTS){const u=galUrl(cod,n,e);if(await galTesta(u)){ok=u;break;}}
+    if(!ok)break;
+    fotos.push(ok);
+  }
+  galCache[cod]=fotos;
+  return fotos;
+}
+function miniFoto(p){
+  const cod=String(p.codigo||"").trim();
+  const cadeia=[];
+  if(cod)GAL_EXTS.forEach(e=>cadeia.push(galUrl(cod,1,e)));
+  if(p.imagem)cadeia.push(p.imagem);
+  if(!cadeia.length)return "\ud83d\udce6";
+  return `<img class="fimg" src="${esc(cadeia[0])}" data-resto="${esc(cadeia.slice(1).join("|"))}" onerror="galErr(this)" loading="lazy" alt="">`;
+}
+function fotoFallback(p){
+  return p.imagem?`<img class="gimg" src="${esc(p.imagem)}" onerror="galErr(this)" alt="">`:"\ud83d\udce6";
+}
+function galErr(img){
+  const resto=(img.getAttribute("data-resto")||"").split("|").filter(Boolean);
+  if(resto.length){img.setAttribute("data-resto",resto.slice(1).join("|"));img.src=resto[0];}
+  else{const pai=img.parentElement;if(pai)pai.innerHTML="\ud83d\udce6";}
+}
+async function montarGaleria(p){
+  const mesma=(galUltimo===p.id);
+  galUltimo=p.id;
+  const fotos=await galeriaDo(p.codigo);
+  if(prodAberto!==p.id)return;
+  if(!fotos.length){galFotos=[];return;}
+  galFotos=fotos;
+  if(!mesma||galIdx>=fotos.length)galIdx=0;
+  desenharGaleria();
+}
+function desenharGaleria(){
+  const box=document.getElementById("galBox");
+  if(!box||!galFotos.length)return;
+  const varios=galFotos.length>1;
+  box.innerHTML=`<img class="gimg" src="${esc(galFotos[galIdx])}" alt="">`+
+    (varios?`<button class="gseta ge" onclick="galIr(-1)">\u2039</button><button class="gseta gd" onclick="galIr(1)">\u203a</button><div class="gpontos">${galFotos.map((_,i)=>`<span class="gp ${i===galIdx?"on":""}" onclick="galPara(${i})"></span>`).join("")}</div>`:"");
+  if(varios){
+    box.ontouchstart=e=>{box._tx=e.touches[0].clientX;};
+    box.ontouchend=e=>{const dx=e.changedTouches[0].clientX-(box._tx||0);if(Math.abs(dx)>40)galIr(dx<0?1:-1);};
+  }
+}
+function galIr(d){galIdx=(galIdx+d+galFotos.length)%galFotos.length;desenharGaleria();}
+function galPara(i){galIdx=i;desenharGaleria();}
+
 function verProduto(id){
   const p=produtos.find(x=>x.id===id);if(!p)return;
   prodAberto=id;
   const q=carrinho[id]||0;
   const linha=(l,v)=>v?`<div class="fl"><span>${l}</span><b>${esc(v)}</b></div>`:"";
   document.getElementById("prodBody").innerHTML=`
-    <div class="mfoto" ${p.imagem?`style="background-image:url('${esc(p.imagem)}')"`:""}>${p.imagem?"":"📦"}</div>
+    <div class="mfoto" id="galBox">${fotoFallback(p)}</div>
     <div class="mbody">
       <h3>${esc(p.nome)}</h3>
       ${p.descricao?`<div class="mdesc">${esc(p.descricao)}</div>`:""}
@@ -272,9 +342,10 @@ function verProduto(id){
         :`<button class="btnV" style="margin-top:0" onclick="mudar('${p.id}',1,true)">+ Adicionar ao pedido</button>`}
     </div>`;
   abrir("mProd");
+  montarGaleria(p);
 }
 function abrir(id){document.getElementById("ov").classList.add("on");document.getElementById(id).classList.add("on");document.body.style.overflow="hidden";}
-function fecharTudo(){["mProd","mCheck","mStatus"].forEach(i=>document.getElementById(i).classList.remove("on"));document.getElementById("ov").classList.remove("on");document.body.style.overflow="";prodAberto=null;}
+function fecharTudo(){["mProd","mCheck","mStatus"].forEach(i=>document.getElementById(i).classList.remove("on"));document.getElementById("ov").classList.remove("on");document.body.style.overflow="";prodAberto=null;galUltimo=null;}
 function mudar(id,d,noModal){
   const q=(carrinho[id]||0)+d;
   if(q<=0)delete carrinho[id];else carrinho[id]=q;
