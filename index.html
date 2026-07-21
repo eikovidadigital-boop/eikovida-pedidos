@@ -1332,6 +1332,15 @@ function viewConvites(){
       </div>
     </div>`).join(""):`<div class="vazio"><div class="em">👥</div><div>Cadastre vendedores em Minha Equipe primeiro.</div></div>`;
   return `<h2 class="tit">Instalar para Vendedor</h2>
+    <div class="card" style="border:2px solid var(--dourado);background:#fffdf5">
+      <div style="font-weight:700;font-size:14px;margin-bottom:4px">\ud83d\udcf1 P\u00e1gina de instala\u00e7\u00e3o</div>
+      <div style="font-size:12px;color:#555;margin-bottom:8px">P\u00e1gina pronta com o bot\u00e3o de instalar, o passo a passo de Android e iPhone e o c\u00f3digo para a c\u00e2mera. Serve para voc\u00ea reinstalar em qualquer aparelho.</div>
+      <div class="row">
+        <button class="btn btn-v btn-sm" style="flex:1" onclick="abrirInstalador()">Abrir p\u00e1gina</button>
+        <button class="btn btn-w btn-sm" style="flex:1" onclick="enviarInstalador()">\ud83d\udcf2 Enviar</button>
+        <button class="btn btn-g btn-sm" onclick="copiar(linkInstalar(),'Link copiado \u2713')">Copiar</button>
+      </div>
+    </div>
     <div class="card" style="border:1px solid var(--verde);background:#f2f9f2">
       <div style="font-weight:700;font-size:14px;margin-bottom:4px">🔗 Link de instalação</div>
       <div style="font-size:12px;color:#555;margin-bottom:8px">O vendedor abre o link no celular, instala o app e ativa com o código dele. Envie sempre pelo botão abaixo — o endereço não aparece na sua tela.</div>
@@ -1507,6 +1516,13 @@ function gerarCodAtivacao(){
   for(let i=0;i<4;i++)s+=L[Math.floor(Math.random()*L.length)];
   if(equipe.some(v=>v.codAtivacao===s))return gerarCodAtivacao();
   return s;
+}
+function linkInstalar(){return location.href.replace(/[^\/]*$/,"")+"instalar.html";}
+function abrirInstalador(){window.open(linkInstalar(),"_blank");}
+function enviarInstalador(){
+  const txt="Instale o aplicativo de pedidos da EikoVida:\n"+linkInstalar();
+  try{navigator.clipboard&&navigator.clipboard.writeText(txt);}catch(e){}
+  window.open("https://wa.me/?text="+encodeURIComponent(txt),"_blank");
 }
 function linkApp(){try{return location.origin+location.pathname.replace(/index\.html$/,"");}catch(e){return "";}}
 function novoCodigoAtivacao(id){

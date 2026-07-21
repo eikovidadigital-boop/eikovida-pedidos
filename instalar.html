@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+<meta name="theme-color" content="#2F6B4F"/>
+<title>Instalar o EikoVida Pedidos</title>
+<link rel="apple-touch-icon" href="icon-192.png?v=3"/>
+<style>
+  :root{--verde:#2F6B4F;--verde2:#245240;--dourado:#C9A227;--bg:#faf9f6;--txt:#1f2320;--cinza:#6b7280;--borda:#e6e4de}
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--txt);line-height:1.5;padding-bottom:40px}
+  header{background:linear-gradient(135deg,var(--verde) 0%,var(--verde2) 100%);color:#fff;padding:30px 20px 26px;text-align:center}
+  header img{width:120px;height:auto;display:block;margin:0 auto 12px}
+  header h1{font-size:20px;font-weight:800;letter-spacing:.2px}
+  header p{font-size:13px;opacity:.85;margin-top:4px}
+  .wrap{max-width:520px;margin:0 auto;padding:0 16px}
+  .card{background:#fff;border:1px solid var(--borda);border-radius:14px;padding:16px;margin-top:16px}
+  .card h2{font-size:15px;color:var(--verde);margin-bottom:4px;display:flex;align-items:center;gap:8px}
+  .card p{font-size:13px;color:#555}
+  .btn{display:block;width:100%;text-align:center;padding:15px;border-radius:12px;font-weight:800;font-size:15px;border:none;cursor:pointer;text-decoration:none;margin-top:12px}
+  .btn-v{background:var(--verde);color:#fff}
+  .btn-o{background:#fff;color:var(--verde);border:2px solid var(--verde)}
+  .btn-d{background:var(--dourado);color:#fff}
+  .btn:active{transform:scale(.99)}
+  .passos{counter-reset:p;margin-top:10px}
+  .passo{counter-increment:p;position:relative;padding:9px 0 9px 40px;font-size:13.5px;border-bottom:1px solid #f2f1ec}
+  .passo:last-child{border-bottom:none}
+  .passo::before{content:counter(p);position:absolute;left:0;top:8px;width:26px;height:26px;border-radius:50%;background:var(--verde);color:#fff;font-size:13px;font-weight:800;display:flex;align-items:center;justify-content:center}
+  .passo b{color:var(--txt)}
+  .tabs{display:flex;gap:8px;margin-top:14px}
+  .tab{flex:1;padding:11px;border-radius:11px;border:1px solid var(--borda);background:#fff;font-size:14px;font-weight:700;color:var(--cinza);cursor:pointer}
+  .tab.on{background:var(--verde);color:#fff;border-color:var(--verde)}
+  .aviso{background:#fffbeb;border:1px solid #fcd34d;border-radius:10px;padding:11px;font-size:12.5px;color:#78350f;margin-top:12px}
+  .ok{background:#ecfdf5;border:1px solid #6ee7b7;border-radius:10px;padding:11px;font-size:13px;color:#065f46;margin-top:12px;display:none}
+  .qr{text-align:center;margin-top:12px}
+  .qr canvas,.qr img{border:8px solid #fff;border-radius:12px;box-shadow:0 1px 8px rgba(0,0,0,.12)}
+  .end{background:#f8f8f6;border-radius:10px;padding:11px;text-align:center;font-size:13px;font-weight:700;color:var(--verde);word-break:break-all;margin-top:10px}
+  footer{text-align:center;font-size:11.5px;color:var(--cinza);margin-top:26px;padding:0 20px}
+  .esconde{display:none}
+</style>
+</head>
+<body>
+
+<header>
+  <img src="logo.png?v=3" alt="EikoVida" onerror="this.style.display='none'"/>
+  <h1>EikoVida Pedidos</h1>
+  <p>Instale o aplicativo no seu aparelho</p>
+</header>
+
+<div class="wrap">
+
+  <div class="card" id="cardInstalado" style="display:none;border-color:var(--verde)">
+    <h2>✅ Já está instalado</h2>
+    <p>Você está usando o aplicativo instalado. Pode fechar esta página.</p>
+    <a class="btn btn-v" href="index.html">Abrir o aplicativo</a>
+  </div>
+
+  <div class="card">
+    <h2>📲 Instalação rápida</h2>
+    <p>Toque no botão abaixo. Se ele não aparecer, siga o passo a passo do seu aparelho logo em seguida.</p>
+    <button class="btn btn-v esconde" id="btnInstalar">⬇️ Instalar agora</button>
+    <div class="ok" id="msgOk">Pronto! O ícone foi criado na tela inicial do seu aparelho.</div>
+    <a class="btn btn-o" href="index.html">Abrir sem instalar</a>
+  </div>
+
+  <div class="card">
+    <h2>📖 Passo a passo</h2>
+    <div class="tabs">
+      <button class="tab on" id="tAnd" onclick="verAba('and')">Android</button>
+      <button class="tab" id="tIos" onclick="verAba('ios')">iPhone</button>
+    </div>
+
+    <div id="abaAnd" class="passos">
+      <div class="passo">Abra esta página no <b>Google Chrome</b>.</div>
+      <div class="passo">Toque nos <b>três pontinhos ⋮</b> no canto superior direito.</div>
+      <div class="passo">Escolha <b>Instalar aplicativo</b> ou <b>Adicionar à tela inicial</b>.</div>
+      <div class="passo">Confirme em <b>Instalar</b>. O ícone aparece junto com seus outros aplicativos.</div>
+    </div>
+
+    <div id="abaIos" class="passos" style="display:none">
+      <div class="passo">Abra esta página no <b>Safari</b> (não funciona no Chrome do iPhone).</div>
+      <div class="passo">Toque no botão <b>Compartilhar</b> — o quadradinho com a seta para cima.</div>
+      <div class="passo">Role a lista e escolha <b>Adicionar à Tela de Início</b>.</div>
+      <div class="passo">Toque em <b>Adicionar</b> no canto superior direito.</div>
+    </div>
+
+    <div class="aviso">Depois de instalado, entre com o <b>seu código</b> e a <b>senha de 4 dígitos</b>. Vendedor no primeiro acesso usa o código de ativação enviado pelo administrador.</div>
+  </div>
+
+  <div class="card">
+    <h2>🔗 Endereço do aplicativo</h2>
+    <p>Se precisar instalar em outro aparelho, use este endereço ou aponte a câmera para o código abaixo.</p>
+    <div class="end" id="endereco">—</div>
+    <button class="btn btn-d" onclick="copiarEnd()">📋 Copiar endereço</button>
+    <button class="btn btn-o" onclick="compartilhar()">📤 Compartilhar</button>
+    <div class="qr" id="qr"></div>
+  </div>
+
+  <div class="card">
+    <h2>❓ Não conseguiu?</h2>
+    <div class="passos">
+      <div class="passo">O botão de instalar só aparece uma vez por aparelho. Se já apareceu antes, use o passo a passo acima.</div>
+      <div class="passo">No iPhone, precisa ser pelo <b>Safari</b>.</div>
+      <div class="passo">Desinstalou sem querer? É só instalar de novo — <b>nada se perde</b>, seus dados ficam guardados.</div>
+      <div class="passo">Se ainda assim não der, fale com o administrador.</div>
+    </div>
+  </div>
+
+  <footer>EikoVida Produtos Naturais · Uso interno da equipe de vendas</footer>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+var BASE=location.href.replace(/instalar\.html.*$/,"");
+var APP=BASE+"index.html";
+document.getElementById("endereco").textContent=BASE.replace(/^https?:\/\//,"").replace(/\/$/,"");
+
+/* já instalado? */
+var standalone=(window.matchMedia&&window.matchMedia("(display-mode: standalone)").matches)||window.navigator.standalone===true;
+if(standalone)document.getElementById("cardInstalado").style.display="";
+
+/* aba conforme o aparelho */
+var ios=/iPad|iPhone|iPod/.test(navigator.userAgent)&&!window.MSStream;
+function verAba(q){
+  document.getElementById("abaAnd").style.display=q==="and"?"":"none";
+  document.getElementById("abaIos").style.display=q==="ios"?"":"none";
+  document.getElementById("tAnd").className="tab"+(q==="and"?" on":"");
+  document.getElementById("tIos").className="tab"+(q==="ios"?" on":"");
+}
+if(ios)verAba("ios");
+
+/* botão nativo de instalação */
+var evtInstalar=null;
+window.addEventListener("beforeinstallprompt",function(e){
+  e.preventDefault();evtInstalar=e;
+  document.getElementById("btnInstalar").classList.remove("esconde");
+});
+document.getElementById("btnInstalar").addEventListener("click",function(){
+  if(!evtInstalar)return;
+  evtInstalar.prompt();
+  evtInstalar.userChoice.then(function(r){
+    if(r&&r.outcome==="accepted"){
+      document.getElementById("btnInstalar").classList.add("esconde");
+      document.getElementById("msgOk").style.display="block";
+    }
+    evtInstalar=null;
+  });
+});
+window.addEventListener("appinstalled",function(){
+  document.getElementById("btnInstalar").classList.add("esconde");
+  document.getElementById("msgOk").style.display="block";
+});
+
+/* copiar e compartilhar */
+function copiarEnd(){
+  var t=APP;
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(t).then(function(){alerta("Endereço copiado ✓");},function(){legado(t);});
+  }else legado(t);
+}
+function legado(t){
+  var a=document.createElement("textarea");a.value=t;a.style.position="fixed";a.style.opacity="0";
+  document.body.appendChild(a);a.select();
+  try{document.execCommand("copy");alerta("Endereço copiado ✓");}catch(e){alerta("Copie manualmente: "+t);}
+  a.remove();
+}
+function compartilhar(){
+  var txt="Instale o aplicativo de pedidos da EikoVida:\n"+location.href;
+  if(navigator.share)navigator.share({title:"EikoVida Pedidos",text:txt}).catch(function(){});
+  else window.open("https://wa.me/?text="+encodeURIComponent(txt),"_blank");
+}
+function alerta(m){
+  var d=document.createElement("div");
+  d.textContent=m;
+  d.style.cssText="position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:#1f2320;color:#fff;padding:11px 18px;border-radius:10px;font-size:13.5px;z-index:99;box-shadow:0 2px 12px rgba(0,0,0,.25)";
+  document.body.appendChild(d);
+  setTimeout(function(){d.remove();},2200);
+}
+
+/* código de barras da câmera (QR) */
+try{
+  if(window.QRCode)new QRCode(document.getElementById("qr"),{text:location.href,width:180,height:180,colorDark:"#2F6B4F",colorLight:"#ffffff"});
+}catch(e){}
+</script>
+</body>
+</html>
