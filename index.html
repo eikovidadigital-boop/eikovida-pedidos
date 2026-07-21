@@ -1214,7 +1214,14 @@ function refDest(){return catRepEdit?("catalogo/reps/"+catRepEdit+"/destaques"):
 function gravarDest(arr){if(catRepEdit){const reps={...((cfgCatalogo||{}).reps||{})};reps[catRepEdit]={...(reps[catRepEdit]||{}),destaques:arr};cfgCatalogo={...cfgCatalogo,reps};}else{cfgCatalogo={...cfgCatalogo,destaques:arr};}db.ref(refDest()).set(arr);}
 function slugRep(r){return String(r||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");}
 function nomeLogo(r){return "logos/"+slugRep(r)+".png";}
-function fontesLogo(r){const x=repDe(r);return [x.logo,"logos/"+slugRep(r)+".png","logos/"+slugRep(r)+".jpg","logo-"+slugRep(r)+".png","logo.png"].filter(Boolean);}
+function ehPrincipal(r){const n=String(r||"").trim().toUpperCase();return !n||n==="EIKO VIDA"||n===String(empresa.razao||"").trim().toUpperCase();}
+function fontesLogo(r){
+  const x=repDe(r), s=slugRep(r), f=[];
+  if(x.logo)f.push(x.logo);
+  if(s)f.push("logos/"+s+".png","logos/"+s+".jpg","logo-"+s+".png");
+  if(ehPrincipal(r))f.push("simbolo.png","logo.png");
+  return f;
+}
 function salvarCatalogoCfg(){
   const atual=cfgDoCatalogo();
   const o={whatsapp:val("ccWhats"),telefone:val("ccFone"),titulo:val("ccTitulo"),subtitulo:val("ccSub"),
@@ -1617,7 +1624,7 @@ function selo(rep){
   const r=rep||"EIKO VIDA";
   const f=fontesLogo(r);
   return `<span class="selorep" title="${esc(r)}" style="background:${corRep(r)}">
-    <img src="${esc(f[0])}" data-resto="${esc(f.slice(1,-1).join("|"))}" onerror="seloErr(this)" alt="">
+    <img src="${esc(f[0])}" data-resto="${esc(f.slice(1).join("|"))}" onerror="seloErr(this)" alt="">
     <i style="display:none">${esc(iniciaisRep(r))}</i></span>`;
 }
 async function baixarJson(arq){
@@ -2762,7 +2769,8 @@ function gerarPDF(id){
 }
 
 function carregarLogo(rep){
-  const fontes=rep?fontesLogo(rep).slice():["logo.png"];
+  const fontes=rep?fontesLogo(rep).slice():[];
+  if(!fontes.includes("logo.png"))fontes.push("logo.png");
   return new Promise(res=>{
     let i=0;
     const tenta=()=>{

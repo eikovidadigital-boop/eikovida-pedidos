@@ -227,7 +227,8 @@ function aplicarCfg(){
   const img=document.querySelector("header img");
   if(img){
     const slug=String(REPRES||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
-    const fontes=REPRES?[r.logo,"logos/"+slug+".png","logos/"+slug+".jpg","logo-"+slug+".png","logo.png"].filter(Boolean):["logo.png"];
+    const principal=!REPRES||REPRES.toUpperCase()==="EIKO VIDA";
+    const fontes=REPRES?[r.logo,"logos/"+slug+".png","logos/"+slug+".jpg","logo-"+slug+".png"].filter(Boolean).concat(principal?["logo.png"]:[]):["logo.png"];
     let i=0;
     img.alt=marca;img.style.display="";
     img.onerror=function(){i++;if(i<fontes.length)this.src=fontes[i];else this.style.display="none";};
