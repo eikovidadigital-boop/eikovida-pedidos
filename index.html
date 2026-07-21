@@ -207,6 +207,9 @@
   .lbx-ov img{max-width:100%;max-height:70vh;object-fit:contain;border-radius:10px;background:#fff}
   .lbx-bar{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;justify-content:center}
 
+  .selorep{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:6px;overflow:hidden;margin-right:6px;vertical-align:middle}
+  .selorep img{width:100%;height:100%;object-fit:contain;background:#fff}
+  .selorep i{width:100%;height:100%;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800;font-style:normal}
 </style>
 </head>
 <body>
@@ -339,7 +342,7 @@ function representadas(){return [...new Set(REPRES_FIXAS.concat(repres.filter(r=
 function repDe(nome){return repres.find(r=>String(r.nome||"").trim().toUpperCase()===String(nome||"").trim().toUpperCase())||{};}
 function linkCatalogo(rep){return URL_CATALOGO+(rep&&rep!=="TODAS"?"?r="+encodeURIComponent(rep):"");}
 let transportadoras=[], transpEdit=null, filtroCobr="areceber";
-let repres=[], repEdit=null, catRepEdit="";
+let repres=[], repEdit=null, catRepEdit="", filtroRepTab="", filtroRepProd="", logoTmp="";
 let agenda=[], agendaEdit=null, filtroAgenda="proximos";
 let fornecedores=[], fornEdit=null;
 let empresa={}, equipe=[], vendEdit=null, transfDe=null, codigoAtivacao="EIKO2026";
@@ -745,6 +748,15 @@ function viewRepresentadas(){
     <input class="inp" id="rpMail" inputmode="email" value="${esc(f.email||"")}"/>
     <label class="lb" style="margin-top:8px;display:block">Observações</label>
     <input class="inp" id="rpObs" value="${esc(f.obs||"")}"/>
+    <div style="display:flex;gap:10px;align-items:center;margin-top:10px">
+      <div class="thumb" onclick="ampliarLogoRep('${esc(f.nome||"")}')" style="width:78px;height:78px;border-radius:10px;border:1px solid var(--borda);font-size:26px;cursor:pointer;background:#fff ${logoTmp?`url('${logoTmp}') center/contain no-repeat`:""}">${logoTmp?"":(f.nome?`<img src="${esc(logoDe(f.nome))}" style="width:100%;height:100%;object-fit:contain" onerror="this.replaceWith(document.createTextNode('\ud83c\udfdb\ufe0f'))">`:"\ud83c\udfdb\ufe0f")}</div>
+      <div style="flex:1">
+        <input type="file" id="arqLogo" accept="image/*" style="display:none" onchange="lerLogoRep(this)"/>
+        <button class="btn btn-o btn-sm" style="width:100%" onclick="document.getElementById('arqLogo').click()">\ud83d\udcc1 Escolher logotipo</button>
+        ${logoTmp?`<button class="btn btn-r btn-sm" style="width:100%;margin-top:5px" onclick="logoTmp='';render()">Remover</button>`:""}
+        <div style="font-size:11px;color:var(--cinza);margin-top:4px">Aparece no cat\u00e1logo, na lista de pedidos e no PDF.</div>
+      </div>
+    </div>
     <div class="row" style="margin-top:12px">
       <button class="btn btn-v" style="flex:1" onclick="salvarRepres()">${repEdit?"Salvar altera\u00e7\u00f5es":"Cadastrar"}</button>
       ${repEdit?`<button class="btn btn-g" onclick="repEdit=null;render()">\u2715</button>`:""}
@@ -755,6 +767,9 @@ function viewRepresentadas(){
     const nPed=pedidosVis().filter(p=>(p.representada||"EIKO VIDA")===nome).length;
     return `<div class="card" style="padding:12px">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+        <div class="thumb" onclick="ampliarLogoRep('${esc(nome)}')" style="width:52px;height:52px;border-radius:10px;border:1px solid var(--borda);cursor:pointer;background:#fff;flex-shrink:0">
+          <img src="${esc(logoDe(nome))}" style="width:100%;height:100%;object-fit:contain" onerror="this.replaceWith(document.createTextNode('\ud83c\udfdb\ufe0f'))">
+        </div>
         <div style="flex:1;min-width:0">
           <b>${esc(nome)}</b>${r.fantasia?`<small style="display:block;color:var(--cinza)">${esc(r.fantasia)}</small>`:""}
           <small style="display:block;color:var(--cinza)">\ud83d\udce6 ${nProd} produto(s) \u00b7 \ud83d\udccb ${nPed} pedido(s)</small>
@@ -776,14 +791,44 @@ function viewRepresentadas(){
 function salvarRepres(){
   const o={nome:val("rpNome").trim(),fantasia:val("rpFant"),cnpj:val("rpCnpj"),contato:val("rpCont"),
            telefone:val("rpTel"),email:val("rpMail"),obs:val("rpObs"),ativa:true};
+  if(logoTmp)o.logo=logoTmp;
   if(!o.nome){toast("Informe o nome");return;}
   const rep=repEdit;
   if(!rep&&repres.some(r=>String(r.nome||"").trim().toUpperCase()===o.nome.toUpperCase())){toast("J\u00e1 existe uma representada com esse nome");return;}
   if(rep){db.ref("representadas/"+rep.id).update(o);repEdit=null;toast("Representada atualizada \u2713");}
   else{db.ref("representadas").push(o);toast("Representada cadastrada \u2713");}
-  render();
+  logoTmp="";render();
 }
-function editarRepres(id){repEdit=repres.find(r=>r.id===id);render();window.scrollTo(0,0);}
+function editarRepres(id){repEdit=repres.find(r=>r.id===id);logoTmp="";render();window.scrollTo(0,0);}
+function logoDe(nome){const r=repDe(nome);return r.logo||nomeLogo(nome);}
+function lerLogoRep(input){
+  const f=input.files&&input.files[0]; if(!f)return;
+  const r=new FileReader();
+  r.onload=e=>{
+    const img=new Image();
+    img.onload=()=>{
+      const m=520,esc2=Math.min(1,m/Math.max(img.width,img.height));
+      const cv=document.createElement("canvas");cv.width=img.width*esc2;cv.height=img.height*esc2;
+      cv.getContext("2d").drawImage(img,0,0,cv.width,cv.height);
+      logoTmp=cv.toDataURL("image/png");render();
+    };
+    img.src=e.target.result;
+  };
+  r.readAsDataURL(f);
+}
+function ampliarLogoRep(nome){
+  const url=logoTmp||logoDe(nome);
+  if(!url){toast("Esta representada ainda n\u00e3o tem logotipo");return;}
+  const arq=String(nome||"logo").replace(/[^\w.-]+/g,"_");
+  const html=`<div class="lbx-ov" onclick="if(event.target===this)fecharFoto()">
+    <img src="${esc(url)}" style="background:#fff;padding:12px" onerror="fecharFoto();toast('Esta representada ainda n\u00e3o tem logotipo')" alt="">
+    <div class="lbx-bar">
+      <button class="btn btn-v btn-sm" onclick="compartilharFoto('${esc(url)}','${esc(arq)}')">\ud83d\udce4 Compartilhar</button>
+      <button class="btn btn-o btn-sm" onclick="baixarFoto('${esc(url)}','${esc(arq)}')">\u2b07\ufe0f Baixar</button>
+      <button class="btn btn-g btn-sm" onclick="fecharFoto()">Fechar</button>
+    </div></div>`;
+  const d=document.createElement("div");d.id="lbxWrap";d.innerHTML=html;document.body.appendChild(d);
+}
 function excluirRepres(id){
   const r=repres.find(x=>x.id===id); if(!r)return;
   const nProd=produtos.filter(p=>(p.marca||"")===r.nome).length;
@@ -1536,6 +1581,7 @@ function boxRelatorio(){
       <button class="btn btn-o btn-sm" style="flex:1" onclick="conferirRelatorio()">1\u00ba Conferir pedidos</button>
       <button class="btn btn-o btn-sm" style="flex:1" onclick="conferirProdutosRel()">2\u00ba Conferir produtos</button>
     </div>
+    <button class="btn btn-o btn-sm" style="width:100%;margin-top:6px" onclick="importarTabelas()">\ud83d\udcb2 Importar tabelas de pre\u00e7o</button>
     <button class="btn btn-g btn-sm" style="width:100%;margin-top:6px" onclick="diagRelatorio()">\ud83d\udd0e Diagn\u00f3stico</button>
     ${(()=>{const d=pedidosDuplicados();return d.length?`<div style="background:#fef2f2;border:1px solid #dc2626;border-radius:8px;padding:10px;margin-top:8px">
       <div style="font-weight:700;font-size:13px;color:#b91c1c">\u26a0\ufe0f ${d.length} pedido(s) repetido(s)</div>
@@ -1544,6 +1590,15 @@ function boxRelatorio(){
     <div id="relProg" style="font-size:12px;margin-top:8px"></div></div>`;
 }
 function repNorm(r){return /MEL/i.test(String(r||""))?"MEL RAIZ":"EIKO VIDA";}
+function iniciaisRep(r){return String(r||"E").trim().split(/\s+/).map(x=>x[0]).join("").slice(0,2).toUpperCase();}
+function corRep(r){const s=String(r||"");let h=0;for(let i=0;i<s.length;i++)h=(h*31+s.charCodeAt(i))%360;return /MEL/i.test(s)?"#C9A227":(/EIKO/i.test(s)?"#2F6B4F":"hsl("+h+",45%,38%)");}
+function selo(rep){
+  const r=rep||"EIKO VIDA";
+  const logo=(repDe(r).logo)||nomeLogo(r);
+  return `<span class="selorep" title="${esc(r)}" style="background:${corRep(r)}">
+    <img src="${esc(logo)}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" alt="">
+    <i style="display:none">${esc(iniciaisRep(r))}</i></span>`;
+}
 async function baixarJson(arq){
   const r=await fetch(arq+"?v="+Date.now());
   if(!r.ok)throw new Error("arquivo");
@@ -1614,6 +1669,22 @@ async function aplicarItensRelatorio(){
     }
     relPrev=null;toast(feitos+" pedido(s) completados \u2713");render();
   }catch(e){if(el)el.textContent="N\u00e3o foi poss\u00edvel concluir. Tente novamente.";}
+}
+async function importarTabelas(){
+  const el=document.getElementById("relProg");
+  if(el)el.textContent="Lendo\u2026";
+  try{
+    const d=await baixarJson("tabelas-mel-raiz.json");
+    const novasT=(d.tabelas||[]).filter(x=>!tabelas.some(t=>t.nome===x.nome&&(t.representada||"EIKO VIDA")===(x.representada||"EIKO VIDA")));
+    const temCod=c=>produtos.some(p=>String(p.codigo||"").trim().toUpperCase()===String(c).trim().toUpperCase());
+    const novosP=(d.produtos||[]).filter(p=>!temCod(p.codigo));
+    if(!novasT.length&&!novosP.length){if(el)el.textContent="J\u00e1 est\u00e1 tudo cadastrado \u2713";return;}
+    if(!confirm("Cadastrar "+novasT.length+" tabela(s) e "+novosP.length+" produto(s)?"))return;
+    if(novasT.length){const u={};novasT.forEach(x=>{u[db.ref("tabelas").push().key]=x;});await db.ref("tabelas").update(u);}
+    if(novosP.length){const u={};novosP.forEach(x=>{u[db.ref("produtos").push().key]=x;});await db.ref("produtos").update(u);}
+    if(el)el.textContent="";
+    toast(novasT.length+" tabela(s) e "+novosP.length+" produto(s) \u2713");render();
+  }catch(e){if(el)el.textContent="N\u00e3o encontrei o arquivo das tabelas.";}
 }
 async function conferirProdutosRel(){
   const el=document.getElementById("relProg");
@@ -1928,10 +1999,18 @@ function render(){
 /* ====== NOVO PEDIDO ====== */
 function precoComTabela(p){
   const base=Number(p.atacado)||0;
-  const t=tabelas.find(x=>x.nome===ped.tabela);
+  const t=tabelas.find(x=>x.nome===ped.tabela&&(!x.representada||x.representada===(ped.representada||"EIKO VIDA")))
+        ||tabelas.find(x=>x.nome===ped.tabela);
   if(!t)return base;
+  const cod=String(p.codigo||"").trim().toUpperCase();
+  if(t.precos&&cod&&t.precos[cod]!=null&&t.precos[cod]!=="")return Number(t.precos[cod])||0;
+  if(t.tipo==="precos")return base;
   const perc=parseFloat(t.percentual)||0;
   return t.tipo==="desconto"?base*(1-perc/100):base*(1+perc/100);
+}
+function tabelasDaRepres(r){
+  const alvo=r||"EIKO VIDA";
+  return tabelas.filter(t=>!t.representada||t.representada===alvo);
 }
 function calcTotais(){
   const bruto=Object.entries(carrinho).reduce((s,[id,it])=>s+(it.qtd*it.preco),0);
@@ -1940,7 +2019,18 @@ function calcTotais(){
   const qtd=Object.values(carrinho).reduce((s,it)=>s+it.qtd,0);
   return {bruto,total,qtd,perc};
 }
-function upd(campo,valor){ped[campo]=valor;}
+function upd(campo,valor){
+  if(campo==="representada"&&valor!==ped.representada){
+    const fora=Object.keys(carrinho).filter(id=>{const p=produtos.find(x=>x.id===id);return p&&(p.marca||"EIKO VIDA")!==valor;});
+    if(fora.length){
+      if(!confirm("Trocar para "+valor+" vai remover "+fora.length+" item(ns) de outra representada do pedido. Continuar?")){render();return;}
+      fora.forEach(id=>delete carrinho[id]);
+    }
+    ped.tabela="";
+  }
+  ped[campo]=valor;
+  if(campo==="representada")render();
+}
 function selecionarCliente(id){
   clienteSel=id;
   const cli=clientes.find(c=>c.id===id);
@@ -2025,7 +2115,7 @@ function viewCabecalho(){
         <div><label class="lb">Tabela de preços</label>
           <select class="inp" onchange="upd('tabela',this.value)">
             <option value="">Padrão (atacado)</option>
-            ${tabelas.map(t=>`<option ${ped.tabela===t.nome?"selected":""}>${esc(t.nome)}</option>`).join("")}
+            ${tabelasDaRepres(ped.representada).map(t=>`<option ${ped.tabela===t.nome?"selected":""}>${esc(t.nome)}</option>`).join("")}
           </select></div>
       </div>
       <label class="lb" style="margin-top:10px;display:block">Desconto / Acréscimo</label>
@@ -2069,12 +2159,18 @@ function viewItens(){
   return `${itens}<button class="btn btn-o" style="width:100%;margin-top:6px" onclick="buscaItem=true;render()">＋ Novo Item</button>`;
 }
 
+function produtosDoPedido(){
+  const r=ped.representada||"EIKO VIDA";
+  const lista=produtos.filter(p=>(p.marca||"EIKO VIDA")===r);
+  return lista.length?lista:produtos;
+}
 function viewBuscaItem(){
-  const cats=[...new Set(produtos.map(p=>p.categoria).filter(Boolean))];
+  const base=produtosDoPedido();
+  const cats=[...new Set(base.map(p=>p.categoria).filter(Boolean))];
   const chips=cats.length?`<div class="chips"><button class="chip ${filtroItemCat===''?'on':''}" onclick="filtroItemCat='';render()">todas</button>`
     +cats.map(ct=>`<button class="chip ${filtroItemCat===ct?'on':''}" onclick="filtroItemCat='${esc(ct)}';render()">${esc(ct)}</button>`).join("")+`</div>`:"";
   const termo=buscaItemTxt.toLowerCase();
-  const lista=produtos.filter(p=>(!filtroItemCat||p.categoria===filtroItemCat) &&
+  const lista=base.filter(p=>(!filtroItemCat||p.categoria===filtroItemCat) &&
     (!termo || (p.nome||"").toLowerCase().includes(termo) || (p.codigo||"").toLowerCase().includes(termo) || (p.codbarras||"").toLowerCase().includes(termo)));
   const prods=lista.map(p=>{
     const noped=carrinho[p.id]?`<span class="badge b-cat">no pedido: ${carrinho[p.id].qtd}</span>`:'<span class="editpen">＋</span>';
@@ -2342,7 +2438,7 @@ function htmlListaCentral(){
         </div></div>`:"";
     return `<div class="pedcard ${nv?'novo':''}">
       <div onclick="${o._pendente?'':`abrirPed('${o.id}')`}">
-        <div class="pcnum"><span onclick="event.stopPropagation();menuPedido('${o.id}')" style="float:right;font-size:20px;padding:0 4px;color:#666">⋮</span>Número: <b>${esc(o.numero||"—")}</b>${nv?'<span class="tagnovo">NOVO</span>':''}${o._pendente?'<span class="tagnovo" style="background:#b45309">⏳ OFFLINE</span>':''}</div>
+        <div class="pcnum"><span onclick="event.stopPropagation();menuPedido('${o.id}')" style="float:right;font-size:20px;padding:0 4px;color:#666">⋮</span><span style="float:right">${selo(o.representada)}</span>Número: <b>${esc(o.numero||"—")}</b>${nv?'<span class="tagnovo">NOVO</span>':''}${o._pendente?'<span class="tagnovo" style="background:#b45309">⏳ OFFLINE</span>':''}</div>
         <div class="pccli">${esc(o.cliente||"")}</div>
         ${cli.fantasia?`<div class="pcsub">${esc(cli.fantasia)}</div>`:""}
         ${cli.cnpj?`<div class="pcsub">CNPJ: ${esc(cli.cnpj)}</div>`:""}
@@ -2644,7 +2740,23 @@ function gerarPDF(id){
   w.onload=()=>setTimeout(()=>w.print(),400);
 }
 
-function carregarLogo(){
+function carregarLogo(rep){
+  const fontes=[];
+  if(rep){const r=repDe(rep);if(r.logo)fontes.push(r.logo);fontes.push(nomeLogo(rep));}
+  fontes.push("logo.png");
+  return new Promise(res=>{
+    let i=0;
+    const tenta=()=>{
+      if(i>=fontes.length)return res(null);
+      const img=new Image(); img.crossOrigin="anonymous";
+      img.onload=()=>{try{const cv=document.createElement("canvas");cv.width=img.naturalWidth;cv.height=img.naturalHeight;cv.getContext("2d").drawImage(img,0,0);res({data:cv.toDataURL("image/png"),w:img.naturalWidth,h:img.naturalHeight});}catch(e){i++;tenta();}};
+      img.onerror=()=>{i++;tenta();};
+      img.src=fontes[i];
+    };
+    tenta();
+  });
+}
+function carregarLogoAntigo(){
   return new Promise(res=>{
     try{
       const img=new Image(); img.crossOrigin="anonymous";
@@ -2801,7 +2913,7 @@ async function enviarPDFwhats(id){
   const o=pedidos.find(x=>x.id===id); if(!o)return;
   if(!window.jspdf||!window.jspdf.jsPDF){toast("Sem conexão — conecte para gerar o PDF");return;}
   toast("Gerando PDF…");
-  let logo=null; try{logo=await carregarLogo();}catch(_){ }
+  let logo=null; try{logo=await carregarLogo(o.representada);}catch(_){ }
   let doc; try{doc=construirPDFjs(id,logo);}catch(e){toast("Erro ao gerar PDF");return;}
   if(!doc){toast("Erro ao gerar PDF");return;}
   const num=o.numero||id;
@@ -3057,12 +3169,19 @@ function viewProdutos(){
       <button class="btn btn-v" style="flex:1" onclick="salvarProduto()">${prodEdit?"Salvar alterações":"Adicionar"}</button>
       ${prodEdit?`<button class="btn btn-g" onclick="prodEdit=null;limparFoto()">✕</button>`:""}
     </div></div>`;
-  const cats=[...new Set(produtos.map(p=>p.categoria).filter(Boolean))];
-  const chips=cats.length?`<div class="chips"><button class="chip ${filtroProd===""?"on":""}" onclick="filtroProd='';render()">Todos (${produtos.length})</button>`
+  const reps=representadas();
+  const daRep=p=>!filtroRepProd||(p.marca||"EIKO VIDA")===filtroRepProd;
+  const chipsRep=reps.length>1?`<div class="chips">
+      <button class="chip ${filtroRepProd===""?"on":""}" onclick="filtroRepProd='';filtroProd='';render()">Todas (${produtos.length})</button>
+      ${reps.map(r=>`<button class="chip ${filtroRepProd===r?"on":""}" onclick="filtroRepProd='${esc(r)}';filtroProd='';render()">${esc(r)} (${produtos.filter(p=>(p.marca||"EIKO VIDA")===r).length})</button>`).join("")}
+    </div>`:"";
+  const visiveis=produtos.filter(daRep);
+  const cats=[...new Set(visiveis.map(p=>p.categoria).filter(Boolean))];
+  const chips=cats.length?`<div class="chips"><button class="chip ${filtroProd===""?"on":""}" onclick="filtroProd='';render()">Todos (${visiveis.length})</button>`
     +cats.map(ct=>`<button class="chip ${filtroProd===ct?"on":""}" onclick="filtroProd='${esc(ct)}';render()">${esc(ct)}</button>`).join("")+`</div>`:"";
   const busca=`<div class="relbusca"><input class="inp" placeholder="Buscar por nome ou código…" value="${esc(filtroProdTxt)}" oninput="filtroProdTxt=this.value;render()"/></div>`;
   const termo=filtroProdTxt.toLowerCase();
-  const lista=produtos
+  const lista=visiveis
     .filter(p=>(!filtroProd||p.categoria===filtroProd)&&(!termo||(p.nome||'').toLowerCase().includes(termo)||(p.codigo||'').toLowerCase().includes(termo)))
     .sort((a,b)=>(a.nome||'').localeCompare(b.nome||''))
     .map(p=>`<div class="card" style="padding:10px;display:flex;gap:10px;align-items:center">
@@ -3075,7 +3194,7 @@ function viewProdutos(){
       <button class="icbtn btn-g" onclick="editarProduto('${p.id}')">✎</button>
       <button class="icbtn btn-r" onclick="excluirProd('${p.id}')">🗑</button>
     </div>`).join("");
-  return `<h2 class="tit">Produtos</h2>${catManage}${add}${busca}${chips}${lista||'<div class="vazio">Nenhum produto</div>'}`;
+  return `<h2 class="tit">Produtos</h2>${catManage}${add}${chipsRep}${busca}${chips}${lista||'<div class="vazio">Nenhum produto</div>'}`;
 }
 function addCatProd(){const n=document.getElementById("novaCatProd").value.trim();if(!n)return;db.ref("categorias_produto").push({nome:n});toast("Categoria criada");}
 function delCatProd(id){if(confirm("Excluir categoria?"))db.ref("categorias_produto/"+id).remove();}
@@ -3174,53 +3293,88 @@ function excluirProd(id){if(confirm("Excluir produto?"))db.ref("produtos/"+id).r
 
 /* ====== TABELAS DE PREÇO ====== */
 function viewTabelas(){
-  const f=tabEdit||{nome:"",tipo:"acrescimo",percentual:""};
-  const form=`<div class="card">
-    <div style="font-weight:700;font-size:14px;margin-bottom:8px">${tabEdit?"✎ Editar tabela":"+ Nova tabela de preço"}</div>
-    <label class="lb">Nome da tabela</label>
-    <input class="inp" id="tNome" placeholder="Ex: Farmácia, Produto Natural, Distribuidor" value="${esc(f.nome)}"/>
-    <div class="fgrid" style="margin-top:10px">
+  const repAtiva=filtroRepTab||representadas()[0]||"EIKO VIDA";
+  const chips=`<div class="chips">${representadas().map(r=>`<button class="chip ${repAtiva===r?"on":""}" onclick="filtroRepTab='${esc(r)}';tabEdit=null;render()">${esc(r)}</button>`).join("")}</div>`;
+  const info=`<div style="font-size:12px;color:var(--cinza);background:#f8f8f6;border-radius:10px;padding:10px;margin:10px 0">
+    Cada representada tem as suas tabelas. A tabela pode ajustar o pre\u00e7o base por <b>percentual</b> ou ter <b>pre\u00e7o pr\u00f3prio por produto</b>.</div>`;
+  if(!ehAdmin){
+    const so=tabelasDaRepres(repAtiva);
+    return `<h2 class="tit">Tabelas de Pre\u00e7o</h2>${chips}${info}
+      ${so.length?so.map(t=>`<div class="lista-cli"><div class="info"><b>${esc(t.nome)}</b><small>${t.tipo==="precos"?(Object.keys(t.precos||{}).length+" produto(s) com pre\u00e7o pr\u00f3prio"):((t.tipo==="desconto"?"Desconto":"Acr\u00e9scimo")+" de "+esc(String(t.percentual))+"% sobre o pre\u00e7o base")}</small></div></div>`).join(""):'<div class="vazio">Nenhuma tabela para esta representada.</div>'}`;
+  }
+  const f=tabEdit||{nome:"",tipo:"acrescimo",percentual:"",representada:repAtiva,precos:{}};
+  const prodsRep=produtos.filter(p=>(p.marca||"EIKO VIDA")===(f.representada||repAtiva)).sort((a,b)=>String(a.nome).localeCompare(String(b.nome)));
+  const gradePrecos=(f.tipo==="precos")?`<div style="margin-top:10px;background:#f8f8f6;border-radius:10px;padding:10px">
+      <div style="font-weight:700;font-size:13px">\ud83d\udcb2 Pre\u00e7o de cada produto nesta tabela</div>
+      <div style="font-size:11px;color:var(--cinza);margin-bottom:6px">Deixe vazio para usar o pre\u00e7o base do produto.</div>
+      ${prodsRep.length?prodsRep.map(p=>`<div style="display:flex;align-items:center;gap:8px;padding:4px 0;border-bottom:1px solid #ececec">
+        <span style="flex:1;font-size:12px;min-width:0"><b>${esc(p.codigo||"")}</b> ${esc(p.nome)}</span>
+        <input class="inp tpreco" data-cod="${esc(String(p.codigo||"").toUpperCase())}" inputmode="decimal" style="width:92px;margin-top:0;text-align:right;padding:7px" placeholder="base" value="${esc(String((f.precos||{})[String(p.codigo||"").toUpperCase()]??""))}">
+      </div>`).join(""):'<div style="font-size:12px;color:#b45309">Nenhum produto cadastrado nesta representada.</div>'}
+    </div>`:`<div class="fgrid" style="margin-top:10px">
       <div><label class="lb">Tipo</label>
-        <select class="inp" id="tTipo">
-          <option value="acrescimo" ${f.tipo==="acrescimo"?"selected":""}>Acréscimo (+)</option>
-          <option value="desconto" ${f.tipo==="desconto"?"selected":""}>Desconto (−)</option>
+        <select class="inp" id="tTipo" onchange="tabEdit={...(tabEdit||{}),nome:val('tNome'),representada:val('tRep'),tipo:this.value};render()">
+          <option value="acrescimo" ${f.tipo==="acrescimo"?"selected":""}>Acr\u00e9scimo (+)</option>
+          <option value="desconto" ${f.tipo==="desconto"?"selected":""}>Desconto (\u2212)</option>
+          <option value="precos" ${f.tipo==="precos"?"selected":""}>Pre\u00e7o pr\u00f3prio por produto</option>
         </select></div>
       <div><label class="lb">Percentual (%)</label>
-        <input class="inp" id="tPerc" type="number" inputmode="decimal" placeholder="Ex: 15" value="${f.percentual}"/></div>
-    </div>
+        <input class="inp" id="tPerc" type="number" inputmode="decimal" placeholder="Ex: 15" value="${esc(String(f.percentual||""))}"/></div>
+    </div>`;
+  const seletorTipo=(f.tipo==="precos")?`<label class="lb" style="margin-top:10px;display:block">Tipo</label>
+      <select class="inp" id="tTipo" onchange="tabEdit={...(tabEdit||{}),nome:val('tNome'),representada:val('tRep'),tipo:this.value};render()">
+        <option value="acrescimo">Acr\u00e9scimo (+)</option>
+        <option value="desconto">Desconto (\u2212)</option>
+        <option value="precos" selected>Pre\u00e7o pr\u00f3prio por produto</option>
+      </select><input type="hidden" id="tPerc" value="0">`:"";
+  const form=`<div class="card">
+    <div style="font-weight:700;font-size:14px;margin-bottom:8px">${tabEdit&&tabEdit.id?"\u270e Editar tabela":"+ Nova tabela de pre\u00e7o"}</div>
+    <label class="lb">Nome da tabela</label>
+    <input class="inp" id="tNome" placeholder="Ex: Varejo, Atacado, Volume" value="${esc(f.nome)}"/>
+    <label class="lb" style="margin-top:8px;display:block">Representada</label>
+    <select class="inp" id="tRep" onchange="tabEdit={...(tabEdit||{}),nome:val('tNome'),tipo:(document.getElementById('tTipo')||{}).value||'acrescimo',representada:this.value};render()">
+      ${representadas().map(r=>`<option ${((f.representada)||repAtiva)===r?"selected":""}>${esc(r)}</option>`).join("")}
+    </select>
+    ${seletorTipo}${gradePrecos}
     <div class="row" style="margin-top:10px">
-      <button class="btn btn-v" style="flex:1" onclick="salvarTabela()">${tabEdit?"Salvar alterações":"Criar tabela"}</button>
-      ${tabEdit?`<button class="btn btn-g" onclick="tabEdit=null;render()">✕</button>`:""}
-    </div>
-  </div>`;
-  const info=`<div style="font-size:12px;color:var(--cinza);background:#f8f8f6;border-radius:10px;padding:10px;margin-bottom:12px">
-    A tabela ajusta o <b>preço base</b> dos produtos pelo percentual. No pedido, escolha a tabela (ou associe uma ao cliente) e os preços já entram ajustados.</div>`;
-  const lista=tabelas.length===0
-    ? `<div class="vazio"><div class="em">💲</div><div>Nenhuma tabela ainda.</div></div>`
-    : tabelas.map(t=>{
-        const sinal=t.tipo==="desconto"?"−":"+";
+      <button class="btn btn-v" style="flex:1" onclick="salvarTabela()">${tabEdit&&tabEdit.id?"Salvar altera\u00e7\u00f5es":"Criar tabela"}</button>
+      ${tabEdit?`<button class="btn btn-g" onclick="tabEdit=null;render()">\u2715</button>`:""}
+    </div></div>`;
+  const doRep=tabelas.filter(t=>(t.representada||"EIKO VIDA")===repAtiva);
+  const lista=doRep.length===0
+    ? `<div class="vazio"><div class="em">\ud83d\udcb2</div><div>Nenhuma tabela para ${esc(repAtiva)}.</div></div>`
+    : doRep.map(t=>{
+        const sinal=t.tipo==="desconto"?"\u2212":"+";
         const cor=t.tipo==="desconto"?"#b45309":"var(--verde)";
+        const desc=t.tipo==="precos"?`${Object.keys(t.precos||{}).length} produto(s) com pre\u00e7o pr\u00f3prio`:"sobre o pre\u00e7o base";
         return `<div class="lista-cli">
-          <div class="info"><b>${esc(t.nome)}</b><small>${t.tipo==="desconto"?"Desconto":"Acréscimo"} sobre o preço base</small></div>
-          <span style="font-weight:800;color:${cor};font-size:16px">${sinal}${esc(String(t.percentual))}%</span>
-          <button class="icbtn btn-g" onclick="editarTabela('${t.id}')">✎</button>
-          <button class="icbtn btn-r" onclick="excluirTabela('${t.id}')">🗑</button>
-        </div>`;
-      }).join("");
-  // exemplo prático
-  const exemplo=tabelas.length?`<div style="font-size:12px;color:var(--cinza);margin-top:10px;text-align:center">
-    Ex: produto de ${brl(30)} → ${tabelas.map(t=>{const perc=parseFloat(t.percentual)||0;const v=t.tipo==="desconto"?30*(1-perc/100):30*(1+perc/100);return esc(t.nome)+": "+brl(v);}).join(" · ")}</div>`:"";
-  return `<h2 class="tit">Tabelas de preço</h2>${info}${form}${lista}${exemplo}`;
+          <div class="info"><b>${esc(t.nome)}</b><small>${desc}</small></div>
+          ${t.tipo!=="precos"?`<span style="font-weight:800;color:${cor};font-size:16px">${sinal}${esc(String(t.percentual))}%</span>`:'<span style="font-size:18px">\ud83c\udff7\ufe0f</span>'}
+          <button class="icbtn btn-g" onclick="editarTabela('${t.id}')">\u270e</button>
+          <button class="icbtn btn-r" onclick="excluirTabela('${t.id}')">\ud83d\uddd1</button>
+        </div>`;}).join("");
+  return `<h2 class="tit">Tabelas de Pre\u00e7o</h2>${chips}${info}${form}${lista}`;
 }
 function salvarTabela(){
-  const o={nome:val("tNome"),tipo:document.getElementById("tTipo").value,percentual:parseFloat(String(val("tPerc")).replace(',','.'))||0};
+  if(!ehAdmin){toast("Somente o administrador pode mexer nas tabelas");return;}
+  const tipo=(document.getElementById("tTipo")||{}).value||"acrescimo";
+  const o={nome:val("tNome").trim(),tipo,representada:val("tRep")||"EIKO VIDA",
+           percentual:parseFloat(String(val("tPerc")).replace(",","."))||0};
   if(!o.nome){toast("Informe o nome da tabela");return;}
-  if(tabEdit){db.ref("tabelas/"+tabEdit.id).update(o);tabEdit=null;toast("Tabela atualizada");}
-  else{db.ref("tabelas").push(o);toast("Tabela criada");}
+  if(tipo==="precos"){
+    const precos={};
+    document.querySelectorAll(".tpreco").forEach(el=>{
+      const v=String(el.value||"").trim();
+      if(v!==""){const n=parseFloat(v.replace(/\./g,"").replace(",","."));if(!isNaN(n))precos[el.dataset.cod]=n;}
+    });
+    o.precos=precos;
+  }else o.precos={};
+  if(tabEdit&&tabEdit.id){db.ref("tabelas/"+tabEdit.id).update(o);tabEdit=null;toast("Tabela atualizada \u2713");}
+  else{db.ref("tabelas").push(o);tabEdit=null;toast("Tabela criada \u2713");}
   render();
 }
 function editarTabela(id){tabEdit=tabelas.find(t=>t.id===id);render();window.scrollTo(0,0);}
-function excluirTabela(id){if(confirm("Excluir tabela?"))db.ref("tabelas/"+id).remove();}
+function excluirTabela(id){if(!ehAdmin){toast("Somente o administrador");return;}const t=tabelas.find(x=>x.id===id);if(confirm("Excluir a tabela "+((t&&t.nome)||"")+"?"))db.ref("tabelas/"+id).remove();}
 
 /* ====== SESSÃO: mantém o vendedor logado ao recarregar/atualizar ====== */
 (function(){

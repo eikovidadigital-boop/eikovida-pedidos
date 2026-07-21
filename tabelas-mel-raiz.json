@@ -1,0 +1,83 @@
+{
+ "tabelas": [
+  {
+   "nome": "Varejo",
+   "representada": "MEL RAIZ",
+   "tipo": "precos",
+   "percentual": 0,
+   "precos": {
+    "AYE01": 9.5,
+    "AYE02": 9.5,
+    "AYE03": 9.5,
+    "BON01": 9.5,
+    "BON02": 9.5,
+    "BON03": 9.5,
+    "BON04": 9.5,
+    "BIS1KG": 43.98,
+    "BIS220": 11.08,
+    "BIS500": 23.25,
+    "MBD25K": 780.0,
+    "ORG280": 17.5,
+    "ORG560": 29.15
+   }
+  },
+  {
+   "nome": "Atacado",
+   "representada": "MEL RAIZ",
+   "tipo": "precos",
+   "percentual": 0,
+   "precos": {
+    "AYE01": 8.0,
+    "AYE02": 8.0,
+    "AYE03": 8.0,
+    "BON01": 8.0,
+    "BON02": 8.0,
+    "BON03": 8.0,
+    "BON04": 8.0,
+    "BIS1KG": 39.98,
+    "BIS220": 10.07,
+    "BIS500": 21.13,
+    "MBD25K": 750.0,
+    "ORG280": 14.42,
+    "ORG560": 25.92
+   }
+  },
+  {
+   "nome": "Volume",
+   "representada": "MEL RAIZ",
+   "tipo": "precos",
+   "percentual": 0,
+   "precos": {
+    "AYE01": 7.75,
+    "AYE02": 7.75,
+    "AYE03": 7.75,
+    "BON01": 7.75,
+    "BON02": 7.75,
+    "BON03": 7.75,
+    "BON04": 7.75,
+    "BIS1KG": 37.92,
+    "BIS220": 9.5,
+    "BIS500": 19.93,
+    "MBD25K": 716.0,
+    "ORG280": 13.6,
+    "ORG560": 24.45
+   }
+  }
+ ],
+ "produtos": [
+  {
+   "codigo": "MBD25K",
+   "nome": "MEL SILVESTRE BALDE 25kg",
+   "embalagem": "1/1",
+   "marca": "MEL RAIZ",
+   "categoria": "Mel",
+   "atacado": 750.0,
+   "varejo": 780.0,
+   "codbarras": "",
+   "ncm": "",
+   "estoque": "",
+   "imagem": "",
+   "catalogo": true
+  }
+ ]
+}
