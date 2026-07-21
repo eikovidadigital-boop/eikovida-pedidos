@@ -334,6 +334,8 @@ function pedidosVis(){
 }
 let online=(typeof navigator!=="undefined"?navigator.onLine:true), filaPendentes=[];
 let periodoRel="30";
+const REPRES_FIXAS=["EIKO VIDA","MEL RAIZ"];
+function representadas(){return [...new Set(REPRES_FIXAS.concat(produtos.map(p=>p.marca).filter(Boolean)).concat(pedidos.map(p=>p.representada).filter(Boolean)))].sort();}
 let transportadoras=[], transpEdit=null, filtroCobr="areceber";
 let agenda=[], agendaEdit=null, filtroAgenda="proximos";
 let fornecedores=[], fornEdit=null;
@@ -343,7 +345,7 @@ let baseCarregada=null, modoImport="add", importando=false;
 let carrinho={}, clienteSel="";
 let subAbaPedido="cab", buscaItem=false, buscaItemTxt="", filtroItemCat="";
 let itemEditando=null, itemQtd="", itemPreco=0, tabelas=[];
-let ped={status:"Pedido",consumidorFinal:false,dataEmissao:new Date().toISOString().slice(0,10),dataFat:"",previsao:"",cond:"",forma:"",tabela:"",descTipo:"desc",descPerc:"",obsCli:"",obsEmp:"",ordemCompra:"",transportadora:""};
+let ped={status:"Pedido",representada:"EIKO VIDA",consumidorFinal:false,dataEmissao:new Date().toISOString().slice(0,10),dataFat:"",previsao:"",cond:"",forma:"",tabela:"",descTipo:"desc",descPerc:"",obsCli:"",obsEmp:"",ordemCompra:"",transportadora:""};
 let destaqueId=null, pedidoAberto=null;
 let filtroCli="", filtroProd="", filtroProdPedido="";
 let buscaCli="", buscaCentral="", buscaCliPed="", escopoCli="todos";
@@ -1315,6 +1317,92 @@ function excluirVend(id){
 }
 
 /* ====== IMPORTAÇÕES ====== */
+let relPrev=null, relProdPrev=null;
+function boxRelatorio(){
+  const semItens=pedidos.filter(p=>!(p.itens||[]).length).length;
+  const p1=relPrev?`<div style="background:#fff;border-radius:8px;padding:10px;margin-top:8px;font-size:13px">
+      Encontrei <b style="color:var(--verde)">${relPrev.casam}</b> pedido(s) para completar (n\u00famero, representada e valor conferidos).
+      ${relPrev.divergentes?`<div style="color:#b45309;margin-top:4px">${relPrev.divergentes} com valor diferente \u2014 esses eu <b>n\u00e3o</b> altero.</div>`:""}
+      ${relPrev.jaTem?`<div style="color:#888;margin-top:4px">${relPrev.jaTem} j\u00e1 t\u00eam itens \u2014 mantidos como est\u00e3o.</div>`:""}
+      ${relPrev.casam?`<button class="btn btn-v" style="width:100%;margin-top:8px" onclick="aplicarItensRelatorio()">\u2713 Completar ${relPrev.casam} pedido(s)</button>`:""}
+    </div>`:"";
+  const p2=relProdPrev?`<div style="background:#fff;border-radius:8px;padding:10px;margin-top:8px;font-size:13px">
+      <b style="color:var(--verde)">${relProdPrev.length}</b> produto(s) novo(s) para cadastrar:
+      <div style="font-size:12px;color:#555;margin-top:4px;max-height:120px;overflow:auto">${relProdPrev.map(p=>`\u2022 ${esc(p.codigo)} \u2014 ${esc(p.nome)} <span style="color:#999">(${esc(p.marca)})</span>`).join("<br>")}</div>
+      <button class="btn btn-v" style="width:100%;margin-top:8px" onclick="aplicarProdutosRelatorio()">\u2713 Cadastrar ${relProdPrev.length} produto(s)</button>
+    </div>`:"";
+  return `<div class="card" style="border:2px solid var(--dourado);background:#fffdf5">
+    <div style="font-weight:700;font-size:14px;margin-bottom:4px">\ud83d\udcc4 Completar pedidos com o relat\u00f3rio de vendas</div>
+    <div style="font-size:12px;color:#555;margin-bottom:8px">Preenche os <b>itens</b> dos pedidos antigos e cadastra os produtos que ainda n\u00e3o existem.
+      S\u00f3 mexe em pedido <b>sem itens</b> e s\u00f3 quando n\u00famero, representada e valor batem \u2014 nada \u00e9 sobrescrito.</div>
+    <div style="background:#fff;border-radius:8px;padding:8px 10px;margin-bottom:8px;font-size:13px">
+      \ud83d\udccb Hoje: <b style="color:#b45309">${semItens}</b> pedido(s) sem itens</div>
+    <div class="row">
+      <button class="btn btn-o btn-sm" style="flex:1" onclick="conferirRelatorio()">1\u00ba Conferir pedidos</button>
+      <button class="btn btn-o btn-sm" style="flex:1" onclick="conferirProdutosRel()">2\u00ba Conferir produtos</button>
+    </div>${p1}${p2}
+    <div id="relProg" style="font-size:12px;margin-top:8px"></div></div>`;
+}
+function repNorm(r){return /MEL/i.test(String(r||""))?"MEL RAIZ":"EIKO VIDA";}
+async function baixarJson(arq){
+  const r=await fetch(arq+"?v="+Date.now());
+  if(!r.ok)throw new Error("arquivo");
+  return await r.json();
+}
+async function conferirRelatorio(){
+  const el=document.getElementById("relProg");
+  if(el)el.textContent="Conferindo\u2026";
+  try{
+    const base=await baixarJson("itens-pedidos.json");
+    let casam=0,divergentes=0,jaTem=0;const mapa={};
+    pedidos.forEach(p=>{
+      const k=String(p.numero||"").trim()+"|"+repNorm(p.representada);
+      const r=base[k];if(!r)return;
+      if((p.itens||[]).length){jaTem++;return;}
+      if(Math.abs((p.total||0)-(r.total||0))>0.02||!r.ok){divergentes++;return;}
+      mapa[p.id]=r.itens;casam++;
+    });
+    relPrev={casam,divergentes,jaTem,mapa};render();
+  }catch(e){relPrev=null;const l=document.getElementById("relProg");if(l)l.textContent="N\u00e3o foi poss\u00edvel ler o relat\u00f3rio. Confira se o arquivo foi enviado.";}
+}
+async function aplicarItensRelatorio(){
+  if(!relPrev||!relPrev.casam)return;
+  if(!confirm("Completar "+relPrev.casam+" pedido(s) com os itens do relat\u00f3rio?"))return;
+  const el=document.getElementById("relProg");
+  const ids=Object.keys(relPrev.mapa);let feitos=0;
+  try{
+    for(let i=0;i<ids.length;i+=200){
+      const upd={};
+      ids.slice(i,i+200).forEach(id=>{upd[id+"/itens"]=relPrev.mapa[id];});
+      await db.ref("pedidos").update(upd);
+      feitos+=Object.keys(upd).length;
+      if(el)el.textContent=feitos+" de "+ids.length+" prontos\u2026";
+    }
+    relPrev=null;toast(feitos+" pedido(s) completados \u2713");render();
+  }catch(e){if(el)el.textContent="N\u00e3o foi poss\u00edvel concluir. Tente novamente.";}
+}
+async function conferirProdutosRel(){
+  const el=document.getElementById("relProg");
+  if(el)el.textContent="Conferindo\u2026";
+  try{
+    const lista=await baixarJson("produtos-novos.json");
+    const temCod=c=>produtos.some(p=>String(p.codigo||"").trim().toUpperCase()===String(c).trim().toUpperCase());
+    relProdPrev=lista.filter(p=>!temCod(p.codigo));
+    if(el)el.textContent=relProdPrev.length?"":"Nenhum produto novo \u2014 est\u00e1 tudo cadastrado \u2713";
+    render();
+  }catch(e){relProdPrev=null;const l=document.getElementById("relProg");if(l)l.textContent="N\u00e3o foi poss\u00edvel ler a lista de produtos.";}
+}
+async function aplicarProdutosRelatorio(){
+  if(!relProdPrev||!relProdPrev.length)return;
+  if(!confirm("Cadastrar "+relProdPrev.length+" produto(s)?\n\nConfira os pre\u00e7os depois \u2014 vieram da \u00faltima venda do relat\u00f3rio."))return;
+  try{
+    const upd={};
+    relProdPrev.forEach(p=>{upd[db.ref("produtos").push().key]=p;});
+    await db.ref("produtos").update(upd);
+    const n=relProdPrev.length;relProdPrev=null;
+    toast(n+" produto(s) cadastrados \u2713");render();
+  }catch(e){const l=document.getElementById("relProg");if(l)l.textContent="N\u00e3o foi poss\u00edvel concluir. Tente novamente.";}
+}
 function viewImportacoes(){
   const formato = impTipo==="produtos"
     ? "código &nbsp;|&nbsp; nome &nbsp;|&nbsp; preço &nbsp;|&nbsp; categoria &nbsp;|&nbsp; estoque"
@@ -1384,6 +1472,7 @@ function viewImportacoes(){
       <div style="font-size:12px;color:#555;margin-bottom:8px">Encontrei clientes repetidos na base (mesmo CNPJ ou mesmo nome e cidade). Isso acontece quando uma importação roda duas vezes. Vou manter o cadastro mais completo de cada um.</div>
       <button class="btn btn-r" id="btnDup" style="width:100%" onclick="limparDuplicados()">🧹 Remover ${d} duplicado(s)</button>
     </div>`:"";})()}
+    ${ehAdmin?boxRelatorio():""}
     ${seletor}${instr}${area}${prev}`;
 }
 function previewImport(){
@@ -1658,6 +1747,7 @@ function viewCabecalho(){
     <div class="card">
       <div class="fgrid">
         <div><label class="lb">Status</label><select class="inp" onchange="upd('status',this.value)">${stOpts}</select></div>
+        <div><label class="lb">Representada</label><select class="inp" onchange="upd('representada',this.value)">${representadas().map(r=>`<option ${(ped.representada||"EIKO VIDA")===r?"selected":""}>${esc(r)}</option>`).join("")}</select></div>
         <div><label class="lb">Data emissão</label><input class="inp" type="date" value="${ped.dataEmissao}" onchange="upd('dataEmissao',this.value)"/></div>
       </div>
       <div class="fgrid" style="margin-top:10px">
@@ -1841,7 +1931,7 @@ function finalizar(enviar){
   const pedido={
     numero,
     clienteId:clienteSel,cliente:cli.nome,cidade:cli.cidade||"",whats:cli.whatsapp||"",categoria:cli.categoria||"",
-    vendedor,vendedorCodigo,itens,bruto,total,
+    vendedor,vendedorCodigo,itens,bruto,total,representada:ped.representada||"EIKO VIDA",
     status:"aberto",tipo:ped.status,cond:ped.cond,forma:ped.forma,tabela:ped.tabela||"",
     descTipo:ped.descTipo,descPerc:parseFloat(ped.descPerc)||0,
     consumidorFinal:ped.consumidorFinal,dataEmissao:ped.dataEmissao,dataFat:ped.dataFat,previsao:ped.previsao,
@@ -1878,7 +1968,7 @@ function finalizar(enviar){
   if(enviar){const alvo=soDig(cli.whatsapp)?("55"+soDig(cli.whatsapp).replace(/^55/,"")):WHATS_EMPRESA;window.open(`https://wa.me/${alvo}?text=${encodeURIComponent(textoPedido(pedido))}`,"_blank");}
   // reset
   carrinho={};clienteSel="";subAbaPedido="cab";buscaItem=false;buscaItemTxt="";filtroItemCat="";itemEditando=null;
-  ped={status:"Pedido",consumidorFinal:false,dataEmissao:new Date().toISOString().slice(0,10),dataFat:"",previsao:"",cond:"",forma:"",tabela:"",descTipo:"desc",descPerc:"",obsCli:"",obsEmp:"",ordemCompra:"",transportadora:""};
+  ped={status:"Pedido",representada:"EIKO VIDA",consumidorFinal:false,dataEmissao:new Date().toISOString().slice(0,10),dataFat:"",previsao:"",cond:"",forma:"",tabela:"",descTipo:"desc",descPerc:"",obsCli:"",obsEmp:"",ordemCompra:"",transportadora:""};
   toast(navigator.onLine?"Pedido enviado!":"Pedido salvo no celular — envia quando a internet voltar");render();
 }
 
@@ -2099,7 +2189,7 @@ function editarPedido(id){
   }
   const r=carregarItensNoCarrinho(o);
   clienteSel=o.clienteId||(clientes.find(c=>c.nome===o.cliente)||{}).id||"";
-  ped={status:o.tipo||"Pedido",consumidorFinal:!!o.consumidorFinal,
+  ped={status:o.tipo||"Pedido",representada:o.representada||"EIKO VIDA",consumidorFinal:!!o.consumidorFinal,
     dataEmissao:o.dataEmissao||(o.data||"").slice(0,10),dataFat:o.dataFat||"",previsao:o.previsao||"",
     cond:o.cond||"",forma:o.forma||"",tabela:o.tabela||"",descTipo:o.descTipo||"desc",
     descPerc:o.descPerc||"",obsCli:o.obsCli||"",obsEmp:o.obsEmp||"",
@@ -2664,7 +2754,7 @@ function viewProdutos(){
     <input class="inp" id="pNome" placeholder="Nome do produto *" value="${prodEdit?esc(prodEdit.nome):''}" style="margin-top:0"/>
     <div class="fgrid" style="margin-top:8px">
       <div><label class="lb">Código</label><input class="inp" id="pCod" value="${prodEdit?esc(prodEdit.codigo||''):''}"/></div>
-      <div><label class="lb">Cód. barras</label><input class="inp" id="pBar" value="${prodEdit?esc(prodEdit.codbarras||''):''}"/></div>
+      <div><label class="lb">Representada</label><select class="inp" id="pMarca">${representadas().map(r=>`<option ${((prodEdit&&prodEdit.marca)||"EIKO VIDA")===r?"selected":""}>${esc(r)}</option>`).join("")}</select></div>
     </div>
     <div class="fgrid" style="margin-top:8px">
       <div><label class="lb">Preço (R$)</label><input class="inp" id="pAtac" inputmode="decimal" value="${prodEdit?(prodEdit.atacado||''):''}"/></div>
@@ -2769,9 +2859,9 @@ async function baixarFoto(url,nome){
 }
 function salvarProduto(){
   const o={
-    nome:val("pNome"),codigo:val("pCod"),codbarras:val("pBar"),
+    nome:val("pNome"),codigo:val("pCod"),
     atacado:parseFloat(String(val("pAtac")).replace(',','.'))||0,varejo:parseFloat(String(val("pAtac")).replace(',','.'))||0,
-    estoque:val("pEst"),categoria:val("pCat"),embalagem:val("pEmb")||"UN/1",marca:"EIKO VIDA",
+    estoque:val("pEst"),categoria:val("pCat"),embalagem:val("pEmb")||"UN/1",marca:val("pMarca")||"EIKO VIDA",
     imagem:fotoTmp||val("pImg")||"",
     codbarras:val("pBarra")||"",ncm:val("pNcm")||"",
     descricao:val("pDesc")||"",
