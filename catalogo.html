@@ -191,7 +191,7 @@ let clientes=[],cliIdent=null,modoCad="escolha",pedidoAtual=null,unsubPed=null;
 const brl=n=>"R$ "+(Number(n)||0).toFixed(2).replace(".",",").replace(/\B(?=(\d{3})+(?!\d))/g,".");
 const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const digitos=s=>String(s||"").replace(/\D/g,"");
-function zap(){const n=digitos(cfg.whatsapp||empresa.whats||WHATS_PADRAO);return n.length<=11?"55"+n:n;}
+function zap(){const n=digitos((typeof cfgRep==="function"&&cfgRep().whatsapp)||cfg.whatsapp||empresa.whats||WHATS_PADRAO);return n.length<=11?"55"+n:n;}
 
 function conectarNuvem(){
 db.ref("produtos").on("value",s=>{
@@ -205,16 +205,38 @@ db.ref("catalogo").on("value",s=>{cfg=s.val()||{};aplicarCfg();rodape();});
 }
 quandoAcesso(conectarNuvem);
 
+function cfgRep(){
+  const r=(cfg.reps&&REPRES)?(cfg.reps[REPRES]||cfg.reps[REPRES.toUpperCase()]||{}):{};
+  return r||{};
+}
+function vlr(campo,padraoGeral){
+  const r=cfgRep();
+  if(REPRES)return r[campo]||"";
+  return cfg[campo]||padraoGeral||"";
+}
 function aplicarCfg(){
-  if(cfg.titulo)document.getElementById("hTitulo").textContent=cfg.titulo;
-  if(REPRES){document.getElementById("hTitulo").textContent=REPRES;document.title=REPRES+" \u2014 Cat\u00e1logo de Atacado";}
-  if(cfg.subtitulo)document.getElementById("hSub").textContent=cfg.subtitulo;
-  if(cfg.pitchTitulo)document.getElementById("hPitch").textContent=cfg.pitchTitulo;
-  const selos=(cfg.selos||"🌱 100% Vegano, 🧪 Registro ANVISA, 🇧🇷 Produção própria, 📦 Pronta entrega").split(",").map(x=>x.trim()).filter(Boolean);
+  const r=cfgRep();
+  const marca=REPRES||cfg.titulo||"EIKO VIDA";
+  document.getElementById("hTitulo").textContent=vlr("titulo")||marca;
+  if(REPRES)document.title=marca+" \u2014 Cat\u00e1logo de Atacado";
+  const sub=vlr("subtitulo");
+  document.getElementById("hSub").textContent=sub||(REPRES?"Linha completa para revenda":"\u00d3leos vegetais 100% naturais \u00b7 Linha completa para revenda");
+  const pt=vlr("pitchTitulo");
+  document.getElementById("hPitch").textContent=pt||("Por que revender "+marca+"?");
+  // logotipo pr\u00f3prio da representada (logo-<nome>.png), com o geral como reserva
+  const img=document.querySelector("header img");
+  if(img){
+    const alvo=r.logo||(REPRES?"logo-"+REPRES.toLowerCase().replace(/[^a-z0-9]+/g,"-")+".png":"logo.png");
+    img.alt=marca;img.style.display="";
+    img.onerror=function(){if(this.dataset.tentou)this.style.display="none";else{this.dataset.tentou="1";this.src="logo.png";}};
+    img.src=alvo;
+  }
+  const selos=(vlr("selos")||"🌱 100% Vegano, 🧪 Registro ANVISA, 🇧🇷 Produção própria, 📦 Pronta entrega").split(",").map(x=>x.trim()).filter(Boolean);
   document.getElementById("hSelos").innerHTML=selos.map(x=>`<span class="selo">${esc(x)}</span>`).join("");
-  const bens=(cfg.beneficios||"💰 Margem de até 100% na revenda\n🔄 Alto giro — produto de recompra\n📈 Mercado natural em crescimento\n🤝 Suporte e material de apoio").split("\n").map(x=>x.trim()).filter(Boolean);
+  const bens=(vlr("beneficios")||"💰 Margem de até 100% na revenda\n🔄 Alto giro — produto de recompra\n📈 Mercado natural em crescimento\n🤝 Suporte e material de apoio").split("\n").map(x=>x.trim()).filter(Boolean);
   document.getElementById("hBenef").innerHTML=bens.map(x=>`<div>${esc(x)}</div>`).join("");
-  const ds=(Array.isArray(cfg.destaques)?cfg.destaques:[]).filter(d=>d&&d.ativo!==false&&d.titulo);
+  const fonteD=(REPRES&&Array.isArray(cfgRep().destaques))?cfgRep().destaques:(REPRES?[]:cfg.destaques);
+  const ds=(Array.isArray(fonteD)?fonteD:[]).filter(d=>d&&d.ativo!==false&&d.titulo);
   document.getElementById("destaques").innerHTML=ds.length?
     `<div class="secTit">🔥 Destaques e promoções</div><div class="dest">`+ds.map(d=>`
       <div class="dcard">
@@ -228,8 +250,8 @@ function aplicarCfg(){
 }
 function rodape(){
   try{const e=document.getElementById("linkStatus");if(e&&localStorage.getItem("eiko_meupedido"))e.style.display="inline";}catch(x){}
-  document.getElementById("fNome").textContent=cfg.titulo||empresa.razao||"EIKO VIDA";
-  document.getElementById("fContato").textContent=[cfg.telefone||empresa.telefone,empresa.site].filter(Boolean).join(" · ");
+  document.getElementById("fNome").textContent=REPRES||cfg.titulo||empresa.razao||"EIKO VIDA";
+  document.getElementById("fContato").textContent=[cfgRep().telefone||cfg.telefone||empresa.telefone,REPRES?"":empresa.site].filter(Boolean).join(" · ");
 }
 function montarCats(){
   const cs=[...new Set(produtos.map(p=>p.categoria).filter(Boolean))].sort();

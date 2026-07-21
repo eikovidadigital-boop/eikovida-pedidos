@@ -339,7 +339,7 @@ function representadas(){return [...new Set(REPRES_FIXAS.concat(repres.filter(r=
 function repDe(nome){return repres.find(r=>String(r.nome||"").trim().toUpperCase()===String(nome||"").trim().toUpperCase())||{};}
 function linkCatalogo(rep){return URL_CATALOGO+(rep&&rep!=="TODAS"?"?r="+encodeURIComponent(rep):"");}
 let transportadoras=[], transpEdit=null, filtroCobr="areceber";
-let repres=[], repEdit=null;
+let repres=[], repEdit=null, catRepEdit="";
 let agenda=[], agendaEdit=null, filtroAgenda="proximos";
 let fornecedores=[], fornEdit=null;
 let empresa={}, equipe=[], vendEdit=null, transfDe=null, codigoAtivacao="EIKO2026";
@@ -488,7 +488,7 @@ function iniciarSessao(v){
   }catch(e){}
   document.getElementById("login").classList.add("hide");
   document.getElementById("app").classList.remove("hide");
-  iniciar();
+  iniciar();iniciarAutoSync();
 }
 async function ativarApp(){
   const cod=String(val("atvCodigo")||"").trim().toUpperCase();
@@ -631,8 +631,7 @@ function renderMenu(){
 /* ====== HOME (grade) ====== */
 function viewHome(){
   const itens=[
-    {ic:"📋",cor:"#3B82F6",tit:"Painel / Central",v:"central"},
-    {ic:"➕",cor:"#2F6B4F",tit:"Novo Pedido",v:"novo"},
+    {ic:"📋",cor:"#3B82F6",tit:"Pedidos",v:"central"},
     {ic:"👥",cor:"#F59E0B",tit:"Clientes",v:"clientes"},
     {ic:"📦",cor:"#EA8A5B",tit:"Produtos",v:"produtos"},
     {ic:"💲",cor:"#10B981",tit:"Tabelas",v:"tabelas"},
@@ -1049,10 +1048,28 @@ function salvarEmpresa(){
 /* ====== MINHA EQUIPE ====== */
 
 /* ====== EDITAR CATÁLOGO VIRTUAL (somente admin) ====== */
+function cfgDoCatalogo(){
+  if(!catRepEdit)return cfgCatalogo||{};
+  const r=((cfgCatalogo||{}).reps||{})[catRepEdit];
+  return r||{};
+}
 function viewCatalogoCfg(){
   if(!ehAdmin)return `<div class="vazio">Área exclusiva do administrador.</div>`;
-  const c=cfgCatalogo||{};
+  const c=cfgDoCatalogo();
   const dest=Array.isArray(c.destaques)?c.destaques:[];
+  const abas=`<div class="card" style="background:#f8f8f6">
+    <div style="font-weight:700;font-size:13px;margin-bottom:6px">Editando o catálogo de:</div>
+    <div class="chips">
+      <button class="chip ${catRepEdit===""?"on":""}" onclick="catRepEdit='';destTmp=null;render()">🌐 Completo</button>
+      ${representadas().map(r=>`<button class="chip ${catRepEdit===r?"on":""}" onclick="catRepEdit='${esc(r)}';destTmp=null;render()">${esc(r)}</button>`).join("")}
+    </div>
+    <div style="font-size:11px;color:var(--cinza);margin-top:6px">${catRepEdit?("Estas informações aparecem só no catálogo da "+esc(catRepEdit)+". Logotipo: envie a imagem com o nome <b>"+esc(nomeLogo(catRepEdit))+"</b>."):"Aparece no catálogo completo, com todos os produtos."}</div>
+    ${catRepEdit?(()=>{const oc=produtos.filter(p=>(p.marca||"EIKO VIDA")===catRepEdit&&p.catalogo===false).length;
+      return oc?`<div style="background:#fef2f2;border:1px solid #dc2626;border-radius:8px;padding:8px;margin-top:8px">
+        <div style="font-size:12px;color:#b91c1c"><b>${oc}</b> produto(s) desta representada estão ocultos no catálogo.</div>
+        <button class="btn btn-r btn-sm" style="width:100%;margin-top:6px" onclick="mostrarNoCatalogo('${esc(catRepEdit)}')">👁 Mostrar os ${oc} no catálogo</button></div>`:
+        `<div style="font-size:12px;color:var(--verde);margin-top:6px">✓ ${produtos.filter(p=>(p.marca||"EIKO VIDA")===catRepEdit).length} produto(s) aparecendo no catálogo</div>`;})():""}
+  </div>`;
   const box=(t,inner)=>`<div class="card"><div style="font-weight:700;font-size:14px;margin-bottom:8px">${t}</div>${inner}</div>`;
 
   const contato=box("📞 Contato do catálogo",`
@@ -1064,13 +1081,13 @@ function viewCatalogoCfg(){
 
   const banner=box("🖼️ Banner principal (topo)",`
     <label class="lb">Título</label>
-    <input class="inp" id="ccTitulo" value="${esc(c.titulo||"EIKO VIDA")}" style="margin-top:2px"/>
+    <input class="inp" id="ccTitulo" value="${esc(c.titulo||catRepEdit||"EIKO VIDA")}" style="margin-top:2px"/>
     <label class="lb" style="margin-top:8px;display:block">Frase de chamada</label>
-    <input class="inp" id="ccSub" value="${esc(c.subtitulo||"Óleos vegetais 100% naturais · Linha completa para revenda")}" style="margin-top:2px"/>
+    <input class="inp" id="ccSub" value="${esc(c.subtitulo||(catRepEdit?"Linha completa para revenda":"Óleos vegetais 100% naturais · Linha completa para revenda"))}" style="margin-top:2px"/>
     <label class="lb" style="margin-top:8px;display:block">Selos (separe por vírgula)</label>
     <input class="inp" id="ccSelos" value="${esc(c.selos||"🌱 100% Vegano, 🧪 Registro ANVISA, 🇧🇷 Produção própria, 📦 Pronta entrega")}" style="margin-top:2px"/>
     <label class="lb" style="margin-top:8px;display:block">Título do bloco de vantagens</label>
-    <input class="inp" id="ccPitch" value="${esc(c.pitchTitulo||"Por que revender EIKO VIDA?")}" style="margin-top:2px"/>
+    <input class="inp" id="ccPitch" value="${esc(c.pitchTitulo||("Por que revender "+(catRepEdit||"EIKO VIDA")+"?"))}" style="margin-top:2px"/>
     <label class="lb" style="margin-top:8px;display:block">Vantagens (uma por linha)</label>
     <textarea class="inp" id="ccBenef" style="min-height:80px">${esc(c.beneficios||"💰 Margem de até 100% na revenda\n🔄 Alto giro — produto de recompra\n📈 Mercado natural em crescimento\n🤝 Suporte e material de apoio")}</textarea>
     <button class="btn btn-v" style="width:100%;margin-top:10px" onclick="salvarCatalogoCfg()">Salvar banner e contato</button>`);
@@ -1136,40 +1153,61 @@ function viewCatalogoCfg(){
       <button class="btn btn-g btn-sm" onclick="window.open(URL_CATALOGO,'_blank')">Ver</button>
     </div>`);
 
-  return `<h2 class="tit">Editar Catálogo Virtual</h2>${link}${contato}${banner}
+  return `<h2 class="tit">Editar Catálogo Virtual</h2>${abas}${link}${contato}${banner}
     <div style="font-weight:700;font-size:14px;margin:16px 0 8px">🔥 Destaques e promoções</div>${fdest}${listaDest}`;
 }
+function refDest(){return catRepEdit?("catalogo/reps/"+catRepEdit+"/destaques"):"catalogo/destaques";}
+function gravarDest(arr){if(catRepEdit){const reps={...((cfgCatalogo||{}).reps||{})};reps[catRepEdit]={...(reps[catRepEdit]||{}),destaques:arr};cfgCatalogo={...cfgCatalogo,reps};}else{cfgCatalogo={...cfgCatalogo,destaques:arr};}db.ref(refDest()).set(arr);}
+function nomeLogo(r){return "logo-"+String(r||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g,"-")+".png";}
 function salvarCatalogoCfg(){
+  const atual=cfgDoCatalogo();
   const o={whatsapp:val("ccWhats"),telefone:val("ccFone"),titulo:val("ccTitulo"),subtitulo:val("ccSub"),
     selos:val("ccSelos"),pitchTitulo:val("ccPitch"),beneficios:val("ccBenef"),
-    destaques:(cfgCatalogo&&cfgCatalogo.destaques)||[]};
-  cfgCatalogo={...cfgCatalogo,...o};
-  db.ref("catalogo").update(o);
-  toast("Catálogo atualizado ✓");
+    destaques:atual.destaques||[]};
+  if(catRepEdit){
+    const reps={...((cfgCatalogo||{}).reps||{})};reps[catRepEdit]={...(reps[catRepEdit]||{}),...o};
+    cfgCatalogo={...cfgCatalogo,reps};
+    db.ref("catalogo/reps/"+catRepEdit).update(o);
+    toast("Catálogo da "+catRepEdit+" atualizado ✓");
+  }else{
+    cfgCatalogo={...cfgCatalogo,...o};
+    db.ref("catalogo").update(o);
+    toast("Catálogo atualizado ✓");
+  }
+}
+async function mostrarNoCatalogo(rep){
+  const alvo=produtos.filter(p=>(p.marca||"EIKO VIDA")===rep&&p.catalogo===false);
+  if(!alvo.length){toast("Nenhum produto oculto");return;}
+  if(!confirm("Mostrar "+alvo.length+" produto(s) da "+rep+" no catálogo virtual?"))return;
+  try{
+    const upd={};alvo.forEach(p=>{upd[p.id+"/catalogo"]=true;});
+    await db.ref("produtos").update(upd);
+    toast(alvo.length+" produto(s) liberado(s) ✓");render();
+  }catch(e){toast("Não foi possível concluir. Tente novamente.");}
 }
 function novoDestaque(){destTmp={i:-1,tipo:"🔥 Promoção",titulo:"",texto:"",preco:"",precoDe:"",ativo:true};fotoDest="";render();window.scrollTo(0,0);}
-function editarDestaque(i){const d=(cfgCatalogo.destaques||[])[i]||{};destTmp={...d,i};fotoDest=d.imagem||"";render();window.scrollTo(0,0);}
+function editarDestaque(i){const d=destaquesAtuais()[i]||{};destTmp={...d,i};fotoDest=d.imagem||"";render();window.scrollTo(0,0);}
+function destaquesAtuais(){const c=cfgDoCatalogo();return Array.isArray(c.destaques)?c.destaques:[];}
 function salvarDestaque(){
   const t=val("dsTit");
   if(!t){toast("Informe o título");return;}
   const d={tipo:val("dsTipo"),titulo:t,texto:val("dsTxt"),preco:val("dsPreco"),precoDe:val("dsDe"),
     imagem:fotoDest||"",ativo:!!(document.getElementById("dsAtivo")||{}).checked};
-  const arr=(cfgCatalogo.destaques||[]).slice();
+  const arr=destaquesAtuais().slice();
   if(destTmp&&destTmp.i>=0)arr[destTmp.i]=d; else arr.push(d);
-  cfgCatalogo.destaques=arr;
-  db.ref("catalogo/destaques").set(arr);
+  gravarDest(arr);
   destTmp=null;fotoDest="";toast("Destaque salvo ✓");render();
 }
 function excluirDestaque(i){
   if(!confirm("Excluir este destaque?"))return;
-  const arr=(cfgCatalogo.destaques||[]).slice();arr.splice(i,1);
-  cfgCatalogo.destaques=arr;db.ref("catalogo/destaques").set(arr);toast("Excluído");render();
+  const arr=destaquesAtuais().slice();arr.splice(i,1);
+  gravarDest(arr);toast("Excluído");render();
 }
 function moverDestaque(i,d){
-  const arr=(cfgCatalogo.destaques||[]).slice();const j=i+d;
+  const arr=destaquesAtuais().slice();const j=i+d;
   if(j<0||j>=arr.length)return;
   const t=arr[i];arr[i]=arr[j];arr[j]=t;
-  cfgCatalogo.destaques=arr;db.ref("catalogo/destaques").set(arr);render();
+  gravarDest(arr);render();
 }
 function lerFotoDest(inp){
   const f=inp.files&&inp.files[0]; if(!f)return;
@@ -1816,6 +1854,31 @@ function atualizarStatusRede(){
   if(["home","sync"].includes(viewAtual))render();
 }
 function aoVoltarOnline(){atualizarStatusRede();sincronizarAgora();}
+let autoSyncTimer=null, ultimaSync=0;
+function iniciarAutoSync(){
+  if(autoSyncTimer)clearInterval(autoSyncTimer);
+  autoSyncTimer=setInterval(()=>sincronizarSilencioso(),600000);
+  document.addEventListener("visibilitychange",()=>{if(!document.hidden&&Date.now()-ultimaSync>600000)sincronizarSilencioso();});
+  window.addEventListener("online",()=>sincronizarSilencioso());
+}
+async function sincronizarSilencioso(){
+  if(!navigator.onLine||!acessoPronto)return;
+  ultimaSync=Date.now();
+  try{
+    if(filaPendentes.length){
+      const fila=[...filaPendentes];
+      fila.forEach(f=>{
+        if(f.op==="update"&&f.id)db.ref(f.col+"/"+f.id).update(f.data);
+        else if(f.op==="set")db.ref(f.col).set(f.data);
+        else db.ref(f.col).push(f.data);
+      });
+      filaPendentes=[];LS.set("fila",[]);reconstruirPedidos();
+    }
+    LS.set("ultimaSync",ultimaSync);
+    atualizarStatusRede();
+    reRender(["central","home","sync","clientes","produtos","relatorios"]);
+  }catch(e){}
+}
 function sincronizarAgora(){
   if(!navigator.onLine){toast("Sem internet ainda");return;}
   if(!acessoPronto){quandoAcesso(sincronizarAgora);return;}
@@ -2357,9 +2420,18 @@ function aceitarPedido(id){
   }
   render();
 }
+function itensComGemeo(o){
+  let itens=itensDe(o);
+  if(itens.length)return itens;
+  const k=chavePed(o);
+  const g=pedidos.find(p=>p.id!==o.id&&itensDe(p).length&&chavePed(p)===k);
+  if(g)return itensDe(g);
+  const g2=pedidos.find(p=>p.id!==o.id&&itensDe(p).length&&String(p.numero||"")===String(o.numero||"")&&repNorm(p.representada)===repNorm(o.representada));
+  return g2?itensDe(g2):[];
+}
 function carregarItensNoCarrinho(o){
   carrinho={};
-  const itens=itensDe(o);
+  const itens=itensComGemeo(o);
   let achou=0,perdidos=[];
   itens.forEach(i=>{
     const cod=String(i.codigo||"").trim().toLowerCase();
@@ -2373,19 +2445,14 @@ function carregarItensNoCarrinho(o){
   return {total:itens.length,achou,perdidos};
 }
 function avisoItens(o,r){
-  if(r.total===0){
-    toast(o.historico?"Pedido antigo: sem a lista de itens":"Este pedido está sem itens");
-    return;
-  }
+  if(r.total===0)return;
   if(r.perdidos.length)toast(r.achou+" de "+r.total+" itens carregados \u2014 "+r.perdidos.length+" fora do cadastro");
 }
 function editarPedido(id){
   const o=pedidos.find(x=>x.id===id); if(!o)return;
   if(!podeEditarPed(o)){toast("Pedido já sincronizado — só o administrador pode editar");return;}
-  if(!itensDe(o).length){
-    if(!confirm("Este pedido veio do sistema antigo e n\u00e3o tem a lista de produtos \u2014 s\u00f3 o total de "+brl(o.total)+".\n\nAbrir para montar os itens agora?\n\n\u26a0\ufe0f Ao salvar, o valor passa a ser o dos itens que voc\u00ea incluir."))return;
-  }
   const r=carregarItensNoCarrinho(o);
+  if(!r.total&&!confirm("Este pedido n\u00e3o tem a lista de produtos \u2014 s\u00f3 o total de "+brl(o.total)+".\n\nAbrir para montar os itens agora?"))return;
   clienteSel=o.clienteId||(clientes.find(c=>c.nome===o.cliente)||{}).id||"";
   ped={status:o.tipo||"Pedido",representada:o.representada||"EIKO VIDA",consumidorFinal:!!o.consumidorFinal,
     dataEmissao:o.dataEmissao||(o.data||"").slice(0,10),dataFat:o.dataFat||"",previsao:o.previsao||"",
@@ -2399,8 +2466,8 @@ function editarPedido(id){
 function cancelarEdicao(){editandoPedido=null;carrinho={};clienteSel="";toast("Edição cancelada");irPara("central");}
 function duplicarPedido(id){
   const o=pedidos.find(x=>x.id===id); if(!o)return;
-  if(!itensDe(o).length){
-    if(!confirm((o.historico?"Este pedido veio do sistema antigo e n\u00e3o tem a lista de produtos.":"Este pedido est\u00e1 sem itens.")+"\n\nAbrir um pedido novo para "+(o.cliente||"este cliente")+" e montar os itens?"))return;
+  if(!itensComGemeo(o).length){
+    if(!confirm("Este pedido n\u00e3o tem a lista de produtos."+"\n\nAbrir um pedido novo para "+(o.cliente||"este cliente")+" e montar os itens?"))return;
     carrinho={};clienteSel=o.clienteId||(clientes.find(c=>c.nome===o.cliente)||{}).id||"";
     ped={...ped,status:"Pedido",cond:o.cond||"",forma:o.forma||"",tabela:o.tabela||"",
          dataEmissao:new Date().toISOString().slice(0,10),dataFat:"",previsao:"",
@@ -3170,7 +3237,7 @@ function excluirTabela(id){if(confirm("Excluir tabela?"))db.ref("tabelas/"+id).r
     try{permissoes=ehAdmin?null:(pm?JSON.parse(pm):ABAS_PADRAO.slice());}catch(e){permissoes=ABAS_PADRAO.slice();}
     document.getElementById("login").classList.add("hide");
     document.getElementById("app").classList.remove("hide");
-    iniciar();
+    iniciar();iniciarAutoSync();
   }
 })();
 
