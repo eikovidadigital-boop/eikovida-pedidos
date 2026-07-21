@@ -569,6 +569,7 @@ function reconstruirPedidos(){
   pedidos=[...pend,...pedidosRemoto].sort((a,b)=>new Date(b.data)-new Date(a.data));
 }
 function toArr(o){return o?Object.keys(o).map(k=>({id:k,...o[k]})):[];}
+function itensDe(o){const i=o&&o.itens;if(Array.isArray(i))return i;if(i&&typeof i==="object")return Object.keys(i).sort((a,b)=>a-b).map(k=>i[k]);return [];}
 function semear(){const u={};SEED.forEach(p=>{u[db.ref("produtos").push().key]=p;});db.ref("produtos").update(u);}
 
 /* ====== NAV ====== */
@@ -691,9 +692,9 @@ function viewRelatorios(){
   const totalVend=lista.reduce((s,p)=>s+(p.total||0),0);
   const nPed=lista.length;
   const ticket=nPed?totalVend/nPed:0;
-  const nItens=lista.reduce((s,p)=>s+(p.itens||[]).reduce((a,i)=>a+i.qtd,0),0);
+  const nItens=lista.reduce((s,p)=>s+itensDe(p).reduce((a,i)=>a+i.qtd,0),0);
   const prodMap={};
-  lista.forEach(p=>(p.itens||[]).forEach(i=>{if(!prodMap[i.nome])prodMap[i.nome]={qtd:0,valor:0};prodMap[i.nome].qtd+=i.qtd;prodMap[i.nome].valor+=i.qtd*i.preco;}));
+  lista.forEach(p=>itensDe(p).forEach(i=>{if(!prodMap[i.nome])prodMap[i.nome]={qtd:0,valor:0};prodMap[i.nome].qtd+=i.qtd;prodMap[i.nome].valor+=i.qtd*i.preco;}));
   const topProd=Object.entries(prodMap).sort((a,b)=>b[1].valor-a[1].valor).slice(0,5);
   const cliMap={};
   lista.forEach(p=>{const n=p.cliente||"—";if(!cliMap[n])cliMap[n]={valor:0,ped:0};cliMap[n].valor+=p.total||0;cliMap[n].ped++;});
@@ -1319,7 +1320,7 @@ function excluirVend(id){
 /* ====== IMPORTAÇÕES ====== */
 let relPrev=null, relProdPrev=null;
 function boxRelatorio(){
-  const semItens=pedidos.filter(p=>!(p.itens||[]).length).length;
+  const semItens=pedidos.filter(p=>!itensDe(p).length).length;
   const p1=relPrev?`<div style="background:#fff;border-radius:8px;padding:10px;margin-top:8px;font-size:13px">
       Encontrei <b style="color:var(--verde)">${relPrev.casam}</b> pedido(s) para completar (n\u00famero, representada e valor conferidos).
       ${relPrev.divergentes?`<div style="color:#b45309;margin-top:4px">${relPrev.divergentes} com valor diferente \u2014 esses eu <b>n\u00e3o</b> altero.</div>`:""}
@@ -1340,7 +1341,8 @@ function boxRelatorio(){
     <div class="row">
       <button class="btn btn-o btn-sm" style="flex:1" onclick="conferirRelatorio()">1\u00ba Conferir pedidos</button>
       <button class="btn btn-o btn-sm" style="flex:1" onclick="conferirProdutosRel()">2\u00ba Conferir produtos</button>
-    </div>${p1}${p2}
+    </div>
+    <button class="btn btn-g btn-sm" style="width:100%;margin-top:6px" onclick="diagRelatorio()">\ud83d\udd0e Diagn\u00f3stico</button>${p1}${p2}
     <div id="relProg" style="font-size:12px;margin-top:8px"></div></div>`;
 }
 function repNorm(r){return /MEL/i.test(String(r||""))?"MEL RAIZ":"EIKO VIDA";}
@@ -1348,6 +1350,40 @@ async function baixarJson(arq){
   const r=await fetch(arq+"?v="+Date.now());
   if(!r.ok)throw new Error("arquivo");
   return await r.json();
+}
+async function diagRelatorio(){
+  const el=document.getElementById("relProg");
+  if(el)el.innerHTML="Analisando\u2026";
+  const L=[];
+  const comItens=pedidos.filter(p=>itensDe(p).length).length;
+  L.push("Pedidos no app: <b>"+pedidos.length+"</b>");
+  L.push("J\u00e1 com itens: <b>"+comItens+"</b> \u00b7 sem itens: <b>"+(pedidos.length-comItens)+"</b>");
+  let base=null;
+  try{base=await baixarJson("itens-pedidos.json");}
+  catch(e){
+    L.push('<span style="color:#b91c1c">\u274c N\u00e3o encontrei o arquivo <b>itens-pedidos.json</b>. Envie-o para a mesma pasta do aplicativo.</span>');
+    if(el)el.innerHTML=L.join("<br>");return;
+  }
+  const chaves=Object.keys(base);
+  L.push("Relat\u00f3rio lido: <b>"+chaves.length+"</b> pedido(s)");
+  let semChave=0,valorDif=0,naoConf=0,prontos=0;const exSem=[],exVal=[];
+  pedidos.forEach(p=>{
+    const k=String(p.numero||"").trim()+"|"+repNorm(p.representada);
+    const r=base[k];
+    if(!r){if(exSem.length<3)exSem.push(k);semChave++;return;}
+    if(!r.ok){naoConf++;return;}
+    if(Math.abs((p.total||0)-(r.total||0))>0.02){if(exVal.length<3)exVal.push(k+" app "+brl(p.total)+" x relat\u00f3rio "+brl(r.total));valorDif++;return;}
+    if(itensDe(p).length){return;}
+    prontos++;
+  });
+  L.push("\u2705 Prontos para completar: <b style='color:var(--verde)'>"+prontos+"</b>");
+  L.push("\u2796 Sem correspond\u00eancia: <b>"+semChave+"</b> \u00b7 valor diferente: <b>"+valorDif+"</b> \u00b7 n\u00e3o conferidos: <b>"+naoConf+"</b>");
+  if(exSem.length)L.push('<span style="color:#888">Exemplos sem par (app): '+exSem.map(esc).join(" \u00b7 ")+"</span>");
+  if(exVal.length)L.push('<span style="color:#888">'+exVal.map(esc).join("<br>")+"</span>");
+  L.push('<span style="color:#888">Exemplos no relat\u00f3rio: '+chaves.slice(0,3).map(esc).join(" \u00b7 ")+"</span>");
+  const amostra=pedidos.find(p=>itensDe(p).length);
+  if(amostra)L.push("Confer\u00eancia: pedido <b>"+esc(String(amostra.numero||""))+"</b> tem <b>"+itensDe(amostra).length+"</b> item(ns) gravado(s) \u2713");
+  if(el)el.innerHTML=L.join("<br>");
 }
 async function conferirRelatorio(){
   const el=document.getElementById("relProg");
@@ -1358,7 +1394,7 @@ async function conferirRelatorio(){
     pedidos.forEach(p=>{
       const k=String(p.numero||"").trim()+"|"+repNorm(p.representada);
       const r=base[k];if(!r)return;
-      if((p.itens||[]).length){jaTem++;return;}
+      if(itensDe(p).length){jaTem++;return;}
       if(Math.abs((p.total||0)-(r.total||0))>0.02||!r.ok){divergentes++;return;}
       mapa[p.id]=r.itens;casam++;
     });
@@ -1981,7 +2017,7 @@ function textoPedido(o){
   if(o.cond)t+="Cond. pagto: "+o.cond+"\n";
   if(o.forma)t+="Forma: "+o.forma+"\n";
   t+="\n";
-  o.itens.forEach(i=>t+=i.qtd+"x "+i.nome+" — "+brl(i.qtd*i.preco)+"\n");
+  itensDe(o).forEach(i=>t+=i.qtd+"x "+i.nome+" — "+brl(i.qtd*i.preco)+"\n");
   if(o.descPerc>0)t+="\n"+(o.descTipo==="desc"?"Desconto":"Acréscimo")+": "+o.descPerc+"%";
   t+="\n*TOTAL: "+brl(o.total)+"*";
   if(o.obsCli)t+="\n\nObs: "+o.obsCli;
@@ -2067,7 +2103,7 @@ function htmlListaCentral(){
     const sit=o.situacao||(o.status==="enviado"?"Enviado":"Pendente");
     const corSit=/pago|conclu/i.test(sit)?"var(--verde)":"#b45309";
     const det=o.id===pedidoAberto?`<div class="det">
-        ${(o.itens||[]).map(i=>`<div class="li"><span>${i.qtd}x ${esc(i.nome)}</span><span>${brl(i.qtd*i.preco)}</span></div>`).join("")}
+        ${itensDe(o).map(i=>`<div class="li"><span>${i.qtd}x ${esc(i.nome)}</span><span>${brl(i.qtd*i.preco)}</span></div>`).join("")}
         ${o.historico?'<div class="pag">📦 Pedido do histórico</div>':""}
         ${o.origem==="catalogo"?'<div class="pag">🛍️ Veio do catálogo online'+(o.contato?" · contato: "+esc(o.contato):"")+'</div>':""}
         ${o.obs?`<div class="pag">📝 ${esc(o.obs)}</div>`:""}
@@ -2161,7 +2197,7 @@ function aceitarPedido(id){
 }
 function carregarItensNoCarrinho(o){
   carrinho={};
-  const itens=o.itens||[];
+  const itens=itensDe(o);
   let achou=0,perdidos=[];
   itens.forEach(i=>{
     const cod=String(i.codigo||"").trim().toLowerCase();
@@ -2184,7 +2220,7 @@ function avisoItens(o,r){
 function editarPedido(id){
   const o=pedidos.find(x=>x.id===id); if(!o)return;
   if(!podeEditarPed(o)){toast("Pedido já sincronizado — só o administrador pode editar");return;}
-  if(!(o.itens||[]).length){
+  if(!itensDe(o).length){
     if(!confirm("Este pedido veio do sistema antigo e n\u00e3o tem a lista de produtos \u2014 s\u00f3 o total de "+brl(o.total)+".\n\nAbrir para montar os itens agora?\n\n\u26a0\ufe0f Ao salvar, o valor passa a ser o dos itens que voc\u00ea incluir."))return;
   }
   const r=carregarItensNoCarrinho(o);
@@ -2201,7 +2237,7 @@ function editarPedido(id){
 function cancelarEdicao(){editandoPedido=null;carrinho={};clienteSel="";toast("Edição cancelada");irPara("central");}
 function duplicarPedido(id){
   const o=pedidos.find(x=>x.id===id); if(!o)return;
-  if(!(o.itens||[]).length){
+  if(!itensDe(o).length){
     if(!confirm((o.historico?"Este pedido veio do sistema antigo e n\u00e3o tem a lista de produtos.":"Este pedido est\u00e1 sem itens.")+"\n\nAbrir um pedido novo para "+(o.cliente||"este cliente")+" e montar os itens?"))return;
     carrinho={};clienteSel=o.clienteId||(clientes.find(c=>c.nome===o.cliente)||{}).id||"";
     ped={...ped,status:"Pedido",cond:o.cond||"",forma:o.forma||"",tabela:o.tabela||"",
@@ -2240,20 +2276,20 @@ function pdfMarkup(id){
   const num=o.numero||"—";
   const emp=empresa||{};
   const nomeEmp=(emp.razao||"EIKO VIDA");
-  const subtotal=(o.itens&&o.itens.length)?o.itens.reduce((s,i)=>s+i.qtd*i.preco,0):(o.total||0);
+  const subtotal=itensDe(o).length?itensDe(o).reduce((s,i)=>s+i.qtd*i.preco,0):(o.total||0);
   const dp=parseFloat(String(o.descPerc||"0").replace(",","."))||0;
   const ehAcre=(o.descTipo||"").toLowerCase().startsWith("acr");
   const descValor=subtotal*dp/100;
   const descPercTxt=dp?((ehAcre?"+":"-")+dp.toString().replace(".",",")+"%"):"";
   const descValTxt=dp?((ehAcre?"+":"-")+brl(descValor)):"";
-  const nItens=(o.itens||[]).length;
-  const totQtd=(o.itens||[]).reduce((s,i)=>s+i.qtd,0);
+  const nItens=itensDe(o).length;
+  const totQtd=itensDe(o).reduce((s,i)=>s+i.qtd,0);
   const endLinha=[c.endereco,c.numero].filter(Boolean).join(", ");
   const endResumo=[endLinha,c.bairro,(c.cidade?c.cidade+(c.uf?"/"+c.uf:""):"")].filter(Boolean).join(" - ");
   const venc=o.cond?o.cond:("(0) "+dataBr(o.data));
   const F=(rot,val,flex)=>`<div class="cp" style="flex:${flex||1}"><span class="lb">${rot}</span><span class="vl">${(val==null||val==="")?"&nbsp;":esc(String(val))}</span></div>`;
   const L=(...cps)=>`<div class="ln">${cps.join("")}</div>`;
-  const linhas=(o.itens||[]).map(i=>{
+  const linhas=itensDe(o).map(i=>{
     const prod=produtos.find(p=>p.nome===i.nome)||{};
     return `<tr>
       <td>${esc(i.codigo||prod.codigo||"")}</td>
@@ -2395,7 +2431,7 @@ function construirPDFjs(id,logo){
   const emp=empresa||{};
   const nomeEmp=emp.razao||"EIKO VIDA";
   const num=o.numero||"—";
-  const subtotal=(o.itens&&o.itens.length)?o.itens.reduce((s,i)=>s+i.qtd*i.preco,0):(o.total||0);
+  const subtotal=itensDe(o).length?itensDe(o).reduce((s,i)=>s+i.qtd*i.preco,0):(o.total||0);
   const dp=parseFloat(String(o.descPerc||"0").replace(",","."))||0;
   const ehAcre=(o.descTipo||"").toLowerCase().startsWith("acr");
   const descValor=subtotal*dp/100;
@@ -2500,7 +2536,7 @@ function construirPDFjs(id,logo){
   campo(X0,y,58,rh,"Tabela de preço",o.tabela);
   campo(X0+58,y,58,rh,"Forma de pagamento",o.forma);
   campo(X0+116,y,26,rh,"Volumes","");
-  campo(X0+142,y,20,rh,"Itens",String((o.itens||[]).length));
+  campo(X0+142,y,20,rh,"Itens",String(itensDe(o).length));
   campo(X0+162,y,W-162,rh,"Peso bruto kg",""); y+=rh;
   campo(X0,y,W,rh,"Condição de pagamento",o.cond); y+=rh;
   campo(X0,y,W,rh,"Observação",o.obsCli||o.obsEmp); y+=rh;
@@ -2518,7 +2554,7 @@ function construirPDFjs(id,logo){
   header();
   doc.setFont("helvetica","normal");doc.setFontSize(7);
   const irh=5;
-  (o.itens||[]).forEach(i=>{
+  itensDe(o).forEach(i=>{
     if(y+irh>288){doc.addPage();y=M+2;header();doc.setFont("helvetica","normal");doc.setFontSize(7);}
     const prod=produtos.find(p=>p.nome===i.nome)||{};
     const vals=[i.codigo||prod.codigo||"",i.nome,prod.ncm||"",prod.embalagem||"UN/1",String(i.qtd),brl(i.preco),brl(i.qtd*i.preco),"",prod.codbarras||""];
@@ -2526,7 +2562,7 @@ function construirPDFjs(id,logo){
     cols.forEach((cc,ci)=>{doc.rect(x,y,cc[1],irh);const al=cc[2]==="r"?"right":cc[2]==="c"?"center":"left";const tx=cc[2]==="r"?x+cc[1]-1:cc[2]==="c"?x+cc[1]/2:x+1;T(fit(vals[ci],cc[1]),tx,y+3.4,{align:al});x+=cc[1];});
     y+=irh;
   });
-  if(!(o.itens||[]).length){doc.setTextColor(120);doc.setFontSize(8);T("Pedido do histórico (sem itens detalhados)",X0+2,y+4);doc.rect(X0,y,W,6);y+=6;}
+  if(!itensDe(o).length){doc.setTextColor(120);doc.setFontSize(8);T("Pedido do histórico (sem itens detalhados)",X0+2,y+4);doc.rect(X0,y,W,6);y+=6;}
   // rodapé
   doc.setFont("helvetica","normal");doc.setFontSize(6.5);doc.setTextColor(120);
   T(nomeEmp+(emp.site?" · "+emp.site:"")+(emp.telefone?" · "+emp.telefone:"")+" — gerado em "+new Date().toLocaleString("pt-BR"),PW/2,292,{align:"center"});
@@ -2713,10 +2749,10 @@ function viewClienteDetalhe(){
   ].filter(Boolean).map(a=>`<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:14px;border-bottom:1px solid #f0f0ee"><span style="color:var(--cinza)">${a[0]}</span><span style="text-align:right;max-width:60%">${esc(a[1])}</span></div>`).join("");
   const histHtml=hist.length===0?`<div class="vazio" style="padding:24px"><div>Sem pedidos ainda.</div></div>`
     :hist.map(o=>`<div class="ped"><div class="top" onclick="abrirPedHist('${o.id}')">
-        <div class="cli"><b>${dataBr(o.data)} · ${hora(o.data)}</b><small>${o.itens.reduce((s,i)=>s+i.qtd,0)} un${o.cond?" · "+esc(o.cond):""}</small></div>
+        <div class="cli"><b>${dataBr(o.data)} · ${hora(o.data)}</b><small>${itensDe(o).reduce((s,i)=>s+i.qtd,0)} un${o.cond?" · "+esc(o.cond):""}</small></div>
         <div class="tot">${brl(o.total)}</div>
         <span class="badge ${o.status==='enviado'?'b-enviado':'b-aberto'}">${o.status}</span></div>
-        ${o.id===pedidoAberto?`<div class="det">${o.itens.map(i=>`<div class="li"><span>${i.qtd}x ${esc(i.nome)}</span><span>${brl(i.qtd*i.preco)}</span></div>`).join("")}</div>`:""}
+        ${o.id===pedidoAberto?`<div class="det">${itensDe(o).map(i=>`<div class="li"><span>${i.qtd}x ${esc(i.nome)}</span><span>${brl(i.qtd*i.preco)}</span></div>`).join("")}</div>`:""}
       </div>`).join("");
   return `
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
