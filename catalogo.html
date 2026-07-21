@@ -185,6 +185,8 @@ function aguardarAcesso(ms){return new Promise(r=>{if(acessoPronto)return r(true
 
 
 let produtos=[],empresa={},cfg={},cat="",carrinho={},prodAberto=null;
+const REPRES=(()=>{try{const r=new URLSearchParams(location.search).get("r");return r&&r.toUpperCase()!=="TODAS"?r.trim():"";}catch(e){return "";}})();
+function daRepres(p){return !REPRES||String(p.marca||"EIKO VIDA").trim().toUpperCase()===REPRES.toUpperCase();}
 let clientes=[],cliIdent=null,modoCad="escolha",pedidoAtual=null,unsubPed=null;
 const brl=n=>"R$ "+(Number(n)||0).toFixed(2).replace(".",",").replace(/\B(?=(\d{3})+(?!\d))/g,".");
 const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -194,7 +196,7 @@ function zap(){const n=digitos(cfg.whatsapp||empresa.whats||WHATS_PADRAO);return
 function conectarNuvem(){
 db.ref("produtos").on("value",s=>{
   const v=s.val()||{};
-  produtos=Object.keys(v).map(k=>({id:k,...v[k]})).filter(p=>p.nome&&p.catalogo!==false);
+  produtos=Object.keys(v).map(k=>({id:k,...v[k]})).filter(p=>p.nome&&p.catalogo!==false&&daRepres(p));
   montarCats();filtrar();
 });
 db.ref("clientes").on("value",s=>{const v=s.val()||{};clientes=Object.keys(v).map(k=>({id:k,...v[k]}));});
@@ -205,6 +207,7 @@ quandoAcesso(conectarNuvem);
 
 function aplicarCfg(){
   if(cfg.titulo)document.getElementById("hTitulo").textContent=cfg.titulo;
+  if(REPRES){document.getElementById("hTitulo").textContent=REPRES;document.title=REPRES+" \u2014 Cat\u00e1logo de Atacado";}
   if(cfg.subtitulo)document.getElementById("hSub").textContent=cfg.subtitulo;
   if(cfg.pitchTitulo)document.getElementById("hPitch").textContent=cfg.pitchTitulo;
   const selos=(cfg.selos||"🌱 100% Vegano, 🧪 Registro ANVISA, 🇧🇷 Produção própria, 📦 Pronta entrega").split(",").map(x=>x.trim()).filter(Boolean);

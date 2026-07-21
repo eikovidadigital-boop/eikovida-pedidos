@@ -319,7 +319,7 @@ const LS={get(k,def){try{const v=localStorage.getItem("eiko_"+k);return v?JSON.p
 let vendedor="", viewAtual="home";
 let vendedorCodigo="", vendedorId="", ehAdmin=false, permissoes=null;
 const ADMIN_USER="adm01eiko", ADMIN_SENHA="2904";
-const ABAS=[["convites","Instalar p/ Vendedor"],["catalogoCfg","Editar Catálogo"],["home","Início"],["novo","Novo Pedido"],["central","Central de Pedidos"],["relatorios","Relatórios"],["cobrancas","Cobranças"],["clientes","Clientes"],["produtos","Produtos"],["tabelas","Tabelas de Preço"],["transportadoras","Transportadoras"],["fornecedores","Fornecedores"],["agenda","Agenda / CRM"],["equipe","Minha Equipe"],["empresa","Minha Empresa"],["importacoes","Importações"],["sync","Sincronização"],["catalogo","Catálogo Online"]];
+const ABAS=[["convites","Instalar p/ Vendedor"],["catalogoCfg","Editar Catálogo"],["representadas","Representadas"],["home","Início"],["novo","Novo Pedido"],["central","Central de Pedidos"],["relatorios","Relatórios"],["cobrancas","Cobranças"],["clientes","Clientes"],["produtos","Produtos"],["tabelas","Tabelas de Preço"],["transportadoras","Transportadoras"],["fornecedores","Fornecedores"],["agenda","Agenda / CRM"],["equipe","Minha Equipe"],["empresa","Minha Empresa"],["importacoes","Importações"],["sync","Sincronização"],["catalogo","Catálogo Online"]];
 const ABAS_PADRAO=["home","novo","central","clientes","produtos","agenda","sync"];
 function podeVer(v){return ehAdmin||!permissoes||permissoes.includes(v);}
 function podeEditarPed(o){
@@ -335,8 +335,11 @@ function pedidosVis(){
 let online=(typeof navigator!=="undefined"?navigator.onLine:true), filaPendentes=[];
 let periodoRel="30";
 const REPRES_FIXAS=["EIKO VIDA","MEL RAIZ"];
-function representadas(){return [...new Set(REPRES_FIXAS.concat(produtos.map(p=>p.marca).filter(Boolean)).concat(pedidos.map(p=>p.representada).filter(Boolean)))].sort();}
+function representadas(){return [...new Set(REPRES_FIXAS.concat(repres.filter(r=>r.ativa!==false).map(r=>r.nome).filter(Boolean)).concat(produtos.map(p=>p.marca).filter(Boolean)).concat(pedidos.map(p=>p.representada).filter(Boolean)))].sort();}
+function repDe(nome){return repres.find(r=>String(r.nome||"").trim().toUpperCase()===String(nome||"").trim().toUpperCase())||{};}
+function linkCatalogo(rep){return URL_CATALOGO+(rep&&rep!=="TODAS"?"?r="+encodeURIComponent(rep):"");}
 let transportadoras=[], transpEdit=null, filtroCobr="areceber";
+let repres=[], repEdit=null;
 let agenda=[], agendaEdit=null, filtroAgenda="proximos";
 let fornecedores=[], fornEdit=null;
 let empresa={}, equipe=[], vendEdit=null, transfDe=null, codigoAtivacao="EIKO2026";
@@ -547,6 +550,7 @@ function conectarFirebase(){
   db.ref("categorias_cliente").on("value",s=>{const a=toArr(s.val());if(a.length===0&&catCliente.length>0)return;catCliente=a;LS.set("catCliente",a);reRender(["clientes"]);});
   db.ref("categorias_produto").on("value",s=>{const a=toArr(s.val());if(a.length===0&&catProduto.length>0)return;catProduto=a;LS.set("catProduto",a);reRender(["produtos","novo"]);});
   db.ref("tabelas").on("value",s=>{const a=toArr(s.val());if(a.length===0&&tabelas.length>0)return;tabelas=a;LS.set("tabelas",a);reRender(["tabelas"]);if(viewAtual==="novo"&&subAbaPedido==="cab")render();});
+  db.ref("representadas").on("value",s=>{repres=toArr(s.val());LS.set("representadas",repres);reRender(["representadas","produtos","novo","convites"]);});
   db.ref("transportadoras").on("value",s=>{const a=toArr(s.val());if(a.length===0&&transportadoras.length>0)return;transportadoras=a;LS.set("transportadoras",a);reRender(["transportadoras","novo"]);});
   db.ref("agenda").on("value",s=>{const a=toArr(s.val());if(a.length===0&&agenda.length>0)return;agenda=a;LS.set("agenda",a);reRender(["agenda","home"]);});
   db.ref("fornecedores").on("value",s=>{const a=toArr(s.val());if(a.length===0&&fornecedores.length>0)return;fornecedores=a;LS.set("fornecedores",a);reRender(["fornecedores"]);});
@@ -587,6 +591,7 @@ const MENU=[
   ["🏷️","Tabelas de Preço","tabelas"],
   ["🚚","Transportadoras","transportadoras"],
   ["🏭","Fornecedores","fornecedores"],
+  ["🏛️","Representadas","representadas"],
   ["__s","GESTÃO"],
   ["📅","Agenda / CRM","agenda"],
   ["🧑‍💼","Minha Equipe","equipe"],
@@ -607,7 +612,7 @@ function toggleMenu(){
   if(abrir)renderMenu();
   d.classList.toggle("on",abrir);o.classList.toggle("on",abrir);
 }
-function navMenu(v){toggleMenu();if(v==="catalogo"){window.open(URL_CATALOGO,"_blank");return;}if(v==="__sair"){sair();return;}irPara(v);}
+function navMenu(v){toggleMenu();if(v==="catalogo"){enviarCatalogo("");return;}if(v==="__sair"){sair();return;}irPara(v);}
 function sair(){
   if(!confirm("Sair do app? Seus dados continuam salvos."))return;
   try{["eiko_vendedor","eiko_vcod","eiko_vid","eiko_admin","eiko_perm"].forEach(k=>localStorage.removeItem(k));}catch(e){}
@@ -636,13 +641,14 @@ function viewHome(){
     {ic:"💰",cor:"#16A34A",tit:"Cobranças",v:"cobrancas"},
     {ic:"📅",cor:"#DB2777",tit:"Agenda / CRM",v:"agenda"},
     {ic:"🏭",cor:"#78716C",tit:"Fornecedores",v:"fornecedores"},
+    {ic:"🏛️",cor:"#0F766E",tit:"Representadas",v:"representadas"},
     {ic:"🏢",cor:"#0891B2",tit:"Empresa",v:"empresa"},
     {ic:"🧑‍💼",cor:"#7C3AED",tit:"Minha Equipe",v:"equipe"},
     {ic:"📥",cor:"#2563EB",tit:"Importações",v:"importacoes"},
     {ic:"🚚",cor:"#0EA5E9",tit:"Transportadoras",v:"transportadoras"},
     {ic:"🌐",cor:"#8B5CF6",tit:"Catálogo Virtual",v:"catalogo"},
   ];
-  const cards=itens.map(i=>`<button class="homecard" onclick="${i.v==='catalogo'?`window.open(URL_CATALOGO,'_blank')`:`irPara('${i.v}')`}">
+  const cards=itens.filter(i=>i.v==="catalogo"||podeVer(i.v)).map(i=>`<button class="homecard" onclick="${i.v==='catalogo'?`enviarCatalogo('')`:`irPara('${i.v}')`}">
     <span class="homeic" style="background:${i.cor}22;color:${i.cor}">${i.ic}</span>
     <span class="hometit">${i.tit}</span></button>`).join("");
   const pend=filaPendentes.length?`<div class="pendbar" onclick="irPara('sync')">⏳ ${filaPendentes.length} item(ns) aguardando sincronizar — toque aqui</div>`:"";
@@ -680,6 +686,111 @@ function abrirPeriodo(v){
     periodoDe=ini.toISOString().slice(0,10);periodoAte=hoje.toISOString().slice(0,10);
   }
   render();
+}
+function textoCatalogo(rep,cli){
+  const marca=(rep&&rep!=="TODAS")?rep:(empresa.razao||"EIKO VIDA");
+  const r=repDe(rep)||{};
+  const chamada=r.obs?r.obs:(/MEL/i.test(marca)?"m\u00e9is e bananadas artesanais":"\u00f3leos vegetais 100% naturais");
+  return "Ol\u00e1"+(cli&&cli.nome?" "+String(cli.nome).split(" ")[0]:"")+"! Segue o cat\u00e1logo de atacado da "+marca
+    +" \u2014 "+chamada+" com \u00f3tima margem para revenda.\n\n"+linkCatalogo(rep)
+    +"\n\n\u00c9 s\u00f3 escolher os produtos e enviar o pedido por ali mesmo. Qualquer d\u00favida, estou \u00e0 disposi\u00e7\u00e3o!\n"+(vendedor||"");
+}
+function enviarCatalogo(rep,clienteId){
+  const cli=clienteId?clientes.find(c=>c.id===clienteId):null;
+  const opts=representadas();
+  const podeEscolher=ehAdmin&&opts.length>1;
+  const alvo=cli?soDig(cli.whatsapp||cli.telefone||""):"";
+  const linhas=[];
+  if(podeEscolher&&!rep){
+    opts.forEach(o=>linhas.push(["\ud83d\udcda","Cat\u00e1logo "+o,`fecharSheet();enviarCatalogo('${o.replace(/'/g,"")}'${clienteId?`,'${clienteId}'`:""})`]));
+    linhas.push(["\ud83c\udf10","Cat\u00e1logo completo (todas)",`fecharSheet();enviarCatalogo('TODAS'${clienteId?`,'${clienteId}'`:""})`]);
+    const html=`<div class="sheet-ov" onclick="fecharSheet()"></div>
+      <div class="sheet"><div class="sheet-h">Enviar cat\u00e1logo<small>${cli?esc(cli.nome):"escolha a representada"}</small></div>
+      ${linhas.map(x=>`<div class="sheet-i" onclick="${x[2]}"><span>${x[0]}</span>${x[1]}</div>`).join("")}
+      <div class="sheet-i" style="justify-content:center;color:var(--cinza)" onclick="fecharSheet()">Fechar</div></div>`;
+    const d=document.createElement("div");d.id="sheetWrap";d.innerHTML=html;document.body.appendChild(d);
+    return;
+  }
+  const escolhida=rep||(ehAdmin?"TODAS":(minhaRepresentada()||"TODAS"));
+  const txt=textoCatalogo(escolhida,cli);
+  const url=alvo?("https://wa.me/55"+alvo.replace(/^55/,"")+"?text="+encodeURIComponent(txt))
+                :("https://wa.me/?text="+encodeURIComponent(txt));
+  try{navigator.clipboard&&navigator.clipboard.writeText(txt);}catch(e){}
+  window.open(url,"_blank");
+  toast(cli?"Abrindo a conversa\u2026":"Escolha o contato no WhatsApp");
+}
+function minhaRepresentada(){
+  const v=equipe.find(x=>x.nome===vendedor);
+  const lista=(v&&Array.isArray(v.representadas)&&v.representadas.length)?v.representadas:null;
+  return lista?(lista.length===1?lista[0]:"TODAS"):null;
+}
+function catalogosDoVendedor(){
+  const v=equipe.find(x=>x.nome===vendedor);
+  if(ehAdmin)return representadas();
+  return (v&&Array.isArray(v.representadas)&&v.representadas.length)?v.representadas:representadas();
+}
+function viewRepresentadas(){
+  const f=repEdit||{nome:"",fantasia:"",cnpj:"",contato:"",telefone:"",email:"",obs:"",ativa:true};
+  const form=!ehAdmin?"":`<div class="card">
+    <div style="font-weight:700;font-size:14px;margin-bottom:8px">${repEdit?"\u270e Editar representada":"+ Nova representada"}</div>
+    <input class="inp" id="rpNome" placeholder="Nome da representada *" value="${esc(f.nome)}" style="margin-top:0"/>
+    <div class="fgrid" style="margin-top:8px">
+      <div><label class="lb">Nome fantasia</label><input class="inp" id="rpFant" value="${esc(f.fantasia||"")}"/></div>
+      <div><label class="lb">CNPJ</label><input class="inp" id="rpCnpj" value="${esc(f.cnpj||"")}"/></div>
+    </div>
+    <div class="fgrid" style="margin-top:8px">
+      <div><label class="lb">Contato</label><input class="inp" id="rpCont" value="${esc(f.contato||"")}"/></div>
+      <div><label class="lb">Telefone</label><input class="inp" id="rpTel" inputmode="tel" value="${esc(f.telefone||"")}"/></div>
+    </div>
+    <label class="lb" style="margin-top:8px;display:block">E-mail</label>
+    <input class="inp" id="rpMail" inputmode="email" value="${esc(f.email||"")}"/>
+    <label class="lb" style="margin-top:8px;display:block">Observações</label>
+    <input class="inp" id="rpObs" value="${esc(f.obs||"")}"/>
+    <div class="row" style="margin-top:12px">
+      <button class="btn btn-v" style="flex:1" onclick="salvarRepres()">${repEdit?"Salvar altera\u00e7\u00f5es":"Cadastrar"}</button>
+      ${repEdit?`<button class="btn btn-g" onclick="repEdit=null;render()">\u2715</button>`:""}
+    </div></div>`;
+  const lista=representadas().map(nome=>{
+    const r=repDe(nome);
+    const nProd=produtos.filter(p=>(p.marca||"EIKO VIDA")===nome).length;
+    const nPed=pedidosVis().filter(p=>(p.representada||"EIKO VIDA")===nome).length;
+    return `<div class="card" style="padding:12px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+        <div style="flex:1;min-width:0">
+          <b>${esc(nome)}</b>${r.fantasia?`<small style="display:block;color:var(--cinza)">${esc(r.fantasia)}</small>`:""}
+          <small style="display:block;color:var(--cinza)">\ud83d\udce6 ${nProd} produto(s) \u00b7 \ud83d\udccb ${nPed} pedido(s)</small>
+          ${r.cnpj?`<small style="display:block;color:var(--cinza)">CNPJ: ${esc(r.cnpj)}</small>`:""}
+        </div>
+        ${ehAdmin&&r.id?`<button class="icbtn btn-g" onclick="editarRepres('${r.id}')">\u270e</button>`:""}
+      </div>
+      <div class="row" style="margin-top:8px">
+        <button class="btn btn-w btn-sm" style="flex:1" onclick="enviarCatalogo('${esc(nome)}')">\ud83d\udcf2 Enviar cat\u00e1logo</button>
+        <button class="btn btn-g btn-sm" onclick="window.open(linkCatalogo('${esc(nome)}'),'_blank')">Ver</button>
+      </div>
+      ${ehAdmin&&r.id?`<button class="btn btn-r btn-sm" style="width:100%;margin-top:6px" onclick="excluirRepres('${r.id}')">\ud83d\uddd1 Excluir</button>`:""}
+    </div>`;
+  }).join("");
+  return `<h2 class="tit">Representadas</h2>
+    <div class="card" style="background:#f8f8f6"><div style="font-size:13px;color:#555">Cada produto e cada pedido pertence a uma representada. O cat\u00e1logo pode ser enviado com os produtos de uma s\u00f3.</div></div>
+    ${form}${lista}`;
+}
+function salvarRepres(){
+  const o={nome:val("rpNome").trim(),fantasia:val("rpFant"),cnpj:val("rpCnpj"),contato:val("rpCont"),
+           telefone:val("rpTel"),email:val("rpMail"),obs:val("rpObs"),ativa:true};
+  if(!o.nome){toast("Informe o nome");return;}
+  const rep=repEdit;
+  if(!rep&&repres.some(r=>String(r.nome||"").trim().toUpperCase()===o.nome.toUpperCase())){toast("J\u00e1 existe uma representada com esse nome");return;}
+  if(rep){db.ref("representadas/"+rep.id).update(o);repEdit=null;toast("Representada atualizada \u2713");}
+  else{db.ref("representadas").push(o);toast("Representada cadastrada \u2713");}
+  render();
+}
+function editarRepres(id){repEdit=repres.find(r=>r.id===id);render();window.scrollTo(0,0);}
+function excluirRepres(id){
+  const r=repres.find(x=>x.id===id); if(!r)return;
+  const nProd=produtos.filter(p=>(p.marca||"")===r.nome).length;
+  const nPed=pedidos.filter(p=>(p.representada||"")===r.nome).length;
+  if(!confirm("Excluir a representada "+r.nome+"?"+(nProd||nPed?"\n\n\u26a0\ufe0f "+nProd+" produto(s) e "+nPed+" pedido(s) continuam com esse nome gravado.":"")))return;
+  db.ref("representadas/"+id).remove().then(()=>{if(repEdit&&repEdit.id===id)repEdit=null;toast("Exclu\u00edda");render();}).catch(()=>toast("N\u00e3o foi poss\u00edvel concluir. Tente novamente."));
 }
 function viewRelatorios(){
   const agora=Date.now();
@@ -1015,9 +1126,13 @@ function viewCatalogoCfg(){
 
   const link=box("🔗 Link do catálogo",`
     <div style="background:#f8f8f6;border-radius:8px;padding:10px;font-size:13px;text-align:center;word-break:break-all">${esc(URL_CATALOGO)}</div>
+    <div style="font-size:12px;color:var(--cinza);margin-top:6px">Links por representada:</div>
+    ${representadas().map(r=>`<div style="background:#f8f8f6;border-radius:8px;padding:7px 10px;font-size:12px;margin-top:4px;display:flex;justify-content:space-between;gap:8px;align-items:center">
+      <span style="word-break:break-all">${esc(linkCatalogo(r))}</span>
+      <button class="btn btn-g btn-sm" onclick="copiar(linkCatalogo('${esc(r)}'),'Link copiado \u2713')">Copiar</button></div>`).join("")}
     <div class="row" style="margin-top:8px">
       <button class="btn btn-v btn-sm" style="flex:1" onclick="copiar(URL_CATALOGO,'Link copiado ✓')">Copiar</button>
-      <button class="btn btn-w btn-sm" style="flex:1" onclick="compartilharCatalogo()">📲 Enviar p/ lojista</button>
+      <button class="btn btn-w btn-sm" style="flex:1" onclick="enviarCatalogo('')">📲 Enviar p/ lojista</button>
       <button class="btn btn-g btn-sm" onclick="window.open(URL_CATALOGO,'_blank')">Ver</button>
     </div>`);
 
@@ -1144,6 +1259,12 @@ function viewEquipe(){
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 12px">${gridPerm}</div>
     </div>
+    <div style="margin-top:10px;background:#f8f8f6;border-radius:10px;padding:10px">
+      <div style="font-weight:700;font-size:13px;margin-bottom:2px">\ud83c\udfdb\ufe0f Representadas deste vendedor</div>
+      <div style="font-size:11px;color:var(--cinza);margin-bottom:6px">Define quais cat\u00e1logos ele pode enviar. Nenhuma marcada = todas.</div>
+      ${representadas().map(r=>`<label style="display:flex;align-items:center;gap:7px;font-size:13px;padding:4px 0">
+        <input type="checkbox" class="repChk" value="${esc(r)}" ${(vendEdit&&Array.isArray(vendEdit.representadas)&&vendEdit.representadas.includes(r))?"checked":""} style="width:17px;height:17px"/> ${esc(r)}</label>`).join("")}
+    </div>
     <div class="row" style="margin-top:12px">
       <button class="btn btn-v" style="flex:1" onclick="salvarVend()">${vendEdit?"Salvar alterações":"Cadastrar vendedor"}</button>
       ${vendEdit?`<button class="btn btn-g" onclick="vendEdit=null;render()">✕</button>`:""}
@@ -1244,6 +1365,9 @@ function salvarVend(){
   const marcadas=[];
   try{document.querySelectorAll(".permChk").forEach(ch=>{if(ch.checked)marcadas.push(ch.value);});}catch(e){}
   o.permissoes=marcadas.length?marcadas:ABAS_PADRAO.slice();
+  const reps=[];
+  try{document.querySelectorAll(".repChk").forEach(ch=>{if(ch.checked)reps.push(ch.value);});}catch(e){}
+  o.representadas=reps;
   if(!vendEdit){o.codAtivacao=gerarCodAtivacao();o.ativado=false;}
   let cod=padCod(val("veCod"));
   if(!val("veCod")){
@@ -1319,6 +1443,38 @@ function excluirVend(id){
 
 /* ====== IMPORTAÇÕES ====== */
 let relPrev=null, relProdPrev=null;
+function chavePed(p){return String(p.numero||"").trim()+"|"+repNorm(p.representada)+"|"+(Math.round((p.total||0)*100))+"|"+String(p.dataEmissao||p.data||"").slice(0,10);}
+function pedidosDuplicados(){
+  const grupos={};
+  pedidos.filter(p=>!p._pendente).forEach(p=>{const k=chavePed(p);(grupos[k]=grupos[k]||[]).push(p);});
+  const sobrando=[];
+  Object.values(grupos).forEach(g=>{
+    if(g.length<2)return;
+    // mantém o mais completo: com itens primeiro, depois o mais antigo
+    g.sort((a,b)=>(itensDe(b).length-itensDe(a).length)||String(a.id).localeCompare(String(b.id)));
+    g.slice(1).forEach(p=>sobrando.push(p));
+  });
+  return sobrando;
+}
+async function limparPedidosDup(){
+  const sobra=pedidosDuplicados();
+  if(!sobra.length){toast("Nenhum pedido duplicado \u2713");return;}
+  const valor=sobra.reduce((s,p)=>s+(p.total||0),0);
+  if(!confirm("Encontrei "+sobra.length+" pedido(s) repetido(s), somando "+brl(valor)+" a mais nos relat\u00f3rios.\n\nApagar as c\u00f3pias e manter uma de cada?\n\nEsta a\u00e7\u00e3o n\u00e3o pode ser desfeita."))return;
+  if(!confirm("Confirma apagar "+sobra.length+" c\u00f3pia(s)?"))return;
+  const el=document.getElementById("relProg");
+  try{
+    let feitos=0;
+    for(let i=0;i<sobra.length;i+=200){
+      const upd={};
+      sobra.slice(i,i+200).forEach(p=>{upd[p.id]=null;});
+      await db.ref("pedidos").update(upd);
+      feitos+=Object.keys(upd).length;
+      if(el)el.textContent=feitos+" de "+sobra.length+" removidos\u2026";
+    }
+    toast(feitos+" c\u00f3pia(s) removida(s) \u2713");render();
+  }catch(e){if(el)el.textContent="N\u00e3o foi poss\u00edvel concluir. Tente novamente.";}
+}
 function boxRelatorio(){
   const semItens=pedidos.filter(p=>!itensDe(p).length).length;
   const p1=relPrev?`<div style="background:#fff;border-radius:8px;padding:10px;margin-top:8px;font-size:13px">
@@ -1342,7 +1498,11 @@ function boxRelatorio(){
       <button class="btn btn-o btn-sm" style="flex:1" onclick="conferirRelatorio()">1\u00ba Conferir pedidos</button>
       <button class="btn btn-o btn-sm" style="flex:1" onclick="conferirProdutosRel()">2\u00ba Conferir produtos</button>
     </div>
-    <button class="btn btn-g btn-sm" style="width:100%;margin-top:6px" onclick="diagRelatorio()">\ud83d\udd0e Diagn\u00f3stico</button>${p1}${p2}
+    <button class="btn btn-g btn-sm" style="width:100%;margin-top:6px" onclick="diagRelatorio()">\ud83d\udd0e Diagn\u00f3stico</button>
+    ${(()=>{const d=pedidosDuplicados();return d.length?`<div style="background:#fef2f2;border:1px solid #dc2626;border-radius:8px;padding:10px;margin-top:8px">
+      <div style="font-weight:700;font-size:13px;color:#b91c1c">\u26a0\ufe0f ${d.length} pedido(s) repetido(s)</div>
+      <div style="font-size:12px;color:#555;margin:4px 0">Somam <b>${brl(d.reduce((s,p)=>s+(p.total||0),0))}</b> a mais nos relat\u00f3rios. Mantenho uma c\u00f3pia de cada \u2014 a mais completa.</div>
+      <button class="btn btn-r btn-sm" style="width:100%" onclick="limparPedidosDup()">\ud83e\uddf9 Remover ${d.length} c\u00f3pia(s)</button></div>`:"";})()}${p1}${p2}
     <div id="relProg" style="font-size:12px;margin-top:8px"></div></div>`;
 }
 function repNorm(r){return /MEL/i.test(String(r||""))?"MEL RAIZ":"EIKO VIDA";}
@@ -1692,6 +1852,7 @@ function render(){
   else if(viewAtual==="empresa")c.innerHTML=viewEmpresa();
   else if(viewAtual==="equipe")c.innerHTML=viewEquipe();
   else if(viewAtual==="importacoes")c.innerHTML=viewImportacoes();
+  else if(viewAtual==="representadas")c.innerHTML=viewRepresentadas();
   else if(viewAtual==="convites")c.innerHTML=viewConvites();
   else if(viewAtual==="catalogoCfg")c.innerHTML=viewCatalogoCfg();
   // seta de voltar ao início em todas as abas (exceto a própria home)
@@ -2150,6 +2311,7 @@ function menuPedido(id){
     cli?["🗂️","Ficha cadastral do cliente",`fichaCliente('${cli.id}')`]:null,
     ["💰","Cobranças do pedido",`cobrancaDoPedido('${id}')`],
     cli?["📅","Agenda do cliente",`agendaDoCliente('${cli.id}')`]:null,
+    cli?["📚","Enviar catálogo virtual",`enviarCatalogo('',&apos;${cli.id}&apos;)`]:null,
     ["📑","Duplicar pedido",`duplicarPedido('${id}')`],
     fone?["📞","Ligar",`window.open('tel:${fone}')`]:null,
     fone?["💬","WhatsApp",`window.open('https://wa.me/55${fone.replace(/^55/,"")}','_blank')`]:null,
