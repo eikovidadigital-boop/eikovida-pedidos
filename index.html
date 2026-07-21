@@ -1127,8 +1127,9 @@ function viewCobrancas(){
         <button class="btn ${p.recebido?'btn-g':'btn-v'} btn-sm" style="width:100%;margin-top:8px" onclick="marcarRecebido('${p.id}',${p.recebido?'false':'true'})">
           ${p.recebido?'↩ Marcar como a receber':'✓ Marcar como recebido'}</button>
       </div>`).join("");
+  const faltaPagar=aprazo.filter(p=>!p.recebido||!/pago/i.test(p.situacao||""));
   const acoes=ehAdmin?`<div class="row" style="margin-bottom:10px">
-    ${receber.length?`<button class="btn btn-v btn-sm" style="flex:1" onclick="marcarTodosPagos(true)">\u2713 Marcar ${receber.length} como pago(s)</button>`:""}
+    ${faltaPagar.length?`<button class="btn btn-v btn-sm" style="flex:1" onclick="marcarTodosPagos(true)">\u2713 Marcar ${faltaPagar.length} como pago(s)</button>`:'<div style="flex:1;font-size:12px;color:var(--verde);font-weight:700;text-align:center;padding:8px">\u2713 Todos os pedidos est\u00e3o como pagos</div>'}
     ${recebidos.length?`<button class="btn btn-g btn-sm" onclick="marcarTodosPagos(false)">\u21a9 Reabrir todos</button>`:""}
   </div>`:"";
   const busca=`<input class="inp" placeholder="\ud83d\udd0d Buscar por cliente ou n\u00ba" value="${esc(buscaCobr)}" oninput="buscaCobr=this.value;render()" style="margin-bottom:8px">`;
