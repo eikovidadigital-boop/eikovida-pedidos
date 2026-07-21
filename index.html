@@ -210,6 +210,17 @@
   .selorep{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:6px;overflow:hidden;margin-right:6px;vertical-align:middle}
   .selorep img{width:100%;height:100%;object-fit:contain;background:#fff}
   .selorep i{width:100%;height:100%;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:800;font-style:normal}
+  /* itens do pedido */
+  .pedcard .det{padding:0 14px 14px;border-top:1px solid #f0f0ee;padding-top:10px}
+  .pedcard .pag{font-size:12px;color:var(--cinza);margin-top:6px}
+  .itbox{background:#fafaf8;border:1px solid var(--borda);border-radius:10px;overflow:hidden;margin-bottom:10px}
+  .ithead{display:flex;justify-content:space-between;align-items:center;padding:7px 10px;background:#f1f0ec;font-size:11px;font-weight:700;color:var(--cinza);text-transform:uppercase;letter-spacing:.3px}
+  .itlin{display:flex;gap:9px;align-items:flex-start;padding:8px 10px;border-top:1px solid #ececea}
+  .itq{flex-shrink:0;min-width:34px;text-align:center;background:var(--verde);color:#fff;border-radius:6px;font-size:12px;font-weight:800;padding:3px 5px;line-height:1.3}
+  .itnome{flex:1;min-width:0;font-size:13px;line-height:1.35;word-break:break-word}
+  .itun{display:block;font-size:11px;color:var(--cinza);margin-top:1px}
+  .itval{flex-shrink:0;text-align:right;font-size:13px;font-weight:700;white-space:nowrap;padding-left:4px}
+  .ittot{display:flex;justify-content:space-between;padding:9px 10px;border-top:2px solid #e2e0da;background:#f1f0ec;font-size:13px;font-weight:800}
 </style>
 </head>
 <body>
@@ -1591,6 +1602,7 @@ function boxRelatorio(){
       Encontrei <b style="color:var(--verde)">${relPrev.casam}</b> pedido(s) para completar (n\u00famero, representada e valor conferidos).
       ${relPrev.divergentes?`<div style="color:#b45309;margin-top:4px">${relPrev.divergentes} com valor diferente \u2014 esses eu <b>n\u00e3o</b> altero.</div>`:""}
       ${relPrev.jaTem?`<div style="color:#888;margin-top:4px">${relPrev.jaTem} j\u00e1 t\u00eam itens \u2014 mantidos como est\u00e3o.</div>`:""}
+      ${relPrev.corrigeNum?`<div style="color:var(--verde);margin-top:4px">${relPrev.corrigeNum} pedido(s) com dados trocados \u2014 vou consertar o n\u00famero${relPrev.nomeOk?", recuperar "+relPrev.nomeOk+" nome(s) completo(s) do pr\u00f3prio pedido":""}${relPrev.nomeRel?" e trazer "+relPrev.nomeRel+" nome(s) do relat\u00f3rio":""}.</div>`:""}
       ${relPrev.casam?`<button class="btn btn-v" style="width:100%;margin-top:8px" onclick="aplicarItensRelatorio()">\u2713 Completar ${relPrev.casam} pedido(s)</button>`:""}
     </div>`:"";
   const p2=relProdPrev?`<div style="background:#fff;border-radius:8px;padding:10px;margin-top:8px;font-size:13px">
@@ -1648,9 +1660,10 @@ async function diagRelatorio(){
   const chaves=Object.keys(base);
   L.push("Relat\u00f3rio lido: <b>"+chaves.length+"</b> pedido(s)");
   let semChave=0,valorDif=0,naoConf=0,prontos=0;const exSem=[],exVal=[];
+  const ix=indicePorDataValor(base);
   pedidos.forEach(p=>{
     const k=String(p.numero||"").trim()+"|"+repNorm(p.representada);
-    const r=base[k];
+    const r=acharNoRelatorio(p,base,ix);
     if(!r){if(exSem.length<3)exSem.push(k);semChave++;return;}
     if(!r.ok){naoConf++;return;}
     if(Math.abs((p.total||0)-(r.total||0))>0.02){if(exVal.length<3)exVal.push(k+" app "+brl(p.total)+" x relat\u00f3rio "+brl(r.total));valorDif++;return;}
@@ -1666,20 +1679,87 @@ async function diagRelatorio(){
   if(amostra)L.push("Confer\u00eancia: pedido <b>"+esc(String(amostra.numero||""))+"</b> tem <b>"+itensDe(amostra).length+"</b> item(ns) gravado(s) \u2713");
   if(el)el.innerHTML=L.join("<br>");
 }
+const PAD_TROCADO=/^\s*(?:([^-]{1,20}?)\s*-\s*)?(.*)$/;
+function txtSimples(s){return String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/\s+/g," ").trim().toUpperCase();}
+let _cidadesCache=null;
+function cidadesConhecidas(){
+  if(_cidadesCache&&_cidadesCache.n===clientes.length)return _cidadesCache.lista;
+  const set=new Set();
+  clientes.forEach(c=>{const ci=String(c.cidade||"").trim(),uf=String(c.uf||"").trim();if(ci&&uf)set.add(txtSimples(ci+"/"+uf));});
+  const lista=[...set].sort((a,b)=>b.length-a.length);
+  _cidadesCache={n:clientes.length,lista};
+  return lista;
+}
+function ehTrocado(p){
+  return !String(p.numero||"").trim() && /^\d+$/.test(String(p.cliente||"").trim());
+}
+function separarNomeCidade(txt){
+  const t=String(txt||"").trim();
+  const alvo=txtSimples(t);
+  for(const c of cidadesConhecidas()){
+    if(alvo.endsWith(c)&&alvo.length>=c.length){
+      const corte=t.length-c.length;
+      return {nome:t.slice(0,corte).replace(/[\s\-,]+$/,""),cidade:t.slice(corte).trim(),cidadeConhecida:true};
+    }
+  }
+  const m=/\s(\S+\/[A-Za-z]{2})\s*$/.exec(t);
+  if(m)return {nome:t.slice(0,m.index).trim(),cidade:m[1],cidadeConhecida:false};
+  if(/^\S+\/[A-Za-z]{2}$/.test(t))return {nome:"",cidade:t,cidadeConhecida:false};
+  return {nome:t,cidade:"",cidadeConhecida:false};
+}
+function nomeSuspeito(n){
+  const s=txtSimples(n);
+  if(s.length<4)return true;
+  return cidadesConhecidas().some(c=>c.startsWith(s));
+}
+function repararTrocado(p,r){
+  const conserto={};
+  const numero=String(p.cliente||"").trim();
+  if(numero)conserto.numero=numero;
+  const bruto=String(p.cidade||"").trim();
+  const m=PAD_TROCADO.exec(bruto)||[];
+  const cod=(m[1]||"").trim(), corpo=(m[2]||bruto).trim();
+  const sep=separarNomeCidade(corpo);
+  if(cod)conserto.clienteCodigo=cod;
+  if(sep.cidade)conserto.cidade=sep.cidade;
+  if(sep.nome&&!nomeSuspeito(sep.nome)){
+    conserto.cliente=sep.nome;conserto.origemNome="pedido";
+  }else if(r&&r.cliente){
+    conserto.cliente=r.cliente;conserto.origemNome="relatorio";
+    if(!sep.cidade&&corpo)conserto.cidade=corpo;
+  }
+  return conserto;
+}
+function indicePorDataValor(base){
+  const ix={};
+  Object.values(base).forEach(r=>{if(r.u)ix[r.emissao+"|"+r.total.toFixed(2)]=r;});
+  return ix;
+}
+function acharNoRelatorio(p,base,ix){
+  const k=String(p.numero||"").trim()+"|"+repNorm(p.representada);
+  if(base[k])return base[k];
+  const d=String(p.dataEmissao||p.data||"").slice(0,10);
+  return (d&&ix[d+"|"+(p.total||0).toFixed(2)])||null;
+}
 async function conferirRelatorio(){
   const el=document.getElementById("relProg");
   if(el)el.textContent="Conferindo\u2026";
   try{
     const base=await baixarJson("itens-pedidos.json");
-    let casam=0,divergentes=0,jaTem=0;const mapa={};
+    const ix=indicePorDataValor(base);
+    let casam=0,divergentes=0,jaTem=0,corrigeNum=0,nomeOk=0,nomeRel=0;const mapa={},nums={};
     pedidos.forEach(p=>{
-      const k=String(p.numero||"").trim()+"|"+repNorm(p.representada);
-      const r=base[k];if(!r)return;
+      const r=acharNoRelatorio(p,base,ix);if(!r)return;
       if(itensDe(p).length){jaTem++;return;}
       if(Math.abs((p.total||0)-(r.total||0))>0.02||!r.ok){divergentes++;return;}
       mapa[p.id]=r.itens;casam++;
+      if(ehTrocado(p)){
+        const c=repararTrocado(p,r);
+        if(!c.numero&&r.numero)c.numero=r.numero;
+        if(Object.keys(c).length){nums[p.id]=c;corrigeNum++;if(c.origemNome==="pedido")nomeOk++;else if(c.origemNome==="relatorio")nomeRel++;}
+      }else if(!String(p.numero||"").trim()&&r.numero){nums[p.id]={numero:r.numero};corrigeNum++;}
     });
-    relPrev={casam,divergentes,jaTem,mapa};render();
+    relPrev={casam,divergentes,jaTem,corrigeNum,nomeOk,nomeRel,mapa,nums};render();
   }catch(e){relPrev=null;const l=document.getElementById("relProg");if(l)l.textContent="N\u00e3o foi poss\u00edvel ler o relat\u00f3rio. Confira se o arquivo foi enviado.";}
 }
 async function aplicarItensRelatorio(){
@@ -1690,7 +1770,16 @@ async function aplicarItensRelatorio(){
   try{
     for(let i=0;i<ids.length;i+=200){
       const upd={};
-      ids.slice(i,i+200).forEach(id=>{upd[id+"/itens"]=relPrev.mapa[id];});
+      ids.slice(i,i+200).forEach(id=>{
+        upd[id+"/itens"]=relPrev.mapa[id];
+        const n=relPrev.nums&&relPrev.nums[id];
+        if(n){
+          if(n.numero)upd[id+"/numero"]=n.numero;
+          if(n.cliente)upd[id+"/cliente"]=n.cliente;
+          if(n.cidade)upd[id+"/cidade"]=n.cidade;
+          if(n.clienteCodigo)upd[id+"/clienteCodigo"]=n.clienteCodigo;
+        }
+      });
       await db.ref("pedidos").update(upd);
       feitos+=Object.keys(upd).length;
       if(el)el.textContent=feitos+" de "+ids.length+" prontos\u2026";
@@ -2438,6 +2527,23 @@ function aplicaFiltrosCentral(arr){
   if(f.ate)arr=arr.filter(o=>dt(o)<=f.ate);
   return arr;
 }
+function blocoItens(o){
+  const itens=itensDe(o);
+  if(!itens.length)return `<div class="itbox"><div class="ithead"><span>Itens</span></div>
+    <div style="padding:12px 10px;font-size:12px;color:var(--cinza);text-align:center">Este pedido n\u00e3o tem a lista de produtos.</div></div>`;
+  const soma=itens.reduce((s,i)=>s+i.qtd*i.preco,0);
+  const un=itens.reduce((s,i)=>s+(Number(i.qtd)||0),0);
+  const dif=Math.abs(soma-(o.total||0))>0.02;
+  return `<div class="itbox">
+    <div class="ithead"><span>${itens.length} ite${itens.length>1?"ns":"m"} \u00b7 ${un} un</span><span>Valor</span></div>
+    ${itens.map(i=>`<div class="itlin">
+      <span class="itq">${esc(String(i.qtd))}x</span>
+      <span class="itnome">${esc(i.nome||i.codigo||"")}<span class="itun">${i.codigo?esc(i.codigo)+" \u00b7 ":""}${brl(i.preco)} cada</span></span>
+      <span class="itval">${brl(i.qtd*i.preco)}</span></div>`).join("")}
+    <div class="ittot"><span>Total dos itens</span><span>${brl(soma)}</span></div>
+    ${dif?`<div style="padding:7px 10px;font-size:11px;color:#b45309;background:#fffbeb;border-top:1px solid #ececea">Valor do pedido: <b>${brl(o.total)}</b> (h\u00e1 desconto ou acr\u00e9scimo)</div>`:""}
+  </div>`;
+}
 function htmlListaCentral(){
   const q=(buscaCentral||"").toLowerCase().trim();
   let arr=pedidosVis().slice().sort((a,b)=>new Date(b.data||0)-new Date(a.data||0));
@@ -2451,7 +2557,7 @@ function htmlListaCentral(){
     const sit=o.situacao||(o.status==="enviado"?"Enviado":"Pendente");
     const corSit=/pago|conclu/i.test(sit)?"var(--verde)":"#b45309";
     const det=o.id===pedidoAberto?`<div class="det">
-        ${itensDe(o).map(i=>`<div class="li"><span>${i.qtd}x ${esc(i.nome)}</span><span>${brl(i.qtd*i.preco)}</span></div>`).join("")}
+        ${blocoItens(o)}
         ${o.historico?'<div class="pag">📦 Pedido do histórico</div>':""}
         ${o.origem==="catalogo"?'<div class="pag">🛍️ Veio do catálogo online'+(o.contato?" · contato: "+esc(o.contato):"")+'</div>':""}
         ${o.obs?`<div class="pag">📝 ${esc(o.obs)}</div>`:""}
