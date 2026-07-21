@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 <meta name="theme-color" content="#2F6B4F" />
 <link rel="manifest" href="manifest.json" />
-<link rel="icon" type="image/png" href="icon-192.png?v=4" />
-<link rel="apple-touch-icon" href="icon-192.png?v=4" />
+<link rel="icon" type="image/png" href="icon-192.png?v=6" />
+<link rel="apple-touch-icon" href="icon-192.png?v=6" />
 <title>EikoVida Pedidos</title>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -35,7 +35,7 @@
   #login button{width:100%;padding:13px;background:var(--verde);color:#fff;border-radius:12px;font-weight:700;font-size:15px}
 
   header{position:sticky;top:0;background:var(--verde);color:#fff;padding:12px 16px;display:flex;align-items:center;gap:10px;z-index:20;box-shadow:0 2px 8px rgba(0,0,0,.12)}
-  header .logo{width:38px;height:38px;border-radius:50%;background:#fff;color:#333;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:15px;overflow:hidden;padding:3px;flex-shrink:0}
+  header .logo{width:44px;height:44px;border-radius:50%;background:#fff;color:#333;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:15px;overflow:hidden;padding:2px;flex-shrink:0}
   header .logo img{width:100%;height:100%;object-fit:contain;display:block}
   header .titulo{font-weight:700;font-size:17px;line-height:1.1}
   header .sub{font-size:11px;opacity:.85}
@@ -207,7 +207,7 @@
   .lbx-ov img{max-width:100%;max-height:70vh;object-fit:contain;border-radius:10px;background:#fff}
   .lbx-bar{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;justify-content:center}
 
-  .selorep{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:7px;overflow:hidden;margin-right:6px;vertical-align:middle;padding:2px;background:#fff!important;border:1px solid var(--borda)}
+  .selorep{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:8px;overflow:hidden;margin-right:6px;vertical-align:middle;padding:2px;background:#fff!important;border:1px solid var(--borda)}
   .selorep img{width:100%;height:100%;object-fit:contain;background:transparent;display:block}
   .selorep i{width:100%;height:100%;align-items:center;justify-content:center;color:var(--verde);font-size:10px;font-weight:800;font-style:normal}
   /* itens do pedido */
@@ -472,13 +472,13 @@ function tentarLogo(){
   const img=new Image();
   img.onload=()=>{
     const ll=document.getElementById("loginLogo");
-    ll.innerHTML='<img src="logo.png?v=4" alt="logo" style="width:100%;height:auto;object-fit:contain;display:block">';
+    ll.innerHTML='<img src="logo.png?v=6" alt="logo" style="width:100%;height:auto;object-fit:contain;display:block">';
     ll.style.cssText="background:transparent;border-radius:0;overflow:visible;width:160px;height:auto;margin:0 auto 14px";
     const hl=document.getElementById("headerLogo");
-    hl.innerHTML='<img src="simbolo.png?v=4" alt="logo" style="width:100%;height:100%;object-fit:contain;display:block">';
-    hl.style.cssText="background:transparent;border-radius:0;overflow:visible;width:46px;height:40px;display:flex;align-items:center;justify-content:center;flex-shrink:0";
+    hl.innerHTML='<img src="simbolo.png?v=6" alt="logo" style="width:100%;height:100%;object-fit:contain;display:block">';
+    hl.style.cssText="background:#fff;border-radius:50%;overflow:hidden;width:44px;height:44px;padding:2px;display:flex;align-items:center;justify-content:center;flex-shrink:0";
   };
-  img.src="logo.png?v=4";
+  img.src="logo.png?v=6";
 }
 
 /* ====== LOGIN ====== */
