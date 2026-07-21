@@ -2708,11 +2708,17 @@ function viewCentral(){
     <div class="resumo-l" style="border-top:1px solid rgba(255,255,255,.25);margin-top:4px;padding-top:6px"><span>Hoje: ${hj.length} pedido(s)</span><b>${brl(soma(hj))}</b></div>
   </div>`;
   if(base.length===0)return `<h2 class="tit">Central de pedidos</h2>${kpis}<div class="vazio"><div class="em">📋</div><div>Nenhum pedido ainda.</div></div>`;
+  const pend=base.filter(p=>!p._pendente&&(p.status||"Pedido")!=="Or\u00e7amento"&&!/pago/i.test(p.situacao||""));
+  const barraPago=(ehAdmin&&pend.length)?`<div class="card" style="border:2px solid var(--dourado);background:#fffdf5;padding:12px">
+    <div style="font-size:13px;color:#555;margin-bottom:8px"><b style="color:#b45309">${pend.length}</b> pedido(s) ainda marcados como Pendente.</div>
+    <button class="btn btn-v btn-sm" style="width:100%" onclick="marcarTodosPagos(true)">\u2713 Marcar todos como Pago</button>
+    <div id="cobrProg" style="font-size:12px;color:var(--cinza);margin-top:6px"></div>
+  </div>`:"";
   const busca=`<div class="fltop">
       <input class="inp" id="buscaCentralInp" placeholder="🔍 Buscar por cliente ou nº do pedido" value="${esc(buscaCentral)}" oninput="filtrarCentral(this.value)" style="margin-top:0;flex:1">
       <button class="fbtn ${filtrosAtivos()?'on':''}" onclick="filtroAberto=!filtroAberto;render()">▼ Filtros${filtrosAtivos()?" ("+filtrosAtivos()+")":""}</button>
     </div>${filtroAberto?boxFiltroCentral():""}`;
-  return `<h2 class="tit">Central de pedidos (${base.length})${ehAdmin?' <span style="font-size:12px;color:var(--dourado)">· todos os vendedores</span>':""}</h2>${kpis}${busca}<div id="listaCentral">${htmlListaCentral()}</div>
+  return `<h2 class="tit">Central de pedidos (${base.length})${ehAdmin?' <span style="font-size:12px;color:var(--dourado)">· todos os vendedores</span>':""}</h2>${kpis}${barraPago}${busca}<div id="listaCentral">${htmlListaCentral()}</div>
     <button class="fab" onclick="irPara('novo')">＋ Novo Pedido</button>`;
 }
 function cliDoPedido(o){
