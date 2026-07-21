@@ -221,6 +221,42 @@
   .itun{display:block;font-size:11px;color:var(--cinza);margin-top:1px}
   .itval{flex-shrink:0;text-align:right;font-size:13px;font-weight:700;white-space:nowrap;padding-left:4px}
   .ittot{display:flex;justify-content:space-between;padding:9px 10px;border-top:2px solid #e2e0da;background:#f1f0ec;font-size:13px;font-weight:800}
+  /* ====== COMPUTADOR (telas largas) ====== */
+  @media (min-width:1024px){
+    body.pc header{padding:14px 26px}
+    body.pc header .hbtn{display:none}
+    body.pc header .titulo{font-size:18px}
+    body.pc .drawer{transform:none!important;top:62px;width:248px;max-width:248px;box-shadow:none;border-right:1px solid var(--borda);background:#fff}
+    body.pc .drawer .dhead{display:none}
+    body.pc .drawer-ov{display:none!important}
+    body.pc .drawer .ditem{padding:11px 18px;font-size:13.5px}
+    body.pc .drawer .ditem:hover{background:#f4f8f4}
+    body.pc main{margin-left:248px;max-width:none;padding:22px 30px 60px}
+    body.pc .pcwrap{max-width:1180px;margin:0 auto}
+    body.pc .tit{font-size:20px}
+    body.pc .homegrid{grid-template-columns:repeat(4,1fr);gap:16px}
+    body.pc .homecard{padding:22px 10px}
+    body.pc .homewrap{max-width:1180px;margin:0 auto}
+    body.pc .colunas{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:12px;align-items:start}
+    body.pc .colunas .pedcard,body.pc .colunas .lista-cli{margin-bottom:0}
+    body.pc .pedcard{transition:box-shadow .15s,border-color .15s}
+    body.pc .pedcard:hover{box-shadow:0 3px 12px rgba(0,0,0,.09);border-color:#cfd6cf}
+    body.pc .card{max-width:760px}
+    body.pc .fab{right:32px;bottom:28px;padding:15px 24px;font-size:15px}
+    body.pc .fgrid{grid-template-columns:1fr 1fr 1fr}
+    body.pc .chips{flex-wrap:wrap}
+    body.pc .sheet{left:50%;transform:translateX(-50%);max-width:460px;border-radius:14px;bottom:auto;top:50%;margin-top:-180px}
+    body.pc .lbx-ov img{max-height:74vh}
+    body.pc #instalar{display:none!important}
+  }
+  @media (min-width:1500px){
+    body.pc .homegrid{grid-template-columns:repeat(5,1fr)}
+  }
+  .avisopc{max-width:560px;margin:60px auto;background:#fff;border:1px solid var(--borda);border-radius:16px;padding:32px;text-align:center}
+  .avisopc .em{font-size:52px;margin-bottom:12px}
+  .avisopc h3{color:var(--verde);font-size:19px;margin-bottom:8px}
+  .avisopc p{font-size:14px;color:#555;line-height:1.6}
+
 </style>
 </head>
 <body>
@@ -622,11 +658,16 @@ const MENU=[
 ];
 function toggleMenu(){
   const d=document.getElementById("drawer"),o=document.getElementById("drawerOv");
+  if(document.body.classList.contains("pc")){renderMenu();d.classList.add("on");o.classList.remove("on");return;}
   const abrir=!d.classList.contains("on");
   if(abrir)renderMenu();
   d.classList.toggle("on",abrir);o.classList.toggle("on",abrir);
 }
-function navMenu(v){toggleMenu();if(v==="catalogo"){enviarCatalogo("");return;}if(v==="__sair"){sair();return;}irPara(v);}
+function fecharMenuSeCelular(){
+  if(document.body.classList.contains("pc")){renderMenu();return;}
+  toggleMenu();
+}
+function navMenu(v){fecharMenuSeCelular();if(v==="catalogo"){enviarCatalogo("");return;}if(v==="__sair"){sair();return;}irPara(v);}
 function sair(){
   if(!confirm("Sair do app? Seus dados continuam salvos."))return;
   try{["eiko_vendedor","eiko_vcod","eiko_vid","eiko_admin","eiko_perm"].forEach(k=>localStorage.removeItem(k));}catch(e){}
@@ -672,7 +713,62 @@ function viewHome(){
   </div>`;
 }
 
+/* ====== FOTOS DISPONÍVEIS SEM INTERNET ====== */
+let fotosEstado=LS.get("fotosEstado",{qtd:0,quando:0,total:0});
+let fotosBaixando=false, fotosProg=0;
+function sw(){return navigator.serviceWorker&&navigator.serviceWorker.controller;}
+async function listaDeFotos(){
+  const urls=new Set();
+  try{
+    const r=await fetch("fotos.json?v="+Date.now());
+    if(r.ok){const d=await r.json();(d.arquivos||[]).forEach(a=>urls.add(a));}
+  }catch(e){}
+  produtos.forEach(p=>{const c=String(p.codigo||"").trim();if(c)urls.add(galUrl(c,1,"jpg"));});
+  representadas().forEach(r=>{const s=slugRep(r);if(s)urls.add("logos/"+s+".png");});
+  return [...urls];
+}
+async function guardarFotos(forcar,silencioso){
+  if(!navigator.onLine){if(!silencioso)toast("Conecte-se à internet para baixar as fotos");return;}
+  if(!sw()){if(!silencioso)toast("Recurso indisponível neste aparelho");return;}
+  if(fotosBaixando)return;
+  const urls=await listaDeFotos();
+  if(!urls.length){if(!silencioso)toast("Nenhuma foto encontrada");return;}
+  fotosBaixando=true;fotosProg=0;
+  if(!silencioso){toast("Baixando "+urls.length+" fotos\u2026");render();}
+  sw().postMessage({tipo:"guardar-fotos",urls,forcar:!!forcar});
+}
+(function(){
+  if(!navigator.serviceWorker)return;
+  navigator.serviceWorker.addEventListener("message",e=>{
+    const d=e.data||{};
+    if(d.tipo==="fotos-progresso"){fotosProg=Math.round(d.feitas/d.total*100);const el=document.getElementById("fotosProg");if(el)el.textContent=fotosProg+"%";}
+    if(d.tipo==="fotos-prontas"){
+      fotosBaixando=false;fotosProg=100;
+      fotosEstado={qtd:d.ok,total:d.total,quando:Date.now()};
+      LS.set("fotosEstado",fotosEstado);
+      toast(d.ok+" foto(s) dispon\u00edveis sem internet \u2713");
+      render();
+    }
+  });
+})();
+function fotosResumo(){
+  if(!fotosEstado.quando)return "As fotos ainda n\u00e3o foram baixadas para uso sem internet.";
+  const dias=Math.floor((Date.now()-fotosEstado.quando)/86400000);
+  return fotosEstado.qtd+" foto(s) guardadas no aparelho \u00b7 "+(dias===0?"atualizadas hoje":dias===1?"h\u00e1 1 dia":"h\u00e1 "+dias+" dias");
+}
 /* ====== SINCRONIZAÇÃO ====== */
+function cartaoFotos(){
+  return `<div class="card">
+    <div style="font-weight:700;font-size:14px;margin-bottom:4px">\ud83d\uddbc\ufe0f Fotos sem internet</div>
+    <div style="font-size:12px;color:#555;margin-bottom:8px">Guarda as fotos dos produtos no pr\u00f3prio aparelho. Depois disso elas aparecem mesmo sem sinal, e s\u00e3o atualizadas sozinhas quando voc\u00ea usa o app conectado.</div>
+    <div style="background:#f8f8f6;border-radius:8px;padding:10px;font-size:13px">${esc(fotosResumo())}</div>
+    ${fotosBaixando?`<div style="text-align:center;font-size:13px;color:var(--verde);font-weight:700;margin-top:8px">Baixando\u2026 <span id="fotosProg">${fotosProg}%</span></div>`:`
+    <div class="row" style="margin-top:8px">
+      <button class="btn btn-v btn-sm" style="flex:1" onclick="guardarFotos(false)">\u2b07\ufe0f Baixar fotos</button>
+      <button class="btn btn-g btn-sm" onclick="guardarFotos(true)">\ud83d\udd04 Atualizar</button>
+    </div>`}
+  </div>`;
+}
 function viewSync(){
   const pend=filaPendentes.length;
   return `<h2 class="tit">Sincronização</h2>
@@ -689,7 +785,8 @@ function viewSync(){
         <b style="font-size:20px;color:${pend?'#b45309':'var(--verde)'}">${pend}</b>
       </div>
       ${pend?`<button class="btn btn-v" style="width:100%;margin-top:10px" onclick="sincronizarAgora()">🔄 Sincronizar agora</button>`:'<div style="font-size:12px;color:var(--cinza);margin-top:6px">Tudo sincronizado ✓</div>'}
-    </div>`;
+    </div>
+    ${cartaoFotos()}`;
 }
 /* ====== RELATÓRIOS ====== */
 function abrirPeriodo(v){
@@ -2059,9 +2156,28 @@ function atualizarStatusRede(){
 }
 function aoVoltarOnline(){atualizarStatusRede();sincronizarAgora();}
 let autoSyncTimer=null, ultimaSync=0;
+function avisoSoCelular(){
+  return `<div class="avisopc">
+    <div class="em">\ud83d\udcf1</div>
+    <h3>Use o aplicativo no celular</h3>
+    <p>A vers\u00e3o de vendas foi feita para o celular \u2014 \u00e9 nele que voc\u00ea consegue tirar fotos, montar pedidos na rua e trabalhar sem internet.</p>
+    <p style="margin-top:12px">Se ainda n\u00e3o instalou, abra <b>${esc(linkInstalar())}</b> no seu celular.</p>
+    <button class="btn btn-g btn-sm" style="margin-top:18px" onclick="sair()">Sair</button>
+  </div>`;
+}
+function ehPC(){return window.matchMedia&&window.matchMedia("(min-width:1024px)").matches;}
+function aplicarModoPC(){
+  const pc=ehPC()&&ehAdmin;
+  if(pc)renderMenu();
+  document.body.classList.toggle("pc",pc);
+  const d=document.getElementById("drawer");
+  if(d&&pc)d.classList.add("on");
+}
 function iniciarAutoSync(){
   if(autoSyncTimer)clearInterval(autoSyncTimer);
   autoSyncTimer=setInterval(()=>sincronizarSilencioso(),600000);
+  let tRe=null;
+  window.addEventListener("resize",()=>{clearTimeout(tRe);tRe=setTimeout(()=>{const antes=document.body.classList.contains("pc");aplicarModoPC();if(antes!==document.body.classList.contains("pc"))render();},250);});
   document.addEventListener("visibilitychange",()=>{if(!document.hidden&&Date.now()-ultimaSync>600000)sincronizarSilencioso();});
   window.addEventListener("online",()=>sincronizarSilencioso());
 }
@@ -2101,6 +2217,7 @@ function sincronizarAgora(){
 }
 
 function render(){
+  aplicarModoPC();
   const c=document.getElementById("conteudo");
   if(!podeVer(viewAtual)){viewAtual=podeVer("home")?"home":((permissoes&&permissoes[0])||"home");}
   document.getElementById("barraTotal").classList.add("hide");
@@ -2120,6 +2237,7 @@ function render(){
   else if(viewAtual==="equipe")c.innerHTML=viewEquipe();
   else if(viewAtual==="importacoes")c.innerHTML=viewImportacoes();
   else if(viewAtual==="representadas")c.innerHTML=viewRepresentadas();
+  if(ehPC()&&!ehAdmin)c.innerHTML=avisoSoCelular();
   else if(viewAtual==="convites")c.innerHTML=viewConvites();
   else if(viewAtual==="catalogoCfg")c.innerHTML=viewCatalogoCfg();
   // seta de voltar ao início em todas as abas (exceto a própria home)
@@ -2599,7 +2717,7 @@ function htmlListaCentral(){
       </div>${o._pendente?'':det}</div>`;
   }).join("");
   const aviso=total>LIM?`<div style="text-align:center;color:var(--cinza);font-size:12px;padding:12px">Mostrando os ${LIM} mais recentes de ${total}. Use a busca para achar outros.</div>`:"";
-  return lista+aviso+`<div style="height:76px"></div>`;
+  return `<div class="${document.body.classList.contains("pc")?"colunas":""}">${lista}</div>`+aviso+`<div style="height:76px"></div>`;
 }
 
 function filtrarCentral(q){buscaCentral=q;const el=document.getElementById("listaCentral");if(el)el.innerHTML=htmlListaCentral();}
@@ -3343,7 +3461,7 @@ function viewProdutos(){
       ${ehAdmin?`<button class="icbtn btn-g" onclick="editarProduto('${p.id}')">✎</button>
       <button class="icbtn btn-r" onclick="excluirProd('${p.id}')">🗑</button>`:`<button class="icbtn btn-g" onclick="verProdutoVend('${p.id}')">👁</button>`}
     </div>`).join("");
-  return `<h2 class="tit">Produtos</h2>${catManage}${add}${chipsRep}${busca}${chips}${lista||'<div class="vazio">Nenhum produto</div>'}`;
+  return `<h2 class="tit">Produtos</h2>${catManage}${add}${chipsRep}${busca}${chips}${lista?`<div class="${document.body.classList.contains("pc")?"colunas":""}">${lista}</div>`:'<div class="vazio">Nenhum produto</div>'}`;
 }
 function addCatProd(){if(!ehAdmin){toast("Somente o administrador");return;}const n=document.getElementById("novaCatProd").value.trim();if(!n)return;db.ref("categorias_produto").push({nome:n});toast("Categoria criada");}
 function delCatProd(id){if(confirm("Excluir categoria?"))db.ref("categorias_produto/"+id).remove();}
@@ -3558,6 +3676,7 @@ function excluirTabela(id){if(!ehAdmin){toast("Somente o administrador");return;
     document.getElementById("login").classList.add("hide");
     document.getElementById("app").classList.remove("hide");
     iniciar();iniciarAutoSync();
+    setTimeout(()=>{if(!fotosEstado.quando)guardarFotos(false,true);},9000);
   }
 })();
 
