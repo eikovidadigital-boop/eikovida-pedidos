@@ -226,10 +226,12 @@ function aplicarCfg(){
   // logotipo pr\u00f3prio da representada (logo-<nome>.png), com o geral como reserva
   const img=document.querySelector("header img");
   if(img){
-    const alvo=r.logo||(REPRES?"logo-"+REPRES.toLowerCase().replace(/[^a-z0-9]+/g,"-")+".png":"logo.png");
+    const slug=String(REPRES||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
+    const fontes=REPRES?[r.logo,"logos/"+slug+".png","logos/"+slug+".jpg","logo-"+slug+".png","logo.png"].filter(Boolean):["logo.png"];
+    let i=0;
     img.alt=marca;img.style.display="";
-    img.onerror=function(){if(this.dataset.tentou)this.style.display="none";else{this.dataset.tentou="1";this.src="logo.png";}};
-    img.src=alvo;
+    img.onerror=function(){i++;if(i<fontes.length)this.src=fontes[i];else this.style.display="none";};
+    img.src=fontes[0];
   }
   const selos=(vlr("selos")||"🌱 100% Vegano, 🧪 Registro ANVISA, 🇧🇷 Produção própria, 📦 Pronta entrega").split(",").map(x=>x.trim()).filter(Boolean);
   document.getElementById("hSelos").innerHTML=selos.map(x=>`<span class="selo">${esc(x)}</span>`).join("");
