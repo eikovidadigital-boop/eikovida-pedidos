@@ -13,6 +13,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
 <style>
   :root{
@@ -396,6 +397,7 @@ let agenda=[], agendaEdit=null, filtroAgenda="proximos";
 let fornecedores=[], fornEdit=null;
 let empresa={}, equipe=[], vendEdit=null, transfDe=null, codigoAtivacao="EIKO2026";
 let impTipo="produtos", impPreview=null;
+let plan=null; // {cabecalhos:[], linhas:[[...]], map:{campo:idxColuna}}
 let baseCarregada=null, modoImport="add", importando=false;
 let carrinho={}, clienteSel="";
 let subAbaPedido="cab", buscaItem=false, buscaItemTxt="", filtroItemCat="";
@@ -2102,6 +2104,146 @@ async function aplicarProdutosRelatorio(){
     toast(n+" produto(s) cadastrados \u2713");render();
   }catch(e){const l=document.getElementById("relProg");if(l)l.textContent="N\u00e3o foi poss\u00edvel concluir. Tente novamente.";}
 }
+const CAMPOS_IMPORT={
+  clientes:[
+    {k:"nome",label:"Nome / Razão social",obrig:true},
+    {k:"fantasia",label:"Nome fantasia"},
+    {k:"cnpj",label:"CNPJ ou CPF"},
+    {k:"ie",label:"Inscrição estadual"},
+    {k:"whatsapp",label:"WhatsApp / Telefone"},
+    {k:"email",label:"E-mail"},
+    {k:"cep",label:"CEP"},
+    {k:"endereco",label:"Endereço"},
+    {k:"numero",label:"Número"},
+    {k:"bairro",label:"Bairro"},
+    {k:"cidade",label:"Cidade"},
+    {k:"uf",label:"UF"},
+    {k:"categoria",label:"Categoria do cliente"}
+  ],
+  produtos:[
+    {k:"codigo",label:"Código"},
+    {k:"nome",label:"Nome do produto",obrig:true},
+    {k:"atacado",label:"Preço"},
+    {k:"categoria",label:"Categoria"},
+    {k:"estoque",label:"Estoque"},
+    {k:"barras",label:"Cód. de barras"},
+    {k:"ncm",label:"NCM"}
+  ]
+};
+function lerPlanilha(input){
+  const f=input.files&&input.files[0]; if(!f)return;
+  if(typeof XLSX==="undefined"){toast("Recurso indisponível — conecte-se à internet e recarregue");return;}
+  const prog=document.getElementById("planProg"); if(prog)prog.textContent="Lendo a planilha…";
+  const fr=new FileReader();
+  fr.onload=e=>{
+    try{
+      const wb=XLSX.read(e.target.result,{type:"array"});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const mat=XLSX.utils.sheet_to_json(ws,{header:1,defval:"",raw:false});
+      const linhas=mat.filter(l=>l.some(c=>String(c).trim()));
+      if(linhas.length<2){toast("A planilha parece vazia");plan=null;render();return;}
+      const cabecalhos=linhas[0].map((c,i)=>String(c).trim()||("Coluna "+(i+1)));
+      plan={cabecalhos,linhas:linhas.slice(1),map:autoMapear(cabecalhos)};
+      render();
+    }catch(err){toast("Não consegui ler o arquivo. Use .xlsx, .xls ou .csv");plan=null;render();}
+  };
+  fr.onerror=()=>{toast("Erro ao abrir o arquivo");};
+  fr.readAsArrayBuffer(f);
+}
+function autoMapear(cabecalhos){
+  const map={};
+  const sinon={nome:["nome","razao","razão","cliente","razao social","produto","descricao","descrição"],
+    fantasia:["fantasia"],cnpj:["cnpj","cpf","cnpj/cpf","documento"],ie:["ie","inscricao","inscrição"],
+    whatsapp:["whatsapp","telefone","fone","celular","contato"],email:["email","e-mail"],
+    cep:["cep"],endereco:["endereco","endereço","logradouro","rua"],numero:["numero","número","nº","num"],
+    bairro:["bairro"],cidade:["cidade","municipio","município"],uf:["uf","estado"],
+    categoria:["categoria","grupo","tipo"],codigo:["codigo","código","cod","sku","referencia","referência"],
+    atacado:["preco","preço","valor","preco venda","preço venda"],estoque:["estoque","qtd","quantidade"],
+    barras:["barras","ean","gtin","codigo de barras","código de barras"],ncm:["ncm"]};
+  const campos=CAMPOS_IMPORT[impTipo];
+  cabecalhos.forEach((h,i)=>{
+    const hs=txtSimples(h);
+    for(const campo of campos){
+      if(map[campo.k]!==undefined)continue;
+      const alvos=sinon[campo.k]||[campo.k];
+      if(alvos.some(a=>txtSimples(a)===hs||hs.includes(txtSimples(a)))){map[campo.k]=i;break;}
+    }
+  });
+  return map;
+}
+function setMap(campo,idx){plan.map[campo]=idx===""?undefined:parseInt(idx);if(idx==="")delete plan.map[campo];render();}
+function limparPlanilha(){plan=null;render();}
+function planParaItens(){
+  if(!plan)return [];
+  const m=plan.map, arr=[];
+  const get=(l,k)=>m[k]!==undefined?String(l[m[k]]||"").trim():"";
+  plan.linhas.forEach(l=>{
+    const nome=get(l,"nome"); if(!nome)return;
+    if(impTipo==="produtos"){
+      const preco=parseFloat(String(get(l,"atacado")).replace(/[^\d,.-]/g,"").replace(/\.(?=\d{3})/g,"").replace(",","."))||0;
+      arr.push({codigo:get(l,"codigo"),nome:nome,atacado:preco,varejo:preco,
+        categoria:get(l,"categoria"),estoque:get(l,"estoque"),barras:get(l,"barras"),ncm:get(l,"ncm"),
+        marca:"EIKO VIDA",catalogo:false,ativo:true});
+    }else{
+      arr.push({nome:nome,fantasia:get(l,"fantasia"),cnpj:get(l,"cnpj"),ie:get(l,"ie"),
+        whatsapp:get(l,"whatsapp").replace(/\D/g,""),email:get(l,"email"),cep:get(l,"cep"),
+        endereco:get(l,"endereco"),numero:get(l,"numero"),bairro:get(l,"bairro"),
+        cidade:get(l,"cidade"),uf:get(l,"uf").toUpperCase().slice(0,2),categoria:get(l,"categoria"),
+        origem:"planilha",criadoEm:new Date().toISOString()});
+    }
+  });
+  return arr;
+}
+async function importarPlanilha(){
+  if(!ehAdmin){toast("Somente o administrador");return;}
+  if(!plan){toast("Escolha uma planilha primeiro");return;}
+  const campos=CAMPOS_IMPORT[impTipo];
+  const obrig=campos.find(c=>c.obrig);
+  if(obrig && plan.map[obrig.k]===undefined){toast("Indique qual coluna é "+obrig.label);return;}
+  const itens=planParaItens();
+  if(!itens.length){toast("Nenhuma linha válida encontrada");return;}
+  if(!navigator.onLine){toast("Conecte-se à internet para importar");return;}
+  if(!confirm("Importar "+itens.length+" "+(impTipo==="produtos"?"produto(s)":"cliente(s)")+"?"))return;
+  const col=impTipo==="produtos"?"produtos":"clientes";
+  const prog=document.getElementById("planProg");
+  try{
+    let feitos=0;
+    for(let i=0;i<itens.length;i+=300){
+      const upd={};
+      itens.slice(i,i+300).forEach(it=>{upd[db.ref(col).push().key]=it;});
+      await db.ref(col).update(upd);
+      feitos+=Object.keys(upd).length;
+      if(prog)prog.textContent=feitos+" de "+itens.length+" importados…";
+    }
+    toast(feitos+" "+(impTipo==="produtos"?"produto(s)":"cliente(s)")+" importado(s) ✓");
+    plan=null;render();
+  }catch(e){if(prog)prog.textContent="Não foi possível concluir. Tente de novo.";}
+}
+function cardPlanilha(){
+  if(!ehAdmin)return "";
+  const campos=CAMPOS_IMPORT[impTipo];
+  const opts=(sel)=>`<option value="">— não usar —</option>`+plan.cabecalhos.map((h,i)=>`<option value="${i}" ${sel===i?"selected":""}>${esc(h)}</option>`).join("");
+  const mapUI=!plan?"":`
+    <div style="font-size:12px;color:#555;margin:10px 0 6px">Planilha com <b>${plan.linhas.length}</b> linha(s). Diga qual coluna corresponde a cada campo:</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      ${campos.map(c=>`<div>
+        <label class="lb">${esc(c.label)}${c.obrig?' <span style="color:#dc2626">*</span>':""}</label>
+        <select class="inp" style="margin-top:2px" onchange="setMap('${c.k}',this.value)">${opts(plan.map[c.k])}</select>
+      </div>`).join("")}
+    </div>
+    ${(()=>{const it=planParaItens();return it.length?`<div style="background:#f8f8f6;border-radius:8px;padding:8px;margin-top:8px;font-size:12px">
+      Prévia: <b>${it.length}</b> ${impTipo==="produtos"?"produto(s)":"cliente(s)"} prontos. 1º: <b>${esc(it[0].nome)}</b>${it[0].cidade?" · "+esc(it[0].cidade):""}</div>`:`<div style="font-size:12px;color:#b45309;margin-top:8px">Nenhuma linha com nome preenchido — confira o campo obrigatório.</div>`;})()}
+    <button class="btn btn-v" style="width:100%;margin-top:10px" onclick="importarPlanilha()">✓ Importar planilha</button>
+    <button class="btn btn-g btn-sm" style="width:100%;margin-top:6px" onclick="limparPlanilha()">Escolher outra</button>`;
+  return `<div class="card" style="border:2px solid var(--verde);background:#f2f9f2">
+    <div style="font-weight:700;font-size:14px;margin-bottom:4px">📊 Importar planilha (Excel ou CSV)</div>
+    <div style="font-size:12px;color:#555;margin-bottom:8px">Traga sua base de outro sistema. Aceita <b>.xlsx</b>, <b>.xls</b> e <b>.csv</b> com qualquer layout — você indica o que é cada coluna.</div>
+    ${plan?"":`<input type="file" id="arqPlan" accept=".xlsx,.xls,.csv" style="display:none" onchange="lerPlanilha(this)">
+    <button class="btn btn-o" style="width:100%" onclick="document.getElementById('arqPlan').click()">📁 Escolher planilha</button>`}
+    ${mapUI}
+    <div id="planProg" style="font-size:12px;color:#333;margin-top:8px"></div>
+  </div>`;
+}
 function viewImportacoes(){
   const formato = impTipo==="produtos"
     ? "código &nbsp;|&nbsp; nome &nbsp;|&nbsp; preço &nbsp;|&nbsp; categoria &nbsp;|&nbsp; estoque"
@@ -2171,7 +2313,7 @@ function viewImportacoes(){
       <div style="font-size:12px;color:#555;margin-bottom:8px">Encontrei clientes repetidos na base (mesmo CNPJ ou mesmo nome e cidade). Isso acontece quando uma importação roda duas vezes. Vou manter o cadastro mais completo de cada um.</div>
       <button class="btn btn-r" id="btnDup" style="width:100%" onclick="limparDuplicados()">🧹 Remover ${d} duplicado(s)</button>
     </div>`:"";})()}
-    ${seletor}${instr}${area}${prev}`;
+    ${seletor}${cardPlanilha()}${instr}${area}${prev}`;
 }
 function previewImport(){
   const txt=(document.getElementById("impTxt").value||"").trim();
