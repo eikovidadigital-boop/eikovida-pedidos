@@ -199,7 +199,6 @@ db.ref("produtos").on("value",s=>{
   produtos=Object.keys(v).map(k=>({id:k,...v[k]})).filter(p=>p.nome&&p.catalogo!==false&&p.ativo!==false&&daRepres(p));
   montarCats();filtrar();
 });
-db.ref("clientes").on("value",s=>{const v=s.val()||{};clientes=Object.keys(v).map(k=>({id:k,...v[k]}));});
 db.ref("empresa").on("value",s=>{empresa=s.val()||{};rodape();});
 db.ref("catalogo").on("value",s=>{cfg=s.val()||{};aplicarCfg();rodape();});
 }
@@ -474,11 +473,12 @@ function renderCheckout(){
   }
   document.getElementById("checkBody").innerHTML=`<div class="mbody">${resumo}${corpo}</div>`;
 }
-function buscarCadastro(){
+async function buscarCadastro(){
   const d=digitos(document.getElementById("bCnpj").value);
   const msg=document.getElementById("bMsg");
   if(d.length<11){msg.innerHTML='<span style="color:#b45309">Digite o CNPJ ou CPF completo.</span>';return;}
-  const achado=clientes.find(c=>digitos(c.cnpj)===d);
+  msg.textContent="Verificando\u2026";
+  const achado=await acharPorCnpj(d);
   if(!achado){
     msg.innerHTML='<span style="color:#b45309">Não encontrei esse cadastro.</span> <span style="color:var(--verde);text-decoration:underline;cursor:pointer" onclick="modoCad=\'novo\';renderCheckout()">Fazer cadastro novo</span>';
     return;
@@ -489,7 +489,8 @@ async function buscarReceita(){
   const d=digitos(document.getElementById("cCnpj").value);
   const msg=document.getElementById("rMsg");
   if(d.length!==14){msg.innerHTML='<span style="color:#b45309">Digite os 14 números do CNPJ.</span>';return;}
-  const jaTem=clientes.find(c=>digitos(c.cnpj)===d);
+  msg.textContent="Verificando\u2026";
+  const jaTem=await acharPorCnpj(d);
   if(jaTem){cliIdent=jaTem;modoCad="confirma";renderCheckout();return;}
   msg.textContent="Buscando…";
   try{
@@ -504,6 +505,14 @@ async function buscarReceita(){
     if(j.email)set("cEmail",j.email);
     msg.innerHTML='<span style="color:var(--verde)">✓ Dados preenchidos. Confira e complete.</span>';
   }catch(e){msg.innerHTML='<span style="color:#b45309">Não consegui buscar. Preencha manualmente.</span>';}
+}
+async function acharPorCnpj(d){
+  try{
+    const snap=await db.ref("clientes").orderByChild("cnpj").once("value");
+    let achado=null;
+    snap.forEach(ch=>{const c=ch.val()||{};if(digitos(c.cnpj)===d){achado={id:ch.key,...c};return true;}});
+    return achado;
+  }catch(e){return null;}
 }
 function enviarPedido(){
   if(navigator.onLine&&!acessoPronto){alert("Um instante — finalizando a conexão. Tente novamente em alguns segundos.");return;}

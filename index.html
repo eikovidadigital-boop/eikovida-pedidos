@@ -269,7 +269,7 @@
 
     <div id="formLogin">
       <input id="loginCodigo" maxlength="12" placeholder="Código do vendedor ou usuário" autocapitalize="off" autocorrect="off" />
-      <input id="loginSenha" type="password" inputmode="numeric" maxlength="4" placeholder="Senha (4 dígitos)" onkeydown="if(event.key==='Enter')entrar()" />
+      <input id="loginSenha" type="password" inputmode="numeric" maxlength="6" placeholder="Senha (4 a 6 dígitos)" onkeydown="if(event.key==='Enter')entrar()" />
       <button onclick="entrar()">Entrar</button>
       <div class="linkbox">
         <span onclick="mostrarAtivacao()">Primeiro acesso? Ativar meu app</span>
@@ -279,8 +279,8 @@
     <div id="formAtivar" class="hide">
       <div class="avisoAtv">Digite o <b>código de ativação</b> que o administrador enviou.</div>
       <input id="atvCodigo" maxlength="8" placeholder="Código de ativação (ex: EK4A7X)" autocapitalize="characters" autocorrect="off" />
-      <input id="atvSenha" type="password" inputmode="numeric" maxlength="4" placeholder="Crie sua senha de 4 dígitos" />
-      <input id="atvSenha2" type="password" inputmode="numeric" maxlength="4" placeholder="Repita a senha" />
+      <input id="atvSenha" type="password" inputmode="numeric" maxlength="6" placeholder="Crie sua senha (4 a 6 dígitos)" />
+      <input id="atvSenha2" type="password" inputmode="numeric" maxlength="6" placeholder="Repita a senha" />
       <button onclick="ativarApp()">Ativar meu app</button>
       <div class="linkbox"><span onclick="mostrarLogin()">← Voltar para o login</span></div>
     </div>
@@ -499,7 +499,7 @@ async function entrar(){
   }
   const cod=padCod(bruto);
   if(!bruto||cod==="000"){lmsg("Digite o código do vendedor","erro");return;}
-  if(senha.length!==4){lmsg("A senha tem 4 dígitos","erro");return;}
+  if(!/^\d{4,6}$/.test(senha)){lmsg("A senha tem de 4 a 6 dígitos","erro");return;}
   lmsg("Verificando…");
   if(navigator.onLine)await aguardarAcesso(9000);
   let v=null;
@@ -545,7 +545,7 @@ async function ativarApp(){
   const cod=String(val("atvCodigo")||"").trim().toUpperCase();
   const s1=String(val("atvSenha")||"").trim(), s2=String(val("atvSenha2")||"").trim();
   if(!cod){lmsg("Digite o código de ativação","erro");return;}
-  if(!/^\d{4}$/.test(s1)){lmsg("A senha deve ter 4 dígitos numéricos","erro");return;}
+  if(!/^\d{4,6}$/.test(s1)){lmsg("A senha deve ter de 4 a 6 dígitos numéricos","erro");return;}
   if(s1!==s2){lmsg("As senhas não conferem","erro");return;}
   if(!navigator.onLine){lmsg("Precisa de internet para ativar","erro");return;}
   lmsg("Ativando…");
@@ -1552,7 +1552,7 @@ function viewEquipe(){
       <div><label class="lb">Código ${vendEdit?"":"(vazio = automático)"}</label><input class="inp" id="veCod" inputmode="numeric" maxlength="4" value="${esc(String(f.codigo||''))}"/></div>
     </div>
     <div class="fgrid" style="margin-top:8px">
-      <div><label class="lb">Senha (4 dígitos) *</label><input class="inp" id="veSenha" inputmode="numeric" maxlength="4" value="${esc(String(f.senha||''))}"/></div>
+      <div><label class="lb">Senha (4 a 6 dígitos) *</label><input class="inp" id="veSenha" inputmode="numeric" maxlength="6" value="${esc(String(f.senha||''))}"/></div>
       <div><label class="lb">Meta mensal (R$)</label><input class="inp" id="veMeta" inputmode="decimal" value="${esc(String(f.meta||''))}"/></div>
     </div>
     <div style="margin-top:12px;background:#f8f8f6;border-radius:10px;padding:10px">
@@ -1671,8 +1671,8 @@ function salvarVend(){
   if(!o.nome){toast("Informe o nome");return;}
   if(!ehAdmin){toast("Somente o administrador pode cadastrar vendedores");return;}
   const senha=String(val("veSenha")||"").trim();
-  if(!vendEdit&&!/^\d{4}$/.test(senha)){toast("Defina a senha de 4 dígitos");return;}
-  if(senha&&!/^\d{4}$/.test(senha)){toast("A senha deve ter 4 dígitos");return;}
+  if(!vendEdit&&!/^\d{4,6}$/.test(senha)){toast("Defina a senha de 4 a 6 dígitos");return;}
+  if(senha&&!/^\d{4,6}$/.test(senha)){toast("A senha deve ter de 4 a 6 dígitos");return;}
   if(senha)o.senha=senha;
   const marcadas=[];
   try{document.querySelectorAll(".permChk").forEach(ch=>{if(ch.checked)marcadas.push(ch.value);});}catch(e){}
