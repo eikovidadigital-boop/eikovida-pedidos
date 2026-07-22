@@ -269,7 +269,7 @@
 
     <div id="formLogin">
       <input id="loginCodigo" maxlength="12" placeholder="Código do vendedor ou usuário" autocapitalize="off" autocorrect="off" />
-      <input id="loginSenha" type="password" inputmode="numeric" maxlength="6" placeholder="Senha (4 a 6 dígitos)" onkeydown="if(event.key==='Enter')entrar()" />
+      <input id="loginSenha" type="password" inputmode="numeric" maxlength="6" placeholder="Senha (6 dígitos)" onkeydown="if(event.key==='Enter')entrar()" />
       <button onclick="entrar()">Entrar</button>
       <div class="linkbox">
         <span onclick="mostrarAtivacao()">Primeiro acesso? Ativar meu app</span>
@@ -279,7 +279,7 @@
     <div id="formAtivar" class="hide">
       <div class="avisoAtv">Digite o <b>código de ativação</b> que o administrador enviou.</div>
       <input id="atvCodigo" maxlength="8" placeholder="Código de ativação (ex: EK4A7X)" autocapitalize="characters" autocorrect="off" />
-      <input id="atvSenha" type="password" inputmode="numeric" maxlength="6" placeholder="Crie sua senha (4 a 6 dígitos)" />
+      <input id="atvSenha" type="password" inputmode="numeric" maxlength="6" placeholder="Crie sua senha de 6 dígitos" />
       <input id="atvSenha2" type="password" inputmode="numeric" maxlength="6" placeholder="Repita a senha" />
       <button onclick="ativarApp()">Ativar meu app</button>
       <div class="linkbox"><span onclick="mostrarLogin()">← Voltar para o login</span></div>
@@ -368,7 +368,7 @@ let pedidosRemoto=[];
 const LS={get(k,def){try{const v=localStorage.getItem("eiko_"+k);return v?JSON.parse(v):def;}catch(e){return def;}},set(k,v){try{localStorage.setItem("eiko_"+k,JSON.stringify(v));}catch(e){}}};
 let vendedor="", viewAtual="home";
 let vendedorCodigo="", vendedorId="", ehAdmin=false, permissoes=null;
-const ADMIN_USER="adm01eiko", ADMIN_SENHA="2904";
+const ADMIN_USER="adm01eiko", ADMIN_SENHA="290412";
 const ABAS=[["convites","Instalar p/ Vendedor"],["catalogoCfg","Editar Catálogo"],["representadas","Representadas"],["catprod","Categorias de Produto"],["home","Início"],["novo","Novo Pedido"],["central","Central de Pedidos"],["relatorios","Relatórios"],["cobrancas","Cobranças"],["clientes","Clientes"],["produtos","Produtos"],["tabelas","Tabelas de Preço"],["transportadoras","Transportadoras"],["fornecedores","Fornecedores"],["agenda","Agenda / CRM"],["equipe","Minha Equipe"],["empresa","Minha Empresa"],["importacoes","Importações"],["sync","Sincronização"],["catalogo","Catálogo Online"]];
 const ABAS_PADRAO=["home","novo","central","clientes","produtos","agenda","sync"];
 function podeVer(v){return ehAdmin||!permissoes||permissoes.includes(v);}
@@ -545,7 +545,7 @@ async function ativarApp(){
   const cod=String(val("atvCodigo")||"").trim().toUpperCase();
   const s1=String(val("atvSenha")||"").trim(), s2=String(val("atvSenha2")||"").trim();
   if(!cod){lmsg("Digite o código de ativação","erro");return;}
-  if(!/^\d{4,6}$/.test(s1)){lmsg("A senha deve ter de 4 a 6 dígitos numéricos","erro");return;}
+  if(!/^\d{6}$/.test(s1)){lmsg("A senha deve ter 6 dígitos numéricos","erro");return;}
   if(s1!==s2){lmsg("As senhas não conferem","erro");return;}
   if(!navigator.onLine){lmsg("Precisa de internet para ativar","erro");return;}
   lmsg("Ativando…");
@@ -1552,7 +1552,7 @@ function viewEquipe(){
       <div><label class="lb">Código ${vendEdit?"":"(vazio = automático)"}</label><input class="inp" id="veCod" inputmode="numeric" maxlength="4" value="${esc(String(f.codigo||''))}"/></div>
     </div>
     <div class="fgrid" style="margin-top:8px">
-      <div><label class="lb">Senha (4 a 6 dígitos) *</label><input class="inp" id="veSenha" inputmode="numeric" maxlength="6" value="${esc(String(f.senha||''))}"/></div>
+      <div><label class="lb">Senha (6 dígitos) *</label><input class="inp" id="veSenha" inputmode="numeric" maxlength="6" value="${esc(String(f.senha||''))}"/></div>
       <div><label class="lb">Meta mensal (R$)</label><input class="inp" id="veMeta" inputmode="decimal" value="${esc(String(f.meta||''))}"/></div>
     </div>
     <div style="margin-top:12px;background:#f8f8f6;border-radius:10px;padding:10px">
@@ -1576,6 +1576,16 @@ function viewEquipe(){
       <div style="font-size:11px;color:var(--cinza);margin-bottom:6px">Marque um ou v\u00e1rios. Nenhum marcado = os mesmos das representadas acima.</div>
       ${representadas().map(r=>`<label style="display:flex;align-items:center;gap:7px;font-size:13px;padding:4px 0">
         <input type="checkbox" class="catChk" value="${esc(r)}" ${(vendEdit&&Array.isArray(vendEdit.catalogos)&&vendEdit.catalogos.includes(r))?"checked":""} style="width:17px;height:17px"/> ${esc(r)}</label>`).join("")}
+    </div>
+    <div style="margin-top:10px;background:#f8f8f6;border-radius:10px;padding:10px">
+      <div style="font-weight:700;font-size:13px;margin-bottom:2px">\ud83d\udccd \u00c1rea de atendimento</div>
+      <div style="font-size:11px;color:var(--cinza);margin-bottom:8px">Escolha as cidades e/ou bairros que este vendedor atende. Serve de refer\u00eancia para voc\u00ea distribuir os clientes. Nada marcado = sem restri\u00e7\u00e3o.</div>
+      <label class="lb">Cidades</label>
+      <input class="inp" placeholder="\ud83d\udd0d filtrar cidades" oninput="filtrarArea('cid',this.value)" style="margin:4px 0 6px">
+      <div id="areaCidades" style="max-height:150px;overflow:auto;background:#fff;border:1px solid var(--borda);border-radius:8px;padding:6px">${chkArea("cid",cidadesClientes(),(vendEdit&&vendEdit.cidadesAtende)||[])}</div>
+      <label class="lb" style="margin-top:10px;display:block">Bairros</label>
+      <input class="inp" placeholder="\ud83d\udd0d filtrar bairros" oninput="filtrarArea('bai',this.value)" style="margin:4px 0 6px">
+      <div id="areaBairros" style="max-height:150px;overflow:auto;background:#fff;border:1px solid var(--borda);border-radius:8px;padding:6px">${chkArea("bai",bairrosClientes(),(vendEdit&&vendEdit.bairrosAtende)||[])}</div>
     </div>
     <div class="row" style="margin-top:12px">
       <button class="btn btn-v" style="flex:1" onclick="salvarVend()">${vendEdit?"Salvar alterações":"Cadastrar vendedor"}</button>
@@ -1666,13 +1676,36 @@ function salvarCodigoAtivacao(){
   db.ref("config/codigoAtivacao").set(c);
   codigoAtivacao=c;toast("Código de ativação salvo ✓");
 }
+function juntarVariacoes(valores){
+  const m={};
+  valores.forEach(v=>{const k=txtSimples(v);if(!k)return;if(!m[k]||v.length<m[k].length)m[k]=v;});
+  return Object.values(m).sort((a,b)=>a.localeCompare(b,"pt",{sensitivity:"base"}));
+}
+function cidadesClientes(){
+  return juntarVariacoes(clientes.map(c=>{const ci=String(c.cidade||"").trim();return ci?ci+(c.uf?"/"+String(c.uf).trim():""):"";}).filter(Boolean));
+}
+function bairrosClientes(){
+  return juntarVariacoes(clientes.map(c=>String(c.bairro||"").trim()).filter(Boolean));
+}
+function chkArea(tipo,lista,marcadas){
+  const mk=new Set(marcadas.map(x=>txtSimples(x)));
+  if(!lista.length)return `<div style="font-size:12px;color:var(--cinza);padding:6px">Nenhum dispon\u00edvel no cadastro dos clientes.</div>`;
+  return lista.map(v=>`<label class="areaItem area-${tipo}" data-v="${esc(txtSimples(v))}" style="display:flex;align-items:center;gap:7px;font-size:13px;padding:3px 2px">
+    <input type="checkbox" class="${tipo==="cid"?"cidChk":"baiChk"}" value="${esc(v)}" ${mk.has(txtSimples(v))?"checked":""}>${esc(v)}</label>`).join("");
+}
+function filtrarArea(tipo,q){
+  const alvo=txtSimples(q);
+  document.querySelectorAll(".area-"+tipo).forEach(el=>{
+    el.style.display=(!alvo||(el.getAttribute("data-v")||"").includes(alvo))?"flex":"none";
+  });
+}
 function salvarVend(){
   const o={nome:val("veNome"),meta:parseFloat(String(val("veMeta")).replace(/\./g,'').replace(',','.'))||0};
   if(!o.nome){toast("Informe o nome");return;}
   if(!ehAdmin){toast("Somente o administrador pode cadastrar vendedores");return;}
   const senha=String(val("veSenha")||"").trim();
-  if(!vendEdit&&!/^\d{4,6}$/.test(senha)){toast("Defina a senha de 4 a 6 dígitos");return;}
-  if(senha&&!/^\d{4,6}$/.test(senha)){toast("A senha deve ter de 4 a 6 dígitos");return;}
+  if(!vendEdit&&!/^\d{6}$/.test(senha)){toast("Defina a senha de 6 dígitos");return;}
+  if(senha&&!/^\d{6}$/.test(senha)){toast("A senha deve ter 6 dígitos");return;}
   if(senha)o.senha=senha;
   const marcadas=[];
   try{document.querySelectorAll(".permChk").forEach(ch=>{if(ch.checked)marcadas.push(ch.value);});}catch(e){}
@@ -1683,6 +1716,11 @@ function salvarVend(){
   const cats=[];
   try{document.querySelectorAll(".catChk").forEach(ch=>{if(ch.checked)cats.push(ch.value);});}catch(e){}
   o.catalogos=cats;
+  const cids=[],bais=[];
+  try{document.querySelectorAll(".cidChk").forEach(ch=>{if(ch.checked)cids.push(ch.value);});}catch(e){}
+  try{document.querySelectorAll(".baiChk").forEach(ch=>{if(ch.checked)bais.push(ch.value);});}catch(e){}
+  o.cidadesAtende=cids;
+  o.bairrosAtende=bais;
   if(!vendEdit){o.codAtivacao=gerarCodAtivacao();o.ativado=false;}
   let cod=padCod(val("veCod"));
   if(!val("veCod")){
@@ -1733,7 +1771,7 @@ function convitePara(id){
     +"2) Toque em *Instalar app*\n"
     +"3) Toque em *Ativar meu app* e digite:\n\n"
     +"CÓDIGO DE ATIVAÇÃO: "+(v.codAtivacao||"—")+"\n\n"
-    +"Depois crie sua senha de 4 dígitos. Guarde bem — o acesso é pessoal.";
+    +"Depois crie sua senha de 6 dígitos. Guarde bem — o acesso é pessoal.";
 }
 function convitePadrao(){
   return "Segue o acesso ao *"+(empresa.razao||"EIKO VIDA")+" Pedidos*, nosso app de vendas:\n\n"+linkApp()
