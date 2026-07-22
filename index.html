@@ -960,7 +960,7 @@ function excluirRepres(id){
   if(!confirm("Excluir a representada "+r.nome+"?"+(nProd||nPed?"\n\n\u26a0\ufe0f "+nProd+" produto(s) e "+nPed+" pedido(s) continuam com esse nome gravado.":"")))return;
   db.ref("representadas/"+id).remove().then(()=>{if(repEdit&&repEdit.id===id)repEdit=null;toast("Exclu\u00edda");render();}).catch(()=>toast("N\u00e3o foi poss\u00edvel concluir. Tente novamente."));
 }
-function fichaCliente(lista){
+function blocoConsultaCliente(lista){
   const q=txtSimples(buscaCliRel);
   const campo=`<div class="card">
     <div style="font-weight:700;font-size:14px;margin-bottom:6px">\ud83d\udd0d Consultar um cliente</div>
@@ -1058,7 +1058,7 @@ function viewRelatorios(){
 
   return `<h2 class="tit">Relatórios</h2>
     ${chips}${kpis}
-    ${fichaCliente(lista)}
+    ${blocoConsultaCliente(lista)}
     ${rank("🏆 Produtos que mais venderam",topProd,v=>`${v.qtd} un · <b style="color:var(--verde)">${brl(v.valor)}</b>`)}
     ${rank("👥 Clientes que mais compraram",topCli,v=>`${v.ped} ped · <b style="color:var(--verde)">${brl(v.valor)}</b>`)}
     ${vends.length>1?rank("🧑‍💼 Vendas por vendedor",vends,v=>`${v.ped} ped · <b style="color:var(--verde)">${brl(v.valor)}</b>`):""}`;
