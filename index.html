@@ -597,7 +597,7 @@ function iniciar(){
 function conectarFirebase(){
   if(!acessoPronto){quandoAcesso(conectarFirebase);return;}
   db.ref("produtos").on("value",s=>{const a=toArr(s.val());if(a.length===0){if(produtos.length===0&&navigator.onLine)semear();return;}produtos=a;LS.set("produtos",a);reRender(["produtos","novo"]);});
-  db.ref("clientes").on("value",s=>{const a=toArr(s.val());if(a.length===0&&clientes.length>0)return;clientes=a;LS.set("clientes",a);reRender(["clientes","novo"]);});
+  db.ref("clientes").on("value",s=>{const a=toArr(s.val());if(a.length===0&&clientes.length>0)return;clientes=a;LS.set("clientes",a);_cliIdx=null;pedidos.forEach(p=>{p._cidade=undefined;p._categoria=undefined;});reRender(["clientes","novo","central"]);});
   db.ref("categorias_cliente").on("value",s=>{const a=toArr(s.val());if(a.length===0&&catCliente.length>0)return;catCliente=a;LS.set("catCliente",a);reRender(["clientes"]);});
   db.ref("categorias_produto").on("value",s=>{const a=toArr(s.val());if(a.length===0&&catProduto.length>0)return;catProduto=a;LS.set("catProduto",a);reRender(["produtos","novo","catprod"]);});
   db.ref("tabelas").on("value",s=>{const a=toArr(s.val());if(a.length===0&&tabelas.length>0)return;tabelas=a;LS.set("tabelas",a);reRender(["tabelas"]);if(viewAtual==="novo"&&subAbaPedido==="cab")render();});
@@ -621,7 +621,7 @@ function conectarFirebase(){
 function reRender(views){if(views.includes(viewAtual))render();}
 function reconstruirPedidos(){
   const pend=filaPendentes.filter(f=>f.col==="pedidos").map(f=>({...f.data,id:f.tempId,_pendente:true}));
-  pedidos=[...pend,...pedidosRemoto].sort((a,b)=>new Date(b.data)-new Date(a.data));
+  pedidos=[...pend,...pedidosRemoto].sort((a,b)=>(+new Date(b.data||0)||0)-(+new Date(a.data||0)||0));
 }
 function toArr(o){return o?Object.keys(o).map(k=>({id:k,...o[k]})):[];}
 function itensDe(o){const i=o&&o.itens;if(Array.isArray(i))return i;if(i&&typeof i==="object")return Object.keys(i).sort((a,b)=>a-b).map(k=>i[k]);return [];}
@@ -2692,13 +2692,19 @@ function textoPedido(o){
 function viewCentral(){
   const base=pedidosVis();
   const hoje=new Date().toDateString();
-  const hj=base.filter(p=>p.data&&new Date(p.data).toDateString()===hoje);
-  const fat=base.reduce((s,p)=>s+(p.total||0),0);
-  const abertos=base.filter(p=>p.status==="aberto").length;
-  const tipo=t=>base.filter(p=>(p.status||"Pedido")===t);
+  // uma única passada para todos os totais
+  const G={peds:[],orc:[],tro:[],bon:[],hj:[],pend:0};
+  for(const p of base){
+    const st=p.status||"Pedido";
+    if(st==="Orçamento")G.orc.push(p);
+    else if(st==="Troca")G.tro.push(p);
+    else if(st==="Bonificação")G.bon.push(p);
+    else G.peds.push(p);
+    if(p.data&&(p._tsd||(p._tsd=new Date(p.data).toDateString()))===hoje)G.hj.push(p);
+    if(!p._pendente&&st!=="Orçamento"&&!/pago/i.test(p.situacao||""))G.pend++;
+  }
+  const hj=G.hj, peds=G.peds, orc=G.orc, tro=G.tro, bon=G.bon;
   const soma=a=>a.reduce((s,p)=>s+(p.total||0),0);
-  const peds=base.filter(p=>!p.status||p.status==="Pedido"||p.status==="aberto"||p.status==="enviado");
-  const orc=tipo("Orçamento"), tro=tipo("Troca"), bon=tipo("Bonificação");
   const linha=(n,lbl,v)=>`<div class="resumo-l"><span>${n} ${lbl}</span><b>${brl(v)}</b></div>`;
   const kpis=`<div class="resumo">
     ${linha(peds.length,"pedidos",soma(peds))}
@@ -2708,9 +2714,8 @@ function viewCentral(){
     <div class="resumo-l" style="border-top:1px solid rgba(255,255,255,.25);margin-top:4px;padding-top:6px"><span>Hoje: ${hj.length} pedido(s)</span><b>${brl(soma(hj))}</b></div>
   </div>`;
   if(base.length===0)return `<h2 class="tit">Central de pedidos</h2>${kpis}<div class="vazio"><div class="em">📋</div><div>Nenhum pedido ainda.</div></div>`;
-  const pend=base.filter(p=>!p._pendente&&(p.status||"Pedido")!=="Or\u00e7amento"&&!/pago/i.test(p.situacao||""));
-  const barraPago=(ehAdmin&&pend.length)?`<div class="card" style="border:2px solid var(--dourado);background:#fffdf5;padding:12px">
-    <div style="font-size:13px;color:#555;margin-bottom:8px"><b style="color:#b45309">${pend.length}</b> pedido(s) ainda marcados como Pendente.</div>
+  const barraPago=(ehAdmin&&G.pend)?`<div class="card" style="border:2px solid var(--dourado);background:#fffdf5;padding:12px">
+    <div style="font-size:13px;color:#555;margin-bottom:8px"><b style="color:#b45309">${G.pend}</b> pedido(s) ainda marcados como Pendente.</div>
     <button class="btn btn-v btn-sm" style="width:100%" onclick="marcarTodosPagos(true)">\u2713 Marcar todos como Pago</button>
     <div id="cobrProg" style="font-size:12px;color:var(--cinza);margin-top:6px"></div>
   </div>`:"";
@@ -2721,18 +2726,33 @@ function viewCentral(){
   return `<h2 class="tit">Central de pedidos (${base.length})${ehAdmin?' <span style="font-size:12px;color:var(--dourado)">· todos os vendedores</span>':""}</h2>${kpis}${barraPago}${busca}<div id="listaCentral">${htmlListaCentral()}</div>
     <button class="fab" onclick="irPara('novo')">＋ Novo Pedido</button>`;
 }
+let _cliIdx=null,_cliIdxN=0;
+function idxClientes(){
+  if(_cliIdx&&_cliIdxN===clientes.length)return _cliIdx;
+  const porId={},porNome={};
+  clientes.forEach(c=>{
+    if(c.id)porId[c.id]=c;
+    const n=txtSimples(c.nome); if(n&&!porNome[n])porNome[n]=c;
+  });
+  _cliIdx={porId,porNome};_cliIdxN=clientes.length;
+  return _cliIdx;
+}
 function cliDoPedido(o){
   if(!o)return {};
-  return clientes.find(c=>c.id===o.clienteId)
-      || clientes.find(c=>txtSimples(c.nome)===txtSimples(o.cliente))
-      || {};
+  const ix=idxClientes();
+  return (o.clienteId&&ix.porId[o.clienteId])||ix.porNome[txtSimples(o.cliente)]||{};
 }
 function cidadeDoPedido(o){
+  if(o._cidade!==undefined)return o._cidade;
   const c=cliDoPedido(o);
-  if(c.cidade)return String(c.cidade).trim()+(c.uf?"/"+String(c.uf).trim():"");
-  return String(o.cidade||"").trim();
+  o._cidade=c.cidade?String(c.cidade).trim()+(c.uf?"/"+String(c.uf).trim():""):String(o.cidade||"").trim();
+  return o._cidade;
 }
-function categoriaDoPedido(o){return String(cliDoPedido(o).categoria||"").trim();}
+function categoriaDoPedido(o){
+  if(o._categoria!==undefined)return o._categoria;
+  o._categoria=String(cliDoPedido(o).categoria||"").trim();
+  return o._categoria;
+}
 function filtrosAtivos(){return Object.values(fCentral).filter(v=>String(v||"").trim()).length;}
 function setF(k,v){fCentral[k]=v;const el=document.getElementById("listaCentral");if(el)el.innerHTML=htmlListaCentral();const b=document.querySelector(".fltop .fbtn");if(b){b.className="fbtn "+(filtrosAtivos()?"on":"");b.textContent="\u25bc Filtros"+(filtrosAtivos()?" ("+filtrosAtivos()+")":"");}}
 function limparFiltrosCentral(){fCentral={cliente:"",repres:"",de:"",ate:"",tipo:"",situacao:"",vendedor:"",cidade:"",categoria:""};render();}
@@ -2767,7 +2787,7 @@ function boxFiltroCentral(){
 function aplicaFiltrosCentral(arr){
   const f=fCentral;
   const dt=o=>String(o.dataEmissao||o.data||"").slice(0,10);
-  if(f.cliente){const q=f.cliente.toLowerCase();arr=arr.filter(o=>{const c=clientes.find(x=>x.id===o.clienteId)||clientes.find(x=>x.nome===o.cliente)||{};return ((o.cliente||"")+" "+(c.fantasia||"")+" "+(c.cnpj||"")).toLowerCase().includes(q);});}
+  if(f.cliente){const q=f.cliente.toLowerCase();arr=arr.filter(o=>{const c=cliDoPedido(o);return ((o.cliente||"")+" "+(c.fantasia||"")+" "+(c.cnpj||"")).toLowerCase().includes(q);});}
   if(f.repres)arr=arr.filter(o=>(o.representada||"EIKO VIDA")===f.repres);
   if(f.vendedor)arr=arr.filter(o=>(o.vendedor||"")===f.vendedor);
   if(f.tipo)arr=arr.filter(o=>{const t=o.tipo||o.status||"Pedido";return f.tipo==="Pedido"?["Pedido","aberto","enviado"].includes(t):t===f.tipo;});
@@ -2805,13 +2825,13 @@ function corSituacao(s){
 }
 function htmlListaCentral(){
   const q=(buscaCentral||"").toLowerCase().trim();
-  let arr=pedidosVis().slice().sort((a,b)=>new Date(b.data||0)-new Date(a.data||0));
-  if(q)arr=arr.filter(o=>((o.cliente||"")+" "+(o.numero||"")+" "+(o.cidade||"")).toLowerCase().includes(q));
+  let arr=pedidosVis().slice().sort((a,b)=>(b._ts||(b._ts=+new Date(b.data||0)||0))-(a._ts||(a._ts=+new Date(a.data||0)||0)));
+  if(q)arr=arr.filter(o=>(o._busca||(o._busca=((o.cliente||"")+" "+(o.numero||"")+" "+(o.cidade||"")).toLowerCase())).includes(q));
   arr=aplicaFiltrosCentral(arr);
   const total=arr.length, LIM=50, mostra=arr.slice(0,LIM);
   if(total===0)return `<div class="vazio">Nenhum pedido encontrado.</div>`;
   const lista=mostra.map(o=>{
-    const cli=clientes.find(x=>x.id===o.clienteId)||clientes.find(x=>x.nome===o.cliente)||{};
+    const cli=cliDoPedido(o);
     const nv=o.id===destaqueId;
     const sit=o.situacao||(o.status==="enviado"?"Enviado":"Pendente");
     const corSit=corSituacao(sit);
