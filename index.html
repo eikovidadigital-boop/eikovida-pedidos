@@ -799,6 +799,9 @@ function abrirPeriodo(v){
     const hoje=new Date(),ini=new Date();ini.setDate(1);
     periodoDe=ini.toISOString().slice(0,10);periodoAte=hoje.toISOString().slice(0,10);
   }
+  viewAtual="relatorios";
+  const c=document.getElementById("conteudo");
+  if(c){c.innerHTML=viewRelatorios();return;}
   render();
 }
 function textoCatalogo(rep,cli){
@@ -3629,7 +3632,8 @@ function viewClientes(){
       <button class="btn btn-v" style="flex:1" onclick="salvarCli()">${editCli?"Salvar alterações":"Adicionar cliente"}</button>
       ${editCli?`<button class="btn btn-g" onclick="editCli=null;render()">✕</button>`:""}
     </div></div>`;
-  const cats=[...new Set(clientes.map(c=>c.categoria).filter(Boolean))];
+  const limpaCat=v=>String(v||"").split("|")[0].trim();
+  const cats=[...new Set(clientes.map(c=>limpaCat(c.categoria)).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
   const chips=cats.length?`<div class="chips"><button class="chip ${filtroCli===""?"on":""}" onclick="filtroCli='';render()">Todos</button>`
     +cats.map(ct=>`<button class="chip ${filtroCli===ct?"on":""}" onclick="filtroCli='${esc(ct)}';render()">${esc(ct)}</button>`).join("")+`</div>`:"";
   const busca=`<input class="inp" id="buscaCliInp" placeholder="🔍 Buscar por nome, cidade ou CNPJ" value="${esc(buscaCli)}" oninput="filtrarClientes(this.value)" style="margin:4px 0 10px">`;
@@ -3640,7 +3644,7 @@ function viewClientes(){
 }
 function htmlListaClientes(){
   const q=(buscaCli||"").toLowerCase().trim();
-  let lista=clientes.filter(c=>!filtroCli||c.categoria===filtroCli);
+  let lista=clientes.filter(c=>!filtroCli||limpaCat(c.categoria)===filtroCli);
   if(escopoCli==="meus")lista=lista.filter(c=>String(c.vendedorCodigo||"")===String(vendedorCodigo));
   if(q)lista=lista.filter(c=>((c.nome||"")+" "+(c.fantasia||"")+" "+(c.cidade||"")+" "+(c.cnpj||"")).toLowerCase().includes(q));
   const total=lista.length, LIM=60;
@@ -3649,7 +3653,7 @@ function htmlListaClientes(){
   if(total===0)return `<div class="vazio"><div class="em">👥</div><div>Nenhum cliente encontrado.</div></div>`;
   const cards=mostra.map(c=>`<div class="lista-cli" onclick="verCliente('${c.id}')"><div class="info"><b>${esc(c.nome)}</b>
         <small>${[esc(c.cidade),esc(c.whatsapp)].filter(Boolean).join(" · ")}${c.vendedorCodigo?` · <span style="color:var(--verde)">cód ${esc(c.vendedorCodigo)}</span>`:""}</small></div>
-        ${c.categoria?`<span class="badge b-cat">${esc(c.categoria)}</span>`:""}
+        ${c.categoria?`<span class="badge b-cat">${esc(limpaCat(c.categoria))}</span>`:""}
         <button class="icbtn btn-g" onclick="event.stopPropagation();editarCli('${c.id}')">✎</button></div>`).join("");
   const aviso=total>LIM?`<div style="text-align:center;color:var(--cinza);font-size:12px;padding:12px">Mostrando ${LIM} de ${total}. Use a busca para achar outros.</div>`:"";
   return cards+aviso;
