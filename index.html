@@ -1716,8 +1716,20 @@ function bairrosClientes(){
 function chkArea(tipo,lista,marcadas){
   const mk=new Set(marcadas.map(x=>txtSimples(x)));
   if(!lista.length)return `<div style="font-size:12px;color:var(--cinza);padding:6px">Nenhum dispon\u00edvel no cadastro dos clientes.</div>`;
-  return lista.map(v=>`<label class="areaItem area-${tipo}" data-v="${esc(txtSimples(v))}" style="display:flex;align-items:center;gap:7px;font-size:13px;padding:3px 2px">
-    <input type="checkbox" class="${tipo==="cid"?"cidChk":"baiChk"}" value="${esc(v)}" ${mk.has(txtSimples(v))?"checked":""}>${esc(v)}</label>`).join("");
+  const cls=tipo==="cid"?"cidChk":"baiChk";
+  const todos=lista.length&&lista.every(v=>mk.has(txtSimples(v)));
+  const rotulo=tipo==="cid"?"Todas as cidades":"Todos os bairros";
+  const topo=`<label style="display:flex;align-items:center;gap:7px;font-size:13px;font-weight:700;padding:4px 2px;border-bottom:1px solid var(--borda);margin-bottom:4px;color:var(--verde)">
+    <input type="checkbox" onchange="marcarTodaArea('${cls}',this.checked)" ${todos?"checked":""}>${rotulo}</label>`;
+  const itens=lista.map(v=>`<label class="areaItem area-${tipo}" data-v="${esc(txtSimples(v))}" style="display:flex;align-items:center;gap:7px;font-size:13px;padding:3px 2px">
+    <input type="checkbox" class="${cls}" value="${esc(v)}" ${mk.has(txtSimples(v))?"checked":""}>${esc(v)}</label>`).join("");
+  return topo+itens;
+}
+function marcarTodaArea(cls,val){
+  document.querySelectorAll("."+cls).forEach(ch=>{
+    const vis=ch.closest("label")&&ch.closest("label").style.display!=="none";
+    if(vis!==false)ch.checked=val;
+  });
 }
 function filtrarArea(tipo,q){
   const alvo=txtSimples(q);
