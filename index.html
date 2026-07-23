@@ -3172,7 +3172,7 @@ function abrirPix(valor,titulo,ref){
       <div class="sheet-h" style="justify-content:center">Pix${val?" · "+val:""}<small>${esc(titulo||"")}</small></div>
       <div id="pixQR" style="display:flex;justify-content:center;padding:14px 0"></div>
       <div style="font-size:12px;color:var(--cinza);padding:0 16px">Aponte a câmera do banco ou use o Copia e Cola:</div>
-      <div style="background:#f4f4f2;border-radius:8px;padding:10px;margin:8px 16px;font-size:11px;word-break:break-all;max-height:70px;overflow:auto">${esc(codigo)}</div>
+      <div onclick="copiar('${codigo}','Código Pix copiado ✓')" style="background:#f4f4f2;border-radius:8px;padding:10px;margin:8px 16px;font-size:11px;word-break:break-all;max-height:70px;overflow:auto;cursor:pointer;border:1px dashed var(--verde)"><div style="font-size:10px;color:var(--verde);font-weight:700;margin-bottom:4px">👆 Toque para copiar o código Pix</div>${esc(codigo)}</div>
       <div style="display:flex;gap:8px;padding:0 16px">
         <button class="btn btn-v btn-sm" style="flex:1" onclick="copiar('${codigo}','Código Pix copiado ✓')">📋 Copiar código</button>
         <button class="btn btn-w btn-sm" style="flex:1" onclick="pixWhats('${codigo}','${esc((val?val+" — ":""))}${esc(titulo||"")}')">📲 Enviar</button>
@@ -3196,24 +3196,38 @@ function pixDoPedido(id){
   const o=pedidos.find(x=>x.id===id); if(!o)return;
   abrirPix(o.total||0,(o.cliente||"")+(o.numero?" · nº "+o.numero:""),"PED"+(o.numero||o.id));
 }
-function enviarPedidoComPix(id){
+async function enviarPedidoComPix(id){
   fecharSheet();
   const o=pedidos.find(x=>x.id===id); if(!o)return;
   if(!pixConfigurado()){if(confirm("Cadastre sua chave Pix primeiro. Ir para a tela de Pix?"))irPara("pix");return;}
   const codigo=gerarBRCode(o.total||0,"PED"+(o.numero||o.id));
   const c=pixCfg();
-  let msg=textoPedido(o);
-  msg+="\n\n———————————————\n";
-  msg+="*PAGUE COM PIX* 💸\n\n";
+  const num=o.numero||id;
+  let msg="Ol\u00e1! Segue o seu pedido n\u00ba "+num+" em anexo (PDF).\n\n";
+  msg+="*PAGUE COM PIX* \ud83d\udcb8\n";
   msg+="Valor: *"+brl(o.total)+"*\n";
   msg+="Chave ("+c.tipo+"): "+c.chave+"\n\n";
-  msg+="Se tiver como escanear, vou te mandar o QR Code na sequência.\n\n";
-  msg+="👇 *Você também pode pagar copiando o código abaixo* e colando no seu banco (Pix Copia e Cola):\n\n";
+  msg+="\ud83d\udc47 *Voc\u00ea tamb\u00e9m pode pagar copiando o c\u00f3digo abaixo* e colando no seu banco (Pix Copia e Cola):\n\n";
   msg+=codigo;
-  const url="https://wa.me/?text="+encodeURIComponent(msg);
-  window.open(url,"_blank");
-  // abre o QR logo em seguida, para o vendedor também poder enviar a imagem se o cliente puder escanear
-  setTimeout(()=>abrirPix(o.total||0,(o.cliente||"")+(o.numero?" · nº "+o.numero:""),"PED"+(o.numero||o.id)),400);
+  if(!window.jspdf||!window.jspdf.jsPDF){toast("Conecte-se \u00e0 internet para gerar o PDF");return;}
+  toast("Gerando PDF\u2026");
+  let logo=null; try{logo=await carregarLogo(o.representada);}catch(_){}
+  let doc; try{doc=construirPDFjs(id,logo);}catch(e){doc=null;}
+  if(!doc){toast("Erro ao gerar o PDF");return;}
+  const blob=doc.output("blob");
+  const file=new File([blob],"Pedido-"+num+".pdf",{type:"application/pdf"});
+  const abrirQR=()=>abrirPix(o.total||0,(o.cliente||"")+(o.numero?" \u00b7 n\u00ba "+o.numero:""),"PED"+num);
+  try{
+    if(navigator.canShare&&navigator.canShare({files:[file]})){
+      await navigator.share({files:[file],title:"Pedido "+num,text:msg});
+      setTimeout(abrirQR,300);
+    }else{
+      doc.save("Pedido-"+num+".pdf");
+      setTimeout(()=>{window.open("https://wa.me/?text="+encodeURIComponent(msg+"\n\n(anexe o PDF que acabou de baixar)"),"_blank");},500);
+      setTimeout(abrirQR,700);
+      toast("PDF baixado \u2014 anexe no WhatsApp");
+    }
+  }catch(e){ if(e&&e.name==="AbortError")return; try{doc.save("Pedido-"+num+".pdf");}catch(_){} setTimeout(abrirQR,300); }
 }
 function pixCobranca(id){
   const o=pedidos.find(x=>x.id===id); if(!o)return;
