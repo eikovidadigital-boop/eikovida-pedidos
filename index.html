@@ -3208,12 +3208,12 @@ async function enviarPedidoComPix(id){
   const codigo=gerarBRCode(o.total||0,"PED"+(o.numero||o.id));
   const c=pixCfg();
   const num=o.numero||id;
-  let msg="Ol\u00e1! Segue o seu pedido n\u00ba "+num+" em anexo (PDF).\n\n";
-  msg+="*PAGUE COM PIX* \ud83d\udcb8\n";
-  msg+="Valor: *"+brl(o.total)+"*\n";
-  msg+="Chave ("+c.tipo+"): "+c.chave+"\n\n";
-  msg+="\ud83d\udc47 *Voc\u00ea tamb\u00e9m pode pagar copiando o c\u00f3digo abaixo* e colando no seu banco (Pix Copia e Cola):\n\n";
-  msg+=codigo;
+  // Mensagem 1 (vai como legenda do PDF): texto do Pix SEM o c\u00f3digo
+  let msg1="Ol\u00e1! Segue o seu pedido n\u00ba "+num+" em anexo (PDF).\n\n";
+  msg1+="*PAGUE COM PIX* \ud83d\udcb8\n";
+  msg1+="Valor: *"+brl(o.total)+"*\n";
+  msg1+="Chave ("+c.tipo+"): "+c.chave+"\n\n";
+  msg1+="\ud83d\udc47 Logo abaixo vou te enviar o *Pix Copia e Cola* para voc\u00ea copiar e pagar no seu banco.";
   if(!window.jspdf||!window.jspdf.jsPDF){toast("Conecte-se \u00e0 internet para gerar o PDF");return;}
   toast("Gerando PDF\u2026");
   let logo=null; try{logo=await carregarLogo(o.representada);}catch(_){}
@@ -3221,23 +3221,43 @@ async function enviarPedidoComPix(id){
   if(!doc){toast("Erro ao gerar o PDF");return;}
   const blob=doc.output("blob");
   const file=new File([blob],"Pedido-"+num+".pdf",{type:"application/pdf"});
-  const abrirQR=()=>abrirPix(o.total||0,(o.cliente||"")+(o.numero?" \u00b7 n\u00ba "+o.numero:""),"PED"+num);
-  // o WhatsApp descarta a legenda ao receber um anexo pelo compartilhamento nativo,
-  // ent\u00e3o copiamos a mensagem do Pix para a \u00e1rea de transfer\u00eancia: o vendedor cola como legenda.
+  // guarda o c\u00f3digo para o passo 2 (enviar como 2\u00aa mensagem separada)
+  window._pixSegunda={codigo:codigo,titulo:(o.cliente||"")+(o.numero?" \u00b7 n\u00ba "+o.numero:""),valor:o.total||0,ref:"PED"+num};
+  // copia a mensagem 1 para colar como legenda do PDF (o WhatsApp descarta a legenda do anexo)
   let copiou=false;
-  try{ await navigator.clipboard.writeText(msg); copiou=true; }catch(_){ try{ const ta=document.createElement("textarea"); ta.value=msg; ta.style.position="fixed"; ta.style.opacity="0"; document.body.appendChild(ta); ta.select(); document.execCommand("copy"); document.body.removeChild(ta); copiou=true; }catch(__){} }
+  try{ await navigator.clipboard.writeText(msg1); copiou=true; }catch(_){ try{ const ta=document.createElement("textarea"); ta.value=msg1; ta.style.position="fixed"; ta.style.opacity="0"; document.body.appendChild(ta); ta.select(); document.execCommand("copy"); document.body.removeChild(ta); copiou=true; }catch(__){} }
   try{
     if(navigator.canShare&&navigator.canShare({files:[file]})){
-      if(copiou)alert("A mensagem do Pix foi COPIADA.\n\nNa tela do WhatsApp que vai abrir, escolha o contato e COLE (segurar > Colar) na legenda do PDF antes de enviar.");
-      await navigator.share({files:[file],title:"Pedido "+num,text:msg});
-      setTimeout(abrirQR,300);
+      if(copiou)alert("PASSO 1 de 2\n\nA mensagem foi COPIADA. Escolha o contato, COLE na legenda do PDF e envie.\n\nDepois, na tela que abrir aqui, toque em \"Enviar Pix Copia e Cola\" para mandar o c\u00f3digo como 2\u00aa mensagem.");
+      await navigator.share({files:[file],title:"Pedido "+num,text:msg1});
+      setTimeout(abrirPixSegunda,300);
     }else{
       doc.save("Pedido-"+num+".pdf");
-      setTimeout(()=>{window.open("https://wa.me/?text="+encodeURIComponent(msg+"\n\n(anexe o PDF que acabou de baixar)"),"_blank");},500);
-      setTimeout(abrirQR,700);
+      setTimeout(()=>{window.open("https://wa.me/?text="+encodeURIComponent(msg1+"\n\n(anexe o PDF que acabou de baixar)"),"_blank");},500);
+      setTimeout(abrirPixSegunda,700);
       toast("PDF baixado \u2014 anexe no WhatsApp");
     }
-  }catch(e){ if(e&&e.name==="AbortError")return; try{doc.save("Pedido-"+num+".pdf");}catch(_){} setTimeout(abrirQR,300); }
+  }catch(e){ if(e&&e.name==="AbortError"){setTimeout(abrirPixSegunda,200);return;} try{doc.save("Pedido-"+num+".pdf");}catch(_){} setTimeout(abrirPixSegunda,300); }
+}
+function abrirPixSegunda(){
+  const p=window._pixSegunda; if(!p)return;
+  const html=`<div class="sheet-ov" onclick="fecharPix()"></div>
+    <div class="sheet" style="text-align:center;padding-bottom:18px">
+      <div class="sheet-h" style="justify-content:center">Passo 2 de 2<small>${esc(p.titulo||"")}</small></div>
+      <div style="font-size:13px;color:#555;padding:6px 16px 2px">Agora envie o <b>Pix Copia e Cola</b> como 2\u00aa mensagem \u2014 o cliente copia tudo e paga no banco.</div>
+      <div id="pixQR2" style="display:flex;justify-content:center;padding:10px 0"></div>
+      <div onclick="copiar('${p.codigo}','C\u00f3digo Pix copiado \u2713')" style="background:#f4f4f2;border-radius:8px;padding:10px;margin:8px 16px;font-size:11px;word-break:break-all;cursor:pointer;border:1px dashed var(--verde)"><div style="font-size:10px;color:var(--verde);font-weight:700;margin-bottom:4px">\ud83d\udc46 Toque para copiar</div>${esc(p.codigo)}</div>
+      <div style="padding:0 16px">
+        <button class="btn btn-w" style="width:100%" onclick="pixSoCodigo('${p.codigo}')">\ud83d\udcf2 Enviar Pix Copia e Cola</button>
+      </div>
+      <div class="sheet-i" style="justify-content:center;color:var(--cinza);margin-top:10px" onclick="fecharPix()">Fechar</div>
+    </div>`;
+  const d=document.createElement("div");d.id="pixWrap";d.innerHTML=html;document.body.appendChild(d);
+  try{ if(window.QRCode)new QRCode(document.getElementById("pixQR2"),{text:p.codigo,width:170,height:170,colorDark:"#166534",colorLight:"#ffffff",correctLevel:QRCode.CorrectLevel.M}); }catch(e){}
+}
+function pixSoCodigo(codigo){
+  // 2\u00aa mensagem: SOMENTE o c\u00f3digo, para o cliente copiar a mensagem inteira
+  window.open("https://wa.me/?text="+encodeURIComponent(codigo),"_blank");
 }
 function pixCobranca(id){
   if(!ehAdmin){toast("Somente o administrador");return;}
