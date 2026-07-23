@@ -2727,34 +2727,44 @@ function produtosDoPedido(){
   const lista=ativos.filter(p=>(p.marca||"EIKO VIDA")===r);
   return lista.length?lista:ativos;
 }
-function viewBuscaItem(){
+function htmlListaBuscaItem(){
   const base=produtosDoPedido();
-  const cats=[...new Set(base.map(p=>p.categoria).filter(Boolean))];
-  const chips=cats.length?`<div class="chips"><button class="chip ${filtroItemCat===''?'on':''}" onclick="filtroItemCat='';render()">todas</button>`
-    +cats.map(ct=>`<button class="chip ${filtroItemCat===ct?'on':''}" onclick="filtroItemCat='${esc(ct)}';render()">${esc(ct)}</button>`).join("")+`</div>`:"";
-  const termo=buscaItemTxt.toLowerCase();
-  const lista=base.filter(p=>(!filtroItemCat||p.categoria===filtroItemCat) &&
-    (!termo || (p.nome||"").toLowerCase().includes(termo) || (p.codigo||"").toLowerCase().includes(termo) || (p.codbarras||"").toLowerCase().includes(termo)));
+  const termo=buscaItemTxt.trim().toLowerCase();
+  if(termo&&termo.length<2)return `<div class="vazio" style="padding:18px 6px">Digite ao menos 2 letras para buscar\u2026</div>`;
+  const lista=base.filter(p=>(!filtroItemCat||p.categoria===filtroItemCat)&&
+    (!termo||(p.nome||"").toLowerCase().includes(termo)||(p.codigo||"").toLowerCase().includes(termo)||(p.codbarras||"").toLowerCase().includes(termo)));
   const prods=lista.map(p=>{
-    const noped=carrinho[p.id]?`<span class="badge b-cat">no pedido: ${carrinho[p.id].qtd}</span>`:'<span class="editpen">＋</span>';
+    const noped=carrinho[p.id]?`<span class="badge b-cat">no pedido: ${carrinho[p.id].qtd}</span>`:'<span class="editpen">\uff0b</span>';
     return `<div class="pitem" onclick="abrirEditor('${p.id}')" style="cursor:pointer">
       <div class="thumb" style="width:40px;height:40px;font-size:18px">${thumbFoto(p)}</div>
-      <div class="nome"><b>${esc(p.nome)}</b><small>${p.codigo?"Ref: "+esc(p.codigo)+" · ":""}${brl(precoComTabela(p))}${p.estoque!=null&&p.estoque!==""?" · Est: "+p.estoque:""}</small></div>
+      <div class="nome"><b>${esc(p.nome)}</b><small>${p.codigo?"Ref: "+esc(p.codigo)+"  ":""}${brl(precoComTabela(p))}${p.estoque!=null&&p.estoque!==""?"  Est: "+esc(p.estoque):""}</small></div>
       ${noped}</div>`;
   }).join("");
-  const tabInfo=ped.tabela?`<div style="font-size:12px;color:var(--verde);font-weight:600;margin-bottom:8px">💲 Tabela: ${esc(ped.tabela)}</div>`:"";
+  return `<div style="font-size:12px;color:var(--cinza);margin:2px 0 6px">${lista.length} produto(s)</div>`+(prods||'<div class="vazio">Nenhum produto encontrado</div>');
+}
+function atualizarBuscaItem(v){buscaItemTxt=v;const el=document.getElementById("listaBuscaItem");if(el)el.innerHTML=htmlListaBuscaItem();}
+function setFiltroItemCat(ct){filtroItemCat=(filtroItemCat===ct?"":ct);const el=document.getElementById("listaBuscaItem");if(el)el.innerHTML=htmlListaBuscaItem();const ch=document.getElementById("chipsBuscaItem");if(ch)ch.innerHTML=chipsBuscaItemHTML();}
+function chipsBuscaItemHTML(){
+  const base=produtosDoPedido();
+  const cats=[...new Set(base.map(p=>p.categoria).filter(Boolean))];
+  if(!cats.length)return "";
+  return `<button class="chip ${filtroItemCat===''?'on':''}" onclick="setFiltroItemCat('')">todas</button>`+cats.map(ct=>`<button class="chip ${filtroItemCat===ct?'on':''}" onclick="setFiltroItemCat('${esc(ct)}')">${esc(ct)}</button>`).join("");
+}
+function viewBuscaItem(){
+  const tabInfo=ped.tabela?`<div style="font-size:12px;color:var(--verde);font-weight:600;margin-bottom:6px">\ud83d\udccb Tabela: ${esc(ped.tabela)}</div>`:"";
   return `
-    <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
-      <button class="btn btn-g btn-sm" onclick="buscaItem=false;render()">← Voltar</button>
-      <b style="flex:1">Novo Item — ${lista.length} produto(s)</b>
+    <div style="position:sticky;top:0;background:var(--bg);padding:2px 0 8px;z-index:5;border-bottom:1px solid var(--borda);margin-bottom:8px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <button class="btn btn-g btn-sm" onclick="buscaItem=false;render()">\u2190 Voltar</button>
+        <b style="flex:1">Novo Item</b>
+      </div>
+      <input class="inp" id="campoBuscaItem" placeholder="\ud83d\udd0d c\u00f3digo / nome / c\u00f3d. barras" value="${esc(buscaItemTxt)}" oninput="atualizarBuscaItem(this.value)" style="margin-top:0" autocomplete="off">
+      ${tabInfo}
+      <div class="chips" id="chipsBuscaItem" style="margin-top:6px">${chipsBuscaItemHTML()}</div>
     </div>
-    <div class="relbusca"><input class="inp" placeholder="código / nome / cód. barras" value="${esc(buscaItemTxt)}" oninput="buscaItemTxt=this.value;render()" style="margin-top:0"/></div>
-    ${tabInfo}
-    ${chips}
-    <div style="margin-top:6px">${prods||'<div class="vazio">Nenhum produto encontrado</div>'}</div>
+    <div id="listaBuscaItem">${htmlListaBuscaItem()}</div>
   `;
 }
-
 function abrirEditor(id){
   itemEditando=id;
   const it=carrinho[id];
