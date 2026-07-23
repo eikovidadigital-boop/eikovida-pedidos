@@ -376,7 +376,7 @@ const ADMIN_USER="adm01eiko", ADMIN_SENHA_PADRAO="290412";
 let admSenha="290412";
 const ABAS=[["convites","Instalar p/ Vendedor"],["catalogoCfg","Editar Catálogo"],["representadas","Representadas"],["pix","Pix / Financeiro"],["catprod","Categorias de Produto"],["home","Início"],["novo","Novo Pedido"],["central","Central de Pedidos"],["relatorios","Relatórios"],["cobrancas","Cobranças"],["clientes","Clientes"],["produtos","Produtos"],["tabelas","Tabelas de Preço"],["transportadoras","Transportadoras"],["fornecedores","Fornecedores"],["agenda","Agenda / CRM"],["equipe","Minha Equipe"],["empresa","Minha Empresa"],["importacoes","Importações"],["sync","Sincronização"],["catalogo","Catálogo Online"]];
 const ABAS_PADRAO=["home","novo","central","clientes","produtos","agenda","sync"];
-function podeVer(v){return ehAdmin||!permissoes||permissoes.includes(v);}
+function podeVer(v){if(v==="pix")return ehAdmin;return ehAdmin||!permissoes||permissoes.includes(v);}
 function podeEditarPed(o){
   if(!o)return false;
   if(ehAdmin)return true;                       // admin sempre pode
@@ -1136,7 +1136,7 @@ function viewCobrancas(){
         <div class="row" style="margin-top:8px">
           <button class="btn ${p.recebido?'btn-g':'btn-v'} btn-sm" style="flex:1" onclick="marcarRecebido('${p.id}',${p.recebido?'false':'true'})">
             ${p.recebido?'↩ A receber':'✓ Recebido'}</button>
-          ${!p.recebido&&pixConfigurado()?`<button class="btn btn-o btn-sm" onclick="pixCobranca('${p.id}')">📱 Pix</button>`:""}
+          ${ehAdmin&&!p.recebido&&pixConfigurado()?`<button class="btn btn-o btn-sm" onclick="pixCobranca('${p.id}')">📱 Pix</button>`:""}
         </div>
       </div>`).join("");
   const faltaPagar=aprazo.filter(p=>!p.recebido||!/pago/i.test(p.situacao||""));
@@ -3196,11 +3196,13 @@ function pixWhats(codigo,titulo){
 }
 function pixDoPedido(id){
   fecharSheet();
+  if(!ehAdmin){toast("Somente o administrador");return;}
   const o=pedidos.find(x=>x.id===id); if(!o)return;
   abrirPix(o.total||0,(o.cliente||"")+(o.numero?" · nº "+o.numero:""),"PED"+(o.numero||o.id));
 }
 async function enviarPedidoComPix(id){
   fecharSheet();
+  if(!ehAdmin){toast("Somente o administrador");return;}
   const o=pedidos.find(x=>x.id===id); if(!o)return;
   if(!pixConfigurado()){if(confirm("Cadastre sua chave Pix primeiro. Ir para a tela de Pix?"))irPara("pix");return;}
   const codigo=gerarBRCode(o.total||0,"PED"+(o.numero||o.id));
@@ -3233,6 +3235,7 @@ async function enviarPedidoComPix(id){
   }catch(e){ if(e&&e.name==="AbortError")return; try{doc.save("Pedido-"+num+".pdf");}catch(_){} setTimeout(abrirQR,300); }
 }
 function pixCobranca(id){
+  if(!ehAdmin){toast("Somente o administrador");return;}
   const o=pedidos.find(x=>x.id===id); if(!o)return;
   abrirPix(o.total||0,(o.cliente||"")+(o.numero?" · nº "+o.numero:""),"PED"+(o.numero||o.id));
 }
@@ -3290,6 +3293,7 @@ function salvarPix(){
   toast("Chave Pix salva ✓");render();
 }
 function pixAvulso(){
+  if(!ehAdmin){toast("Somente o administrador");return;}
   const v=parseFloat(String(val("pixValorAvulso")||"").replace(/[^\d,.-]/g,"").replace(",","."))||0;
   abrirPix(v,"Pix avulso","AVULSO");
 }
