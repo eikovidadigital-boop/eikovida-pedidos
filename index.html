@@ -3041,14 +3041,25 @@ function aplicaFiltrosCentral(arr){
   if(f.ate)arr=arr.filter(o=>dt(o)<=f.ate);
   return arr;
 }
+function blocoObs(o){
+  const oc=(o.obsCli||"").trim();
+  const oe=(o.obsEmp||"").trim();
+  if(!oc&&!oe)return "";
+  const linha=(rot,txt)=>txt?`<div style="margin-top:4px"><b>${rot}:</b> ${esc(txt)}</div>`:"";
+  return `<div style="background:#fffbeb;border:1px solid #fcd34d;border-radius:10px;padding:10px 12px;margin-bottom:10px;font-size:13px;color:#78350f">
+    <div style="font-weight:800;display:flex;align-items:center;gap:6px">\u26a0\ufe0f Observa\u00e7\u00f5es do pedido</div>
+    ${linha("Para o cliente",oc)}
+    ${linha("Interna (empresa)",oe)}
+  </div>`;
+}
 function blocoItens(o){
   const itens=itensDe(o);
-  if(!itens.length)return `<div class="itbox"><div class="ithead"><span>Itens</span></div>
+  if(!itens.length)return blocoObs(o)+`<div class="itbox"><div class="ithead"><span>Itens</span></div>
     <div style="padding:12px 10px;font-size:12px;color:var(--cinza);text-align:center">Este pedido n\u00e3o tem a lista de produtos.</div></div>`;
   const soma=itens.reduce((s,i)=>s+i.qtd*i.preco,0);
   const un=itens.reduce((s,i)=>s+(Number(i.qtd)||0),0);
   const dif=Math.abs(soma-(o.total||0))>0.02;
-  return `<div class="itbox">
+  return blocoObs(o)+`<div class="itbox">
     <div class="ithead"><span>${itens.length} ite${itens.length>1?"ns":"m"} \u00b7 ${un} un</span><span>Valor</span></div>
     ${itens.map(i=>`<div class="itlin">
       <span class="itq">${esc(String(i.qtd))}x</span>
