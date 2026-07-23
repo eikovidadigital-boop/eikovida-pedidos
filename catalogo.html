@@ -186,6 +186,21 @@ function aguardarAcesso(ms){return new Promise(r=>{if(acessoPronto)return r(true
 
 let produtos=[],empresa={},cfg={},cat="",carrinho={},prodAberto=null;
 const REPRES=(()=>{try{const r=new URLSearchParams(location.search).get("r");return r&&r.toUpperCase()!=="TODAS"?r.trim():"";}catch(e){return "";}})();
+const TABELA=(()=>{try{return (new URLSearchParams(location.search).get("t")||"").trim();}catch(e){return "";}})();
+let tabelas=[];
+function precoCat(p){
+  // usa a tabela indicada no link; sen\u00e3o o pre\u00e7o matriz (atacado)
+  const base=Number(p.atacado)||0;
+  if(!TABELA)return base;
+  const t=tabelas.find(x=>x.nome===TABELA&&(!x.representada||String(x.representada).toUpperCase()===String(REPRES||p.marca||"").toUpperCase()))
+        ||tabelas.find(x=>x.nome===TABELA);
+  if(!t)return base;
+  const cod=String(p.codigo||"");
+  if(t.precos&&cod&&t.precos[cod]!=null&&t.precos[cod]!=="")return Number(t.precos[cod])||0;
+  const perc=parseFloat(t.percentual)||0;
+  if(perc)return base*(1+perc/100);
+  return base;
+}
 function daRepres(p){return !REPRES||String(p.marca||"EIKO VIDA").trim().toUpperCase()===REPRES.toUpperCase();}
 let clientes=[],cliIdent=null,modoCad="escolha",pedidoAtual=null,unsubPed=null;
 const brl=n=>"R$ "+(Number(n)||0).toFixed(2).replace(".",",").replace(/\B(?=(\d{3})+(?!\d))/g,".");
@@ -200,6 +215,7 @@ db.ref("produtos").on("value",s=>{
   montarCats();filtrar();
 });
 db.ref("empresa").on("value",s=>{empresa=s.val()||{};rodape();});
+db.ref("tabelas").on("value",s=>{const v=s.val()||{};tabelas=Object.keys(v).map(k=>({id:k,...v[k]}));filtrar();});
 db.ref("catalogo").on("value",s=>{cfg=s.val()||{};aplicarCfg();rodape();});
 }
 quandoAcesso(conectarNuvem);
@@ -276,7 +292,7 @@ function filtrar(){
       <div class="info">
         ${p.codigo?`<div class="cd">Cód. ${esc(p.codigo)}</div>`:""}
         <div class="nm" onclick="verProduto('${p.id}')">${esc(p.nome)}</div>
-        <div class="pr"><span class="l">Atacado</span><span class="v">${brl(p.atacado)}</span></div>
+        <div class="pr"><span class="l">Atacado</span><span class="v">${brl(precoCat(p))}</span></div>
         ${q?`<div class="qtd"><button onclick="mudar('${p.id}',-1)">−</button><span>${q}</span><button onclick="mudar('${p.id}',1)">+</button></div>`
            :`<button class="add" onclick="mudar('${p.id}',1)">+ Adicionar</button>`}
       </div></div>`;
@@ -361,7 +377,7 @@ function verProduto(id){
         ${linha("Embalagem",p.embalagem||"UN/1")}
         ${linha("Estoque",p.estoque)}
       </div>
-      <div class="mpreco"><span class="l">Preço de atacado (tabela padrão)</span><span class="v">${brl(p.atacado)}</span></div>
+      <div class="mpreco"><span class="l">Preço de atacado</span><span class="v">${brl(precoCat(p))}</span></div>
     </div>
     <div class="mrodape">
       ${q?`<div class="qtd" style="margin:0"><button onclick="mudar('${p.id}',-1,true)">−</button><span>${q} no pedido</span><button onclick="mudar('${p.id}',1,true)">+</button></div>
@@ -382,7 +398,7 @@ function mudar(id,d,noModal){
 function atualizarCarrinho(){
   const ids=Object.keys(carrinho);
   const itens=ids.reduce((s,id)=>s+carrinho[id],0);
-  const total=ids.reduce((s,id)=>{const p=produtos.find(x=>x.id===id);return s+(p?p.atacado*carrinho[id]:0);},0);
+  const total=ids.reduce((s,id)=>{const p=produtos.find(x=>x.id===id);return s+(p?precoCat(p)*carrinho[id]:0);},0);
   document.getElementById("resumo").textContent=itens+(itens===1?" item":" itens");
   document.getElementById("totalCar").textContent=brl(total);
   document.getElementById("barraCar").classList.toggle("on",itens>0);
@@ -391,7 +407,7 @@ function atualizarCarrinho(){
 function itensPedido(){
   return Object.keys(carrinho).map(id=>{
     const p=produtos.find(x=>x.id===id);if(!p)return null;
-    return {codigo:p.codigo||"",nome:p.nome,qtd:carrinho[id],preco:Number(p.atacado)||0,embalagem:p.embalagem||"UN/1",codbarras:p.codbarras||""};
+    return {codigo:p.codigo||"",nome:p.nome,qtd:carrinho[id],preco:Number(precoCat(p))||0,embalagem:p.embalagem||"UN/1",codbarras:p.codbarras||""};
   }).filter(Boolean);
 }
 function abrirCheckout(){
@@ -540,7 +556,7 @@ function enviarPedido(){
   }
   Object.assign(dados,{itens:itens,bruto:total,total:total,status:"aberto",tipo:"Pedido",
     situacao:"Aguardando confirmação",origem:"catalogo",vendedor:"CATÁLOGO ONLINE",
-    tabela:"Padrão",cond:"",forma:"",data:new Date().toISOString()});
+    tabela:TABELA||"Padrão",cond:"",forma:"",data:new Date().toISOString()});
   let chave="";
   try{
     if(cadastro){const rc=db.ref("clientes").push(cadastro);dados.clienteId=rc.key;}

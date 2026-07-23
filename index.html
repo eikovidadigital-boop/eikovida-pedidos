@@ -393,7 +393,12 @@ let buscaCliRel="";
 const REPRES_FIXAS=["EIKO VIDA","MEL RAIZ"];
 function representadas(){return [...new Set(REPRES_FIXAS.concat(repres.filter(r=>r.ativa!==false).map(r=>r.nome).filter(Boolean)).concat(produtos.map(p=>p.marca).filter(Boolean)).concat(pedidos.map(p=>p.representada).filter(Boolean)))].sort();}
 function repDe(nome){return repres.find(r=>String(r.nome||"").trim().toUpperCase()===String(nome||"").trim().toUpperCase())||{};}
-function linkCatalogo(rep){return URL_CATALOGO+(rep&&rep!=="TODAS"?"?r="+encodeURIComponent(rep):"");}
+function linkCatalogo(rep,tab){
+  let u=URL_CATALOGO;const q=[];
+  if(rep&&rep!=="TODAS")q.push("r="+encodeURIComponent(rep));
+  if(tab)q.push("t="+encodeURIComponent(tab));
+  return u+(q.length?"?"+q.join("&"):"");
+}
 let transportadoras=[], transpEdit=null, filtroCobr="areceber", buscaCobr="";
 let repres=[], repEdit=null, catRepEdit="", filtroRepTab="", filtroRepProd="", logoTmp="";
 let agenda=[], agendaEdit=null, filtroAgenda="proximos";
@@ -808,7 +813,7 @@ function abrirPeriodo(v){
   if(c){c.innerHTML=viewRelatorios();return;}
   render();
 }
-function textoCatalogo(rep,cli){
+function textoCatalogo(rep,cli,tab){
   const marca=(rep&&rep!=="TODAS")?rep:(empresa.razao||"EIKO VIDA");
   const r=repDe(rep)||{};
   const chamada=r.obs?r.obs:(/MEL/i.test(marca)?"m\u00e9is e bananadas artesanais":"\u00f3leos vegetais 100% naturais");
@@ -820,11 +825,11 @@ function textoCatalogo(rep,cli){
   m+="\ud83d\udc49 Toque no link\n";
   m+="\ud83d\uded2 Escolha os produtos e as quantidades\n";
   m+="\u2705 Envie o pedido por ali mesmo\n\n";
-  m+="\ud83d\udc47 *Clique aqui para montar seu pedido:*\n"+linkCatalogo(rep)+"\n\n";
+  m+="\ud83d\udc47 *Clique aqui para montar seu pedido:*\n"+linkCatalogo(rep,tab)+"\n\n";
   m+="Qualquer d\u00favida, estou \u00e0 disposi\u00e7\u00e3o para te ajudar!\n"+(vendedor||"");
   return m;
 }
-function enviarCatalogo(rep,clienteId){
+function enviarCatalogo(rep,clienteId,tab){
   const cli=clienteId?clientes.find(c=>c.id===clienteId):null;
   const opts=catalogosDoVendedor();
   const podeEscolher=opts.length>1;
@@ -841,7 +846,19 @@ function enviarCatalogo(rep,clienteId){
     return;
   }
   const escolhida=rep||(opts.length===1?opts[0]:(ehAdmin?"TODAS":(minhaRepresentada()||"TODAS")));
-  const txt=textoCatalogo(escolhida,cli);
+  // se a representada tem mais de uma tabela e ainda n\u00e3o escolheu, pergunta qual (matriz \u00e9 o padr\u00e3o)
+  const tabs=(escolhida&&escolhida!=="TODAS")?tabelasDaRepres(escolhida):[];
+  if(tab===undefined&&tabs.length>=1){
+    const linhasT=[["\ud83c\udfe0","Tabela matriz (padr\u00e3o)",`fecharSheet();enviarCatalogo('${escolhida.replace(/'/g,"")}'${clienteId?`,'${clienteId}'`:",null"},'')`]];
+    tabs.forEach(tb=>linhasT.push(["\ud83d\udcb0",tb.nome,`fecharSheet();enviarCatalogo('${escolhida.replace(/'/g,"")}'${clienteId?`,'${clienteId}'`:",null"},'${esc(tb.nome).replace(/'/g,"")}')`]));
+    const htmlT=`<div class="sheet-ov" onclick="fecharSheet()"></div>
+      <div class="sheet"><div class="sheet-h">Qual tabela de pre\u00e7o?<small>${esc(escolhida)}</small></div>
+      ${linhasT.map(x=>`<div class="sheet-i" onclick="${x[2]}"><span>${x[0]}</span>${x[1]}</div>`).join("")}
+      <div class="sheet-i" style="justify-content:center;color:var(--cinza)" onclick="fecharSheet()">Fechar</div></div>`;
+    const dT=document.createElement("div");dT.id="sheetWrap";dT.innerHTML=htmlT;document.body.appendChild(dT);
+    return;
+  }
+  const txt=textoCatalogo(escolhida,cli,tab||"");
   const url=alvo?("https://wa.me/55"+alvo.replace(/^55/,"")+"?text="+encodeURIComponent(txt))
                 :("https://wa.me/?text="+encodeURIComponent(txt));
   try{navigator.clipboard&&navigator.clipboard.writeText(txt);}catch(e){}
