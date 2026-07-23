@@ -14,6 +14,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
 <style>
   :root{
@@ -371,7 +372,7 @@ let vendedor="", viewAtual="home";
 let vendedorCodigo="", vendedorId="", ehAdmin=false, permissoes=null;
 const ADMIN_USER="adm01eiko", ADMIN_SENHA_PADRAO="290412";
 let admSenha="290412";
-const ABAS=[["convites","Instalar p/ Vendedor"],["catalogoCfg","Editar Catálogo"],["representadas","Representadas"],["catprod","Categorias de Produto"],["home","Início"],["novo","Novo Pedido"],["central","Central de Pedidos"],["relatorios","Relatórios"],["cobrancas","Cobranças"],["clientes","Clientes"],["produtos","Produtos"],["tabelas","Tabelas de Preço"],["transportadoras","Transportadoras"],["fornecedores","Fornecedores"],["agenda","Agenda / CRM"],["equipe","Minha Equipe"],["empresa","Minha Empresa"],["importacoes","Importações"],["sync","Sincronização"],["catalogo","Catálogo Online"]];
+const ABAS=[["convites","Instalar p/ Vendedor"],["catalogoCfg","Editar Catálogo"],["representadas","Representadas"],["pix","Pix / Financeiro"],["catprod","Categorias de Produto"],["home","Início"],["novo","Novo Pedido"],["central","Central de Pedidos"],["relatorios","Relatórios"],["cobrancas","Cobranças"],["clientes","Clientes"],["produtos","Produtos"],["tabelas","Tabelas de Preço"],["transportadoras","Transportadoras"],["fornecedores","Fornecedores"],["agenda","Agenda / CRM"],["equipe","Minha Equipe"],["empresa","Minha Empresa"],["importacoes","Importações"],["sync","Sincronização"],["catalogo","Catálogo Online"]];
 const ABAS_PADRAO=["home","novo","central","clientes","produtos","agenda","sync"];
 function podeVer(v){return ehAdmin||!permissoes||permissoes.includes(v);}
 function podeEditarPed(o){
@@ -639,6 +640,7 @@ const MENU=[
   ["📋","Central de Pedidos","central"],
   ["📊","Relatórios","relatorios"],
   ["💰","Cobranças","cobrancas"],
+  ["📱","Pix / Financeiro","pix"],
   ["__s","CADASTROS"],
   ["👥","Clientes","clientes"],
   ["📦","Produtos","produtos"],
@@ -1129,8 +1131,11 @@ function viewCobrancas(){
             <small style="display:block;color:var(--cinza)">${dataBr(p.data)} · ${esc(p.cond||"")}${p.numero?" · Nº "+p.numero:""}</small></div>
           <b style="color:var(--verde);font-size:15px">${brl(p.total)}</b>
         </div>
-        <button class="btn ${p.recebido?'btn-g':'btn-v'} btn-sm" style="width:100%;margin-top:8px" onclick="marcarRecebido('${p.id}',${p.recebido?'false':'true'})">
-          ${p.recebido?'↩ Marcar como a receber':'✓ Marcar como recebido'}</button>
+        <div class="row" style="margin-top:8px">
+          <button class="btn ${p.recebido?'btn-g':'btn-v'} btn-sm" style="flex:1" onclick="marcarRecebido('${p.id}',${p.recebido?'false':'true'})">
+            ${p.recebido?'↩ A receber':'✓ Recebido'}</button>
+          ${!p.recebido&&pixConfigurado()?`<button class="btn btn-o btn-sm" onclick="pixCobranca('${p.id}')">📱 Pix</button>`:""}
+        </div>
       </div>`).join("");
   const faltaPagar=aprazo.filter(p=>!p.recebido||!/pago/i.test(p.situacao||""));
   const acoes=ehAdmin?`<div class="row" style="margin-bottom:10px">
@@ -2542,6 +2547,7 @@ function render(){
   else if(viewAtual==="agenda")c.innerHTML=viewAgenda();
   else if(viewAtual==="fornecedores")c.innerHTML=viewFornecedores();
   else if(viewAtual==="empresa")c.innerHTML=viewEmpresa();
+  else if(viewAtual==="pix")c.innerHTML=viewPix();
   else if(viewAtual==="equipe")c.innerHTML=viewEquipe();
   else if(viewAtual==="importacoes")c.innerHTML=viewImportacoes();
   else if(viewAtual==="representadas")c.innerHTML=viewRepresentadas();
@@ -3096,6 +3102,130 @@ function htmlListaCentral(){
 
 function filtrarCentral(q){buscaCentral=q;const el=document.getElementById("listaCentral");if(el)el.innerHTML=htmlListaCentral();}
 
+/* ====== PIX (BR Code estático — padrão Banco Central) ====== */
+function pixCfg(){
+  return {
+    chave:String((empresa.pixChave||"")).trim(),
+    tipo:String(empresa.pixTipo||"email"),
+    nome:String((empresa.pixNome||empresa.razao||"EIKO VIDA")).trim(),
+    cidade:String((empresa.pixCidade||empresa.cidade||"RECIFE")).trim()
+  };
+}
+function pixConfigurado(){return !!pixCfg().chave;}
+function _emv(id,valor){const s=String(valor);return id+String(s.length).padStart(2,"0")+s;}
+function _semAcento(s){return String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^\x20-\x7E]/g,"").trim();}
+function _crc16(str){
+  let crc=0xFFFF;
+  for(let i=0;i<str.length;i++){
+    crc^=str.charCodeAt(i)<<8;
+    for(let j=0;j<8;j++){crc=(crc&0x8000)?((crc<<1)^0x1021):(crc<<1);crc&=0xFFFF;}
+  }
+  return crc.toString(16).toUpperCase().padStart(4,"0");
+}
+function gerarBRCode(valor,txtId){
+  const c=pixCfg();
+  if(!c.chave)return "";
+  const nome=_semAcento(c.nome).slice(0,25)||"EIKO VIDA";
+  const cidade=_semAcento(c.cidade).slice(0,15).toUpperCase()||"RECIFE";
+  const gui=_emv("00","BR.GOV.BCB.PIX");
+  const chave=_emv("01",c.chave);
+  const mai=_emv("26",gui+chave);
+  const valorTxt=(valor&&Number(valor)>0)?_emv("54",Number(valor).toFixed(2)):"";
+  const ref=_semAcento(txtId||"").replace(/[^A-Za-z0-9]/g,"").slice(0,25)||"***";
+  const adic=_emv("62",_emv("05",ref));
+  let payload=_emv("00","01")+mai+_emv("52","0000")+_emv("53","986")+valorTxt+_emv("58","BR")+_emv("59",nome)+_emv("60",cidade)+adic+"6304";
+  return payload+_crc16(payload);
+}
+function abrirPix(valor,titulo,ref){
+  if(!pixConfigurado()){
+    if(confirm("Você ainda não cadastrou sua chave Pix. Deseja cadastrar agora?")){irPara("pix");}
+    return;
+  }
+  const codigo=gerarBRCode(valor,ref);
+  const val=(valor&&Number(valor)>0)?brl(valor):"";
+  const html=`<div class="sheet-ov" onclick="fecharPix()"></div>
+    <div class="sheet" style="text-align:center;padding-bottom:18px">
+      <div class="sheet-h" style="justify-content:center">Pix${val?" · "+val:""}<small>${esc(titulo||"")}</small></div>
+      <div id="pixQR" style="display:flex;justify-content:center;padding:14px 0"></div>
+      <div style="font-size:12px;color:var(--cinza);padding:0 16px">Aponte a câmera do banco ou use o Copia e Cola:</div>
+      <div style="background:#f4f4f2;border-radius:8px;padding:10px;margin:8px 16px;font-size:11px;word-break:break-all;max-height:70px;overflow:auto">${esc(codigo)}</div>
+      <div style="display:flex;gap:8px;padding:0 16px">
+        <button class="btn btn-v btn-sm" style="flex:1" onclick="copiar('${codigo}','Código Pix copiado ✓')">📋 Copiar código</button>
+        <button class="btn btn-w btn-sm" style="flex:1" onclick="pixWhats('${codigo}','${esc((val?val+" — ":""))}${esc(titulo||"")}')">📲 Enviar</button>
+      </div>
+      <div class="sheet-i" style="justify-content:center;color:var(--cinza);margin-top:10px" onclick="fecharPix()">Fechar</div>
+    </div>`;
+  const d=document.createElement("div");d.id="pixWrap";d.innerHTML=html;document.body.appendChild(d);
+  try{
+    if(window.QRCode)new QRCode(document.getElementById("pixQR"),{text:codigo,width:210,height:210,colorDark:"#166534",colorLight:"#ffffff",correctLevel:QRCode.CorrectLevel.M});
+    else document.getElementById("pixQR").textContent="(instale a atualização para ver o QR)";
+  }catch(e){document.getElementById("pixQR").textContent="Não foi possível gerar o QR";}
+}
+function fecharPix(){const d=document.getElementById("pixWrap");if(d)d.remove();}
+function pixWhats(codigo,titulo){
+  const c=pixCfg();
+  const txt="*Pagamento via Pix*"+(titulo?" — "+titulo:"")+"\n\nChave ("+c.tipo+"): "+c.chave+"\n\nOu use o Pix Copia e Cola:\n"+codigo;
+  window.open("https://wa.me/?text="+encodeURIComponent(txt),"_blank");
+}
+function pixDoPedido(id){
+  fecharSheet();
+  const o=pedidos.find(x=>x.id===id); if(!o)return;
+  abrirPix(o.total||0,(o.cliente||"")+(o.numero?" · nº "+o.numero:""),"PED"+(o.numero||o.id));
+}
+function pixCobranca(id){
+  const o=pedidos.find(x=>x.id===id); if(!o)return;
+  abrirPix(o.total||0,(o.cliente||"")+(o.numero?" · nº "+o.numero:""),"PED"+(o.numero||o.id));
+}
+function viewPix(){
+  if(!ehAdmin)return `<div class="vazio">Área exclusiva do administrador.</div>`;
+  const c=pixCfg();
+  const tipos=[["email","E-mail"],["cnpj","CNPJ"],["cpf","CPF"],["celular","Celular"],["aleatoria","Chave aleatória"]];
+  const cfgOk=pixConfigurado();
+  // total a receber (pedidos não pagos, fora orçamento)
+  const areceber=pedidos.filter(p=>!p._pendente&&(p.status||"Pedido")!=="Orçamento"&&!/pago/i.test(p.situacao||""));
+  const totalAR=areceber.reduce((s,p)=>s+(p.total||0),0);
+  const recebido=pedidos.filter(p=>/pago/i.test(p.situacao||"")).reduce((s,p)=>s+(p.total||0),0);
+  return `<h2 class="tit">Pix / Financeiro</h2>
+    <div class="kpis" style="grid-template-columns:1fr 1fr">
+      <div class="kpi"><small>A receber</small><b style="color:#b45309">${brl(totalAR)}</b></div>
+      <div class="kpi"><small>Já recebido</small><b style="color:var(--verde)">${brl(recebido)}</b></div>
+    </div>
+    <div class="card">
+      <div style="font-weight:700;font-size:14px;margin-bottom:2px">🔑 Minha chave Pix</div>
+      <div style="font-size:12px;color:#555;margin-bottom:10px">Usada para gerar o QR Code nos pedidos e cobranças. O pagamento cai direto na sua conta; você confirma o recebimento marcando o pedido como pago.</div>
+      <div class="fgrid">
+        <div><label class="lb">Tipo de chave</label><select class="inp" id="pixTipo">${tipos.map(([v,l])=>`<option value="${v}" ${c.tipo===v?"selected":""}>${l}</option>`).join("")}</select></div>
+        <div><label class="lb">Chave Pix</label><input class="inp" id="pixChave" value="${esc(c.chave)}" placeholder="sua chave"/></div>
+      </div>
+      <div class="fgrid" style="margin-top:8px">
+        <div><label class="lb">Nome do recebedor</label><input class="inp" id="pixNome" value="${esc(c.nome)}" maxlength="25"/></div>
+        <div><label class="lb">Cidade</label><input class="inp" id="pixCidade" value="${esc(c.cidade)}" maxlength="15"/></div>
+      </div>
+      <button class="btn btn-v" style="width:100%;margin-top:12px" onclick="salvarPix()">Salvar chave Pix</button>
+    </div>
+    ${cfgOk?`<div class="card" style="border:1px solid var(--verde);background:#f2f9f2">
+      <div style="font-weight:700;font-size:14px;margin-bottom:8px">Gerar um Pix avulso</div>
+      <label class="lb">Valor (opcional)</label>
+      <input class="inp" id="pixValorAvulso" inputmode="decimal" placeholder="Ex: 150,00" style="margin-top:2px">
+      <button class="btn btn-o" style="width:100%;margin-top:10px" onclick="pixAvulso()">📱 Gerar QR Code</button>
+    </div>`:`<div class="card" style="background:#fffbeb;border:1px solid #fcd34d">
+      <div style="font-size:13px;color:#78350f">Cadastre sua chave acima para liberar o QR Code nos pedidos e nas cobranças.</div>
+    </div>`}`;
+}
+function salvarPix(){
+  if(!ehAdmin){toast("Somente o administrador");return;}
+  const dados={pixTipo:val("pixTipo"),pixChave:String(val("pixChave")||"").trim(),
+    pixNome:String(val("pixNome")||"").trim(),pixCidade:String(val("pixCidade")||"").trim()};
+  if(!dados.pixChave){toast("Digite a chave Pix");return;}
+  empresa=Object.assign({},empresa,dados);
+  if(navigator.onLine)db.ref("empresa").update(dados);
+  else{filaPendentes.push({col:"empresa",op:"update",id:"",data:dados});LS.set("fila",filaPendentes);}
+  toast("Chave Pix salva ✓");render();
+}
+function pixAvulso(){
+  const v=parseFloat(String(val("pixValorAvulso")||"").replace(/[^\d,.-]/g,"").replace(",","."))||0;
+  abrirPix(v,"Pix avulso","AVULSO");
+}
 function menuPedido(id){
   const o=pedidos.find(x=>x.id===id); if(!o)return;
   const cli=clientes.find(c=>c.id===o.clienteId)||clientes.find(c=>c.nome===o.cliente);
@@ -3117,6 +3247,7 @@ function menuPedido(id){
     cli?["📅","Agenda do cliente",`agendaDoCliente('${cli.id}')`]:null,
     cli?["📚","Enviar catálogo virtual",`enviarCatalogo('',&apos;${cli.id}&apos;)`]:null,
     ["📑","Duplicar pedido",`duplicarPedido('${id}')`],
+    ehAdmin?["📱","Gerar QR Code Pix",`pixDoPedido('${id}')`]:null,
     fone?["📞","Ligar",`window.open('tel:${fone}')`]:null,
     fone?["💬","WhatsApp",`window.open('https://wa.me/55${fone.replace(/^55/,"")}','_blank')`]:null,
     ["✉️",email?"Enviar e-mail":"Enviar e-mail (sem e-mail no cadastro)",`emailPedido('${id}')`],
