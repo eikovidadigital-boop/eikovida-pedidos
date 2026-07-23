@@ -3222,8 +3222,13 @@ async function enviarPedidoComPix(id){
   const blob=doc.output("blob");
   const file=new File([blob],"Pedido-"+num+".pdf",{type:"application/pdf"});
   const abrirQR=()=>abrirPix(o.total||0,(o.cliente||"")+(o.numero?" \u00b7 n\u00ba "+o.numero:""),"PED"+num);
+  // o WhatsApp descarta a legenda ao receber um anexo pelo compartilhamento nativo,
+  // ent\u00e3o copiamos a mensagem do Pix para a \u00e1rea de transfer\u00eancia: o vendedor cola como legenda.
+  let copiou=false;
+  try{ await navigator.clipboard.writeText(msg); copiou=true; }catch(_){ try{ const ta=document.createElement("textarea"); ta.value=msg; ta.style.position="fixed"; ta.style.opacity="0"; document.body.appendChild(ta); ta.select(); document.execCommand("copy"); document.body.removeChild(ta); copiou=true; }catch(__){} }
   try{
     if(navigator.canShare&&navigator.canShare({files:[file]})){
+      if(copiou)alert("A mensagem do Pix foi COPIADA.\n\nNa tela do WhatsApp que vai abrir, escolha o contato e COLE (segurar > Colar) na legenda do PDF antes de enviar.");
       await navigator.share({files:[file],title:"Pedido "+num,text:msg});
       setTimeout(abrirQR,300);
     }else{
