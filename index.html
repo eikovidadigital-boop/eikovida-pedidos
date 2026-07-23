@@ -812,9 +812,17 @@ function textoCatalogo(rep,cli){
   const marca=(rep&&rep!=="TODAS")?rep:(empresa.razao||"EIKO VIDA");
   const r=repDe(rep)||{};
   const chamada=r.obs?r.obs:(/MEL/i.test(marca)?"m\u00e9is e bananadas artesanais":"\u00f3leos vegetais 100% naturais");
-  return "Ol\u00e1"+(cli&&cli.nome?" "+String(cli.nome).split(" ")[0]:"")+"! Segue o cat\u00e1logo de atacado da "+marca
-    +" \u2014 "+chamada+" com \u00f3tima margem para revenda.\n\n"+linkCatalogo(rep)
-    +"\n\n\u00c9 s\u00f3 escolher os produtos e enviar o pedido por ali mesmo. Qualquer d\u00favida, estou \u00e0 disposi\u00e7\u00e3o!\n"+(vendedor||"");
+  const nome=(cli&&cli.nome)?" "+String(cli.nome).split(" ")[0]:"";
+  let m="\ud83c\udf3f *"+marca+"* \ud83c\udf3f\n\n";
+  m+="Ol\u00e1"+nome+"! Seja muito bem-vindo(a). \ud83d\ude0a\n\n";
+  m+="Preparamos o nosso *cat\u00e1logo digital* de "+chamada+", com pre\u00e7os de atacado e \u00f3tima margem para a sua revenda.\n\n";
+  m+="\u2728 *Novidade:* agora voc\u00ea mesmo monta o seu pedido direto no cat\u00e1logo! \u00c9 r\u00e1pido e f\u00e1cil:\n";
+  m+="\ud83d\udc49 Toque no link\n";
+  m+="\ud83d\uded2 Escolha os produtos e as quantidades\n";
+  m+="\u2705 Envie o pedido por ali mesmo\n\n";
+  m+="\ud83d\udc47 *Clique aqui para montar seu pedido:*\n"+linkCatalogo(rep)+"\n\n";
+  m+="Qualquer d\u00favida, estou \u00e0 disposi\u00e7\u00e3o para te ajudar!\n"+(vendedor||"");
+  return m;
 }
 function enviarCatalogo(rep,clienteId){
   const cli=clienteId?clientes.find(c=>c.id===clienteId):null;
