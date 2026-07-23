@@ -3820,6 +3820,7 @@ async function enviarPDFwhats(id){
 
 
 /* ====== CLIENTES ====== */
+function limpaCat(v){return String(v||"").split("|")[0].trim();}
 function viewClientes(){
   const f=editCli||{nome:"",categoria:"",cnpj:"",whatsapp:"",email:"",cidade:"",endereco:"",obs:""};
   const catOpts=catCliente.map(c=>`<option value="${esc(c.nome)}" ${f.categoria===c.nome?"selected":""}>${esc(c.nome)}</option>`).join("");
@@ -3873,7 +3874,6 @@ function viewClientes(){
       <button class="btn btn-v" style="flex:1" onclick="salvarCli()">${editCli?"Salvar alterações":"Adicionar cliente"}</button>
       ${editCli?`<button class="btn btn-g" onclick="editCli=null;render()">✕</button>`:""}
     </div></div>`;
-  const limpaCat=v=>String(v||"").split("|")[0].trim();
   const cats=[...new Set(clientes.map(c=>limpaCat(c.categoria)).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
   const chips=cats.length?`<div class="chips"><button class="chip ${filtroCli===""?"on":""}" onclick="filtroCli='';render()">Todos</button>`
     +cats.map(ct=>`<button class="chip ${filtroCli===ct?"on":""}" onclick="filtroCli='${esc(ct)}';render()">${esc(ct)}</button>`).join("")+`</div>`:"";
