@@ -45,7 +45,8 @@
   header .dot{width:7px;height:7px;border-radius:50%;background:#7CFC9A;animation:pulse 1.6s infinite}
   @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
 
-  main{max-width:900px;margin:0 auto;padding:14px 14px 40px}
+  main{max-width:900px;margin:0 auto;padding:14px 14px 90px}
+  body.com-barra main{padding-bottom:190px}
   .hbtn{background:none;border:none;color:#fff;font-size:24px;cursor:pointer;padding:0 6px 0 0;line-height:1}
   .cli-box{border:1px solid var(--borda);border-radius:10px;margin-top:6px;max-height:290px;overflow-y:auto;background:#fff}
   .cli-op{padding:10px 12px;border-bottom:1px solid #f2f2f0;cursor:pointer}
@@ -233,7 +234,8 @@
     body.pc .drawer-ov{display:none!important}
     body.pc .drawer .ditem{padding:11px 18px;font-size:13.5px}
     body.pc .drawer .ditem:hover{background:#f4f8f4}
-    body.pc main{margin-left:248px;max-width:none;padding:22px 30px 60px}
+    body.pc main{margin-left:248px;max-width:none;padding:22px 30px 90px}
+    body.pc.com-barra main{padding-bottom:200px}
     body.pc .pcwrap{max-width:1180px;margin:0 auto}
     body.pc .tit{font-size:20px}
     body.pc .homegrid{grid-template-columns:repeat(4,1fr);gap:16px}
@@ -2533,7 +2535,7 @@ function render(){
   aplicarModoPC();
   const c=document.getElementById("conteudo");
   if(!podeVer(viewAtual)){viewAtual=podeVer("home")?"home":((permissoes&&permissoes[0])||"home");}
-  document.getElementById("barraTotal").classList.add("hide");
+  document.getElementById("barraTotal").classList.add("hide");document.body.classList.remove("com-barra");
   if(viewAtual==="home")c.innerHTML=viewHome();
   else if(viewAtual==="novo"){c.innerHTML=viewNovo();renderBarra();}
   else if(viewAtual==="central")c.innerHTML=viewCentral();
@@ -2842,7 +2844,7 @@ function addItem(id,d){ // ajuste rápido +/- (mantido por compatibilidade)
 function renderBarra(){
   const {total,qtd,perc}=calcTotais();
   if(qtd===0)return;
-  const b=document.getElementById("barraTotal");b.classList.remove("hide");
+  const b=document.getElementById("barraTotal");b.classList.remove("hide");document.body.classList.add("com-barra");
   const descTxt=perc>0?`<span style="font-size:11px;color:var(--cinza)"> (${ped.descTipo==='desc'?'-':'+'}${perc}%)</span>`:"";
   b.innerHTML=`<div class="in">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
