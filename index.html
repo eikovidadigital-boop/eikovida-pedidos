@@ -3103,6 +3103,28 @@ function htmlListaCentral(){
 function filtrarCentral(q){buscaCentral=q;const el=document.getElementById("listaCentral");if(el)el.innerHTML=htmlListaCentral();}
 
 /* ====== PIX (BR Code estático — padrão Banco Central) ====== */
+function placePix(t){return {email:"nome@dominio.com",cnpj:"00.000.000/0000-00",cpf:"000.000.000-00",celular:"(00) 00000-0000",aleatoria:"cole a chave do seu banco"}[t]||"sua chave";}
+function dicaPixTxt(t){return {email:"Digite seu e-mail cadastrado no banco.",cnpj:"Digite o CNPJ (só números ou com pontos).",cpf:"Digite o CPF (só números ou com pontos).",celular:"Digite com DDD. O app adiciona o +55.",aleatoria:"Cole a chave aleatória gerada pelo seu banco."}[t]||"";}
+function dicaPix(){const t=document.getElementById("pixTipo").value;const d=document.getElementById("dicaPix");if(d)d.textContent=dicaPixTxt(t);const c=document.getElementById("pixChave");if(c)c.placeholder=placePix(t);}
+function normalizarChavePix(tipo,chave){
+  const raw=String(chave||"").trim();
+  const dig=raw.replace(/\D/g,"");
+  if(tipo==="cpf")return dig.slice(0,11);
+  if(tipo==="cnpj")return dig.slice(0,14);
+  if(tipo==="celular"){const d=dig.replace(/^0+/,"");return "+55"+d.replace(/^55/,"").slice(0,11);}
+  if(tipo==="email")return raw.toLowerCase();
+  if(tipo==="aleatoria")return raw.toLowerCase();
+  return raw;
+}
+function validarChavePix(tipo,chave){
+  const c=normalizarChavePix(tipo,chave);
+  if(tipo==="cpf")return c.length===11;
+  if(tipo==="cnpj")return c.length===14;
+  if(tipo==="celular")return /^\+55\d{10,11}$/.test(c);
+  if(tipo==="email")return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(c);
+  if(tipo==="aleatoria")return /^[0-9a-f]{8}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{4}-?[0-9a-f]{12}$/.test(c);
+  return !!c;
+}
 function pixCfg(){
   return {
     chave:String((empresa.pixChave||"")).trim(),
@@ -3194,8 +3216,8 @@ function viewPix(){
       <div style="font-weight:700;font-size:14px;margin-bottom:2px">🔑 Minha chave Pix</div>
       <div style="font-size:12px;color:#555;margin-bottom:10px">Usada para gerar o QR Code nos pedidos e cobranças. O pagamento cai direto na sua conta; você confirma o recebimento marcando o pedido como pago.</div>
       <div class="fgrid">
-        <div><label class="lb">Tipo de chave</label><select class="inp" id="pixTipo">${tipos.map(([v,l])=>`<option value="${v}" ${c.tipo===v?"selected":""}>${l}</option>`).join("")}</select></div>
-        <div><label class="lb">Chave Pix</label><input class="inp" id="pixChave" value="${esc(c.chave)}" placeholder="sua chave"/></div>
+        <div><label class="lb">Tipo de chave</label><select class="inp" id="pixTipo" onchange="dicaPix()">${tipos.map(([v,l])=>`<option value="${v}" ${c.tipo===v?"selected":""}>${l}</option>`).join("")}</select></div>
+        <div><label class="lb">Chave Pix</label><input class="inp" id="pixChave" value="${esc(c.chave)}" placeholder="${esc(placePix(c.tipo))}"/><small id="dicaPix" style="display:block;color:var(--cinza);font-size:11px;margin-top:3px">${esc(dicaPixTxt(c.tipo))}</small></div>
       </div>
       <div class="fgrid" style="margin-top:8px">
         <div><label class="lb">Nome do recebedor</label><input class="inp" id="pixNome" value="${esc(c.nome)}" maxlength="25"/></div>
@@ -3214,9 +3236,16 @@ function viewPix(){
 }
 function salvarPix(){
   if(!ehAdmin){toast("Somente o administrador");return;}
-  const dados={pixTipo:val("pixTipo"),pixChave:String(val("pixChave")||"").trim(),
+  const tipo=val("pixTipo");
+  const chaveBruta=String(val("pixChave")||"").trim();
+  if(!chaveBruta){toast("Digite a chave Pix");return;}
+  const chave=normalizarChavePix(tipo,chaveBruta);
+  if(!validarChavePix(tipo,chaveBruta)){
+    const ex={cpf:"11 dígitos",cnpj:"14 dígitos",celular:"DDD + número",email:"nome@dominio.com",aleatoria:"chave de 32 caracteres do banco"};
+    toast("Chave de "+tipo+" inválida ("+(ex[tipo]||"confira")+")");return;
+  }
+  const dados={pixTipo:tipo,pixChave:chave,
     pixNome:String(val("pixNome")||"").trim(),pixCidade:String(val("pixCidade")||"").trim()};
-  if(!dados.pixChave){toast("Digite a chave Pix");return;}
   empresa=Object.assign({},empresa,dados);
   if(navigator.onLine)db.ref("empresa").update(dados);
   else{filaPendentes.push({col:"empresa",op:"update",id:"",data:dados});LS.set("fila",filaPendentes);}
