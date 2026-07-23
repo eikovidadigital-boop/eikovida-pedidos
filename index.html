@@ -2905,6 +2905,9 @@ function finalizar(enviar){
   if(enviar){const alvo=soDig(cli.whatsapp)?("55"+soDig(cli.whatsapp).replace(/^55/,"")):WHATS_EMPRESA;window.open(`https://wa.me/${alvo}?text=${encodeURIComponent(textoPedido(pedido))}`,"_blank");}
   // reset
   carrinho={};clienteSel="";subAbaPedido="cab";buscaItem=false;buscaItemTxt="";filtroItemCat="";itemEditando=null;
+  viewAtual="central";
+  document.body.classList.remove("com-barra");
+  document.getElementById("barraTotal").classList.add("hide");
   ped={status:"Pedido",representada:"EIKO VIDA",consumidorFinal:false,dataEmissao:new Date().toISOString().slice(0,10),dataFat:"",previsao:"",cond:"",forma:"",tabela:"",descTipo:"desc",descPerc:"",obsCli:"",obsEmp:"",ordemCompra:"",transportadora:""};
   toast(navigator.onLine?"Pedido enviado!":"Pedido salvo no celular — envia quando a internet voltar");render();
 }
