@@ -3194,6 +3194,27 @@ function pixDoPedido(id){
   const o=pedidos.find(x=>x.id===id); if(!o)return;
   abrirPix(o.total||0,(o.cliente||"")+(o.numero?" · nº "+o.numero:""),"PED"+(o.numero||o.id));
 }
+function enviarPedidoComPix(id){
+  fecharSheet();
+  const o=pedidos.find(x=>x.id===id); if(!o)return;
+  if(!pixConfigurado()){if(confirm("Cadastre sua chave Pix primeiro. Ir para a tela de Pix?"))irPara("pix");return;}
+  const codigo=gerarBRCode(o.total||0,"PED"+(o.numero||o.id));
+  const c=pixCfg();
+  const cli=clientes.find(x=>x.id===o.clienteId)||clientes.find(x=>x.nome===o.cliente);
+  const fone=soDig((cli&&(cli.whatsapp||cli.telefone))||o.whats||"");
+  let msg=textoPedido(o);
+  msg+="\n\n———————————————\n";
+  msg+="*PAGUE COM PIX* 💸\n\n";
+  msg+="Valor: *"+brl(o.total)+"*\n";
+  msg+="Chave ("+c.tipo+"): "+c.chave+"\n\n";
+  msg+="Se tiver como escanear, vou te mandar o QR Code na sequência.\n\n";
+  msg+="👇 *Você também pode pagar copiando o código abaixo* e colando no seu banco (Pix Copia e Cola):\n\n";
+  msg+=codigo;
+  const url="https://wa.me/"+(fone?"55"+fone.replace(/^55/,""):"")+"?text="+encodeURIComponent(msg);
+  window.open(url,"_blank");
+  // abre o QR logo em seguida, para o vendedor também poder enviar a imagem se o cliente puder escanear
+  setTimeout(()=>abrirPix(o.total||0,(o.cliente||"")+(o.numero?" · nº "+o.numero:""),"PED"+(o.numero||o.id)),400);
+}
 function pixCobranca(id){
   const o=pedidos.find(x=>x.id===id); if(!o)return;
   abrirPix(o.total||0,(o.cliente||"")+(o.numero?" · nº "+o.numero:""),"PED"+(o.numero||o.id));
@@ -3277,6 +3298,7 @@ function menuPedido(id){
     cli?["📚","Enviar catálogo virtual",`enviarCatalogo('',&apos;${cli.id}&apos;)`]:null,
     ["📑","Duplicar pedido",`duplicarPedido('${id}')`],
     ehAdmin?["📱","Gerar QR Code Pix",`pixDoPedido('${id}')`]:null,
+    (ehAdmin&&pixConfigurado())?["💸","Enviar pedido + Pix (WhatsApp)",`enviarPedidoComPix('${id}')`]:null,
     fone?["📞","Ligar",`window.open('tel:${fone}')`]:null,
     fone?["💬","WhatsApp",`window.open('https://wa.me/55${fone.replace(/^55/,"")}','_blank')`]:null,
     ["✉️",email?"Enviar e-mail":"Enviar e-mail (sem e-mail no cadastro)",`emailPedido('${id}')`],
