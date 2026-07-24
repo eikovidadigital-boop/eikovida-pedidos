@@ -138,7 +138,7 @@
   <span id="fContato"></span>
 </footer>
 
-<div style="text-align:center;padding:0 18px 26px"><span id="linkStatus" style="display:none;font-size:13px;color:var(--verde);text-decoration:underline;cursor:pointer" onclick="abrirStatus()">🔔 Acompanhar meu último pedido</span></div>
+<div style="text-align:center;padding:0 18px 26px"><span id="linkStatus" style="font-size:14px;color:var(--verde);text-decoration:underline;cursor:pointer;font-weight:600" onclick="abrirStatus()">🔔 Acompanhar meu último pedido</span></div>
 <button class="flut" id="flut" onclick="abrirWhats()">💬 Falar no WhatsApp</button>
 
 <div class="barraCar" id="barraCar">
@@ -635,8 +635,39 @@ function baixarEspelho(){
 }
 function abrirStatus(){
   const id=(pedidoAtual&&pedidoAtual.id)||(function(){try{return localStorage.getItem("eiko_meupedido")||"";}catch(e){return "";}})();
-  if(!id){alert("Nenhum pedido recente neste aparelho.");return;}
   fecharTudo();abrir("mStatus");
+  if(!id){ pedirCnpjStatus(); return; }
+  mostrarStatus(id);
+}
+function pedirCnpjStatus(){
+  document.getElementById("statusBody").innerHTML=`<div class="mbody" style="padding:16px">
+    <div style="font-size:14px;color:#444;margin-bottom:10px">Digite o CNPJ do seu cadastro para acompanhar seus pedidos:</div>
+    <input class="campo" id="statusCnpj" inputmode="numeric" placeholder="00.000.000/0001-00" style="width:100%">
+    <button class="btnV" style="width:100%;margin-top:12px" onclick="buscarPedidosCnpj()">Buscar meus pedidos</button>
+    <div id="statusLista" style="margin-top:12px"></div>
+  </div>`;
+}
+async function buscarPedidosCnpj(){
+  const el=document.getElementById("statusCnpj");
+  const d=digitos(el?el.value:"");
+  if(d.length<14){alert("Digite o CNPJ completo.");return;}
+  const lista=document.getElementById("statusLista");
+  lista.innerHTML='<div style="text-align:center;color:var(--cinza);padding:10px">Buscando\u2026</div>';
+  const cli=await acharPorCnpj(d);
+  if(!cli){lista.innerHTML='<div class="ok">Nenhum cadastro encontrado com esse CNPJ.</div>';return;}
+  try{
+    const snap=await db.ref("pedidos").orderByChild("clienteId").equalTo(cli.id).once("value");
+    const arr=[];snap.forEach(ch=>{arr.push({id:ch.key,...ch.val()});});
+    arr.sort((a,b)=>new Date(b.data||0)-new Date(a.data||0));
+    if(!arr.length){lista.innerHTML='<div class="ok">Voc\u00ea ainda n\u00e3o tem pedidos.</div>';return;}
+    lista.innerHTML=arr.slice(0,10).map(o=>`<div onclick="mostrarStatus('${o.id}')" style="background:#f7f6f3;border:1px solid var(--borda);border-radius:10px;padding:11px;margin-bottom:8px;cursor:pointer">
+      <div style="display:flex;justify-content:space-between"><b>Pedido ${o.numero||""}</b><span style="color:var(--verde);font-weight:700">${brl(o.total)}</span></div>
+      <div style="font-size:12px;color:var(--cinza);margin-top:2px">${esc(o.situacao||"Aguardando confirma\u00e7\u00e3o")} \u00b7 ${(o.data||"").slice(0,10).split("-").reverse().join("/")}</div>
+    </div>`).join("");
+  }catch(e){lista.innerHTML='<div class="ok">N\u00e3o consegui buscar agora. Tente de novo.</div>';}
+}
+function mostrarStatus(id){
+  abrir("mStatus");
   if(unsubPed)try{unsubPed();}catch(e){}
   quandoAcesso(function(){
   const ref=db.ref("pedidos/"+id);
@@ -652,7 +683,9 @@ function abrirStatus(){
           new Notification("Pedido confirmado! 🎉",{body:"Seu pedido foi aceito pela "+(cfg.titulo||empresa.razao||"EIKO VIDA")+".",icon:"icon-192.png"});
       }catch(e){}
     }
-    const passos=[["📝","Pedido enviado",true],["✅","Aceito pela empresa",aceito],["📦","Em separação",/separa|prepar/i.test(st)],["🚚","Enviado",/envi|transport|entreg/i.test(st)]];
+    const recebido=/receb/i.test(st);
+    const pago=/pago|quitad|conclu/i.test(st);
+    const passos=[["📝","Pedido enviado",true],["📦","Recebido pela empresa",recebido||aceito||pago],["✅","Confirmado",aceito||pago],["🛒","Em separação",/separa|prepar/i.test(st)],["🚚","Enviado",/envi|transport|entreg/i.test(st)],["💚","Concluído",pago]];
     const permitir=(window.Notification&&Notification.permission!=="granted")
       ?`<button class="btnV" onclick="pedirAviso()">🔔 Quero ser avisado neste celular</button>`:
        `<div style="background:#f2f9f2;border-radius:10px;padding:10px;font-size:12.5px;color:#2F6B4F;margin-top:12px">🔔 Avisos ativados neste aparelho.</div>`;
