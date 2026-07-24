@@ -58,6 +58,13 @@
   .qtd span{flex:1;text-align:center;font-weight:800;font-size:15px}
   .vazio{text-align:center;padding:50px 20px;color:var(--cinza)}
   .ov{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:50;display:none}
+  #boasvindas{position:fixed;inset:0;background:var(--bg,#f4f4f2);z-index:60;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center}
+  #boasvindas.hide{display:none}
+  #boasvindas .bv-card{background:#fff;border:1px solid var(--borda);border-radius:18px;padding:26px 20px;max-width:420px;width:100%;box-shadow:0 10px 30px rgba(0,0,0,.08)}
+  #boasvindas h2{margin:6px 0 4px;font-size:20px;color:var(--verde)}
+  #boasvindas p{font-size:14px;color:#555;margin:0 0 18px}
+  #boasvindas .bvIn{width:100%;padding:13px;border:1px solid var(--borda);border-radius:10px;font-size:16px;margin-top:8px}
+  #boasvindas .bvMsg{font-size:13px;margin-top:8px;min-height:16px}
   .ov.on{display:block}
   .modal{position:fixed;left:0;right:0;bottom:0;background:#fff;border-radius:20px 20px 0 0;z-index:51;max-height:92vh;overflow-y:auto;transform:translateY(100%);transition:.25s}
   .modal.on{transform:translateY(0)}
@@ -110,6 +117,23 @@
 </style>
 </head>
 <body>
+<div id="boasvindas">
+  <div class="bv-card">
+    <div style="font-size:34px">🌿</div>
+    <h2 id="bvTitulo">Bem-vindo(a)!</h2>
+    <p id="bvSub">Você já compra com a gente? Assim mostramos seus preços certos.</p>
+    <div id="bvEscolha">
+      <button class="btnV" onclick="bvJaCliente()">✅ Já sou cliente</button>
+      <button class="btnV" style="background:#fff;color:var(--verde);border:2px solid var(--verde);margin-top:10px" onclick="bvVisitante()">👀 Só quero ver o catálogo</button>
+    </div>
+    <div id="bvBusca" style="display:none">
+      <input class="bvIn" id="bvCampo" placeholder="CNPJ, nome ou nome fantasia" autocomplete="off">
+      <button class="btnV" style="margin-top:10px" onclick="bvBuscar()">Buscar meu cadastro</button>
+      <div class="bvMsg" id="bvMsg"></div>
+      <div style="margin-top:10px"><span style="font-size:13px;color:var(--cinza);text-decoration:underline;cursor:pointer" onclick="bvVisitante()">Pular e ver o catálogo</span></div>
+    </div>
+  </div>
+</div>
 
 <header>
   <img src="logo.png?v=6" alt="EIKO VIDA" onerror="this.style.display='none'">
@@ -186,7 +210,9 @@ function aguardarAcesso(ms){return new Promise(r=>{if(acessoPronto)return r(true
 
 let produtos=[],empresa={},cfg={},cat="",carrinho={},prodAberto=null;
 const REPRES=(()=>{try{const r=new URLSearchParams(location.search).get("r");return r&&r.toUpperCase()!=="TODAS"?r.trim():"";}catch(e){return "";}})();
-const TABELA=(()=>{try{return (new URLSearchParams(location.search).get("t")||"").trim();}catch(e){return "";}})();
+let TABELA=(()=>{try{return (new URLSearchParams(location.search).get("t")||"").trim();}catch(e){return "";}})();
+const TABELA_LINK=TABELA;
+let clienteReconhecido=null;
 let tabelas=[];
 function precoCat(p){
   // usa a tabela indicada no link; sen\u00e3o o pre\u00e7o matriz (atacado)
@@ -413,7 +439,8 @@ function itensPedido(){
 function abrirCheckout(){
   const itens=itensPedido();
   if(!itens.length)return;
-  modoCad="escolha";cliIdent=null;
+  if(clienteReconhecido){cliIdent=clienteReconhecido;modoCad="confirma";}
+  else{modoCad="escolha";cliIdent=null;}
   fecharTudo();abrir("mCheck");renderCheckout();
 }
 function renderCheckout(){
@@ -488,6 +515,64 @@ function renderCheckout(){
       <div style="text-align:center;margin-top:10px;padding-bottom:10px"><span style="font-size:13px;color:var(--verde);text-decoration:underline;cursor:pointer" onclick="modoCad='escolha';renderCheckout()">← voltar</span></div>`;
   }
   document.getElementById("checkBody").innerHTML=`<div class="mbody">${resumo}${corpo}</div>`;
+}
+function bvJaCliente(){
+  document.getElementById("bvEscolha").style.display="none";
+  document.getElementById("bvBusca").style.display="block";
+  document.getElementById("bvSub").textContent="Digite seu CNPJ, nome ou nome fantasia:";
+  setTimeout(function(){var c=document.getElementById("bvCampo");if(c)c.focus();},100);
+}
+function bvVisitante(){
+  // visitante: usa a tabela do link (ou matriz) e entra no catálogo
+  TABELA=TABELA_LINK;
+  clienteReconhecido=null;
+  document.getElementById("boasvindas").classList.add("hide");
+  filtrar();
+}
+async function bvBuscar(){
+  var termo=(document.getElementById("bvCampo").value||"").trim();
+  var msg=document.getElementById("bvMsg");
+  if(termo.length<3){msg.innerHTML='<span style="color:#b45309">Digite ao menos 3 letras ou o CNPJ.</span>';return;}
+  msg.style.color="#555";msg.textContent="Buscando\u2026";
+  await aguardarAcesso(4000);
+  var cli=await acharCliente(termo);
+  if(!cli){
+    msg.innerHTML='<span style="color:#b45309">N\u00e3o encontrei esse cadastro. Confira ou toque em "ver o cat\u00e1logo".</span>';
+    return;
+  }
+  clienteReconhecido=cli;
+  cliIdent=cli; // j\u00e1 deixa pronto para o checkout
+  if(cli.tabela){TABELA=cli.tabela;}
+  msg.innerHTML='<span style="color:var(--verde)">\u2705 Ol\u00e1, '+esc(cli.fantasia||cli.nome)+'! Mostrando seus pre\u00e7os.</span>';
+  setTimeout(function(){
+    document.getElementById("boasvindas").classList.add("hide");
+    filtrar();
+  },900);
+}
+async function acharCliente(termo){
+  var d=digitos(termo);
+  if(d.length>=11){var porCnpj=await acharPorCnpj(d);if(porCnpj)return porCnpj;}
+  // busca por nome ou fantasia (case-insensitive, contém)
+  try{
+    var snap=await db.ref("clientes").once("value");
+    var alvo=termo.toLowerCase();
+    var achado=null;
+    snap.forEach(function(ch){
+      var c=ch.val()||{};
+      var nome=String(c.nome||"").toLowerCase();
+      var fant=String(c.fantasia||"").toLowerCase();
+      if(!achado&&(nome===alvo||fant===alvo)){achado={id:ch.key,...c};return true;}
+    });
+    if(achado)return achado;
+    // se não achou exato, tenta "contém"
+    snap.forEach(function(ch){
+      var c=ch.val()||{};
+      var nome=String(c.nome||"").toLowerCase();
+      var fant=String(c.fantasia||"").toLowerCase();
+      if(!achado&&(nome.indexOf(alvo)>=0||fant.indexOf(alvo)>=0)){achado={id:ch.key,...c};return true;}
+    });
+    return achado;
+  }catch(e){return null;}
 }
 async function buscarCadastro(){
   const d=digitos(document.getElementById("bCnpj").value);
