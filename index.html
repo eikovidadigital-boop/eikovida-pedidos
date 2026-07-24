@@ -2889,8 +2889,13 @@ function finalizar(enviar){
   if(!ped.cond){toast("Escolha a condição de pagamento");subAbaPedido="cab";render();return;}
   const linhas=Object.entries(carrinho);
   if(linhas.length===0){toast("Adicione itens");subAbaPedido="itens";render();return;}
-  const cli=clientes.find(c=>c.id===clienteSel);
-  const itens=linhas.map(([id,it])=>{const p=produtos.find(x=>x.id===id);return{nome:p.nome,codigo:p.codigo||"",qtd:it.qtd,preco:it.preco};});
+  let cli=clientes.find(c=>c.id===clienteSel);
+  if(!cli){
+    // cliente não está na base (ex: pedido do catálogo) — usa os dados do pedido em edição
+    const base=editandoPedido?(pedidos.find(p=>p.id===editandoPedido.id)||{}):{};
+    cli={id:clienteSel||base.clienteId||"",nome:base.cliente||"Cliente",cidade:base.cidade||"",whatsapp:base.whats||"",categoria:base.categoria||""};
+  }
+  const itens=linhas.map(([id,it])=>{const p=produtos.find(x=>x.id===id);return{nome:(p?p.nome:it.nome)||"",codigo:(p?p.codigo:it.codigo)||"",qtd:it.qtd,preco:it.preco};});
   const {bruto,total}=calcTotais();
   const numero=editandoPedido?editandoPedido.numero:(pedidos.reduce((m,p)=>Math.max(m,p.numero||0),1000)+1);
   const pedido={
@@ -3370,6 +3375,7 @@ function menuPedido(id){
   const it=[
     ["✏️","Editar pedido",pode?`editarPedido('${id}')`:`toast('Pedido já sincronizado — só o administrador pode editar')`,pode?"destaque":"off"],
     (ehAdmin&&!/aceit|confirmad/i.test(o.situacao||""))?["✅","Aceitar pedido",`aceitarPedido('${id}')`,"aceitar"]:null,
+    ehAdmin?["📦","Marcar como Recebido (avisa o cliente)",`marcarRecebidoPedido('${id}')`]:null,
     ehAdmin?["💚","Marcar como Pago",`mudarSituacao('${id}','Pago')`]:null,
     ehAdmin?["💛","Marcar como Faturado",`mudarSituacao('${id}','Faturado')`]:null,
     ehAdmin?["🟠","Voltar para Pendente",`mudarSituacao('${id}','Pendente')`]:null,
@@ -3422,6 +3428,25 @@ function mudarSituacao(id,sit){
   const pr=pedidosRemoto.find(x=>x.id===id); if(pr)Object.assign(pr,dados);
   reconstruirPedidos();
   toast("Situa\u00e7\u00e3o: "+sit);render();
+}
+function marcarRecebidoPedido(id){
+  fecharSheet();
+  const o=pedidos.find(x=>x.id===id); if(!o)return;
+  if(!ehAdmin){toast("Somente o administrador");return;}
+  if(o._pendente){toast("Pedido ainda n\u00e3o sincronizado");return;}
+  const upd={situacao:"Recebido",recebidoEm:new Date().toISOString(),recebidoPor:vendedor};
+  if(navigator.onLine)db.ref("pedidos/"+id).update(upd);
+  else{filaPendentes.push({col:"pedidos",op:"update",id:id,data:upd});LS.set("fila",filaPendentes);}
+  const pr=pedidosRemoto.find(x=>x.id===id); if(pr)Object.assign(pr,upd);
+  reconstruirPedidos();
+  toast("Pedido marcado como recebido \u2713");
+  const fone=soDig(o.whats||(clientes.find(c=>c.id===o.clienteId)||{}).whatsapp||"");
+  if(fone){
+    const t="Ol\u00e1"+(o.contato?" "+o.contato:"")+"! Recebemos o seu pedido na "+(empresa.razao||"EIKO VIDA")+" \u2705\n\n"
+      +"N\u00famero: "+(o.numero||"")+"\nTotal: "+brl(o.total)+"\n\nJ\u00e1 estamos preparando. Em breve entramos em contato. Obrigado pela prefer\u00eancia!";
+    setTimeout(()=>window.open("https://wa.me/55"+fone.replace(/^55/,"")+"?text="+encodeURIComponent(t),"_blank"),400);
+  }else{ toast("Cliente sem WhatsApp cadastrado"); }
+  render();
 }
 function aceitarPedido(id){
   const o=pedidos.find(x=>x.id===id); if(!o)return;
