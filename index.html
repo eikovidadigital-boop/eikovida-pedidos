@@ -623,6 +623,11 @@ function conectarFirebase(){
   db.ref("pedidos").on("value",s=>{const a=toArr(s.val());if(a.length===0&&pedidosRemoto.length>0)return;pedidosRemoto=a;LS.set("pedidos",a);reconstruirPedidos();reRender(["central","clientes","home"]);});
   db.ref("pedidos").on("child_added",s=>{
     const p=s.val();
+    // pedido novo (ex: do catálogo) sem número: o admin atribui o próximo da sequência
+    if(ehAdmin&&p&&(!p.numero||Number(p.numero)<=0)){
+      const prox=pedidosRemoto.reduce((m,x)=>Math.max(m,Number(x.numero)||0),1000)+1;
+      db.ref("pedidos/"+s.key+"/numero").set(prox);
+    }
     if(p&&p.data&&(Date.now()-new Date(p.data).getTime())<8000){
       destaqueId=s.key; if(viewAtual==="central")render();
       setTimeout(()=>{destaqueId=null;if(viewAtual==="central")render();},4000);
@@ -2884,6 +2889,11 @@ function renderBarra(){
     </div></div>`;
 }
 
+function limparUndefined(obj){
+  const out={};
+  for(const k in obj){ const v=obj[k]; if(v!==undefined&&v!==null&&!(typeof v==="number"&&isNaN(v)))out[k]=v; else if(v===null)out[k]=""; }
+  return out;
+}
 function finalizar(enviar){
   if(!clienteSel){toast("Escolha um cliente");subAbaPedido="cab";render();return;}
   if(!ped.cond){toast("Escolha a condição de pagamento");subAbaPedido="cab";render();return;}
@@ -2897,8 +2907,10 @@ function finalizar(enviar){
   }
   const itens=linhas.map(([id,it])=>{const p=produtos.find(x=>x.id===id);return{nome:(p?p.nome:it.nome)||"",codigo:(p?p.codigo:it.codigo)||"",qtd:it.qtd,preco:it.preco};});
   const {bruto,total}=calcTotais();
-  const numero=editandoPedido?editandoPedido.numero:(pedidos.reduce((m,p)=>Math.max(m,p.numero||0),1000)+1);
-  const pedido={
+  const proximoNum=()=>pedidos.reduce((m,p)=>Math.max(m,Number(p.numero)||0),1000)+1;
+  let numero=editandoPedido?editandoPedido.numero:proximoNum();
+  if(!numero||Number(numero)<=0)numero=proximoNum();
+  const pedido=limparUndefined({
     numero,
     clienteId:clienteSel,cliente:cli.nome,cidade:cli.cidade||"",whats:cli.whatsapp||"",categoria:cli.categoria||"",
     vendedor,vendedorCodigo,itens,bruto,total,representada:ped.representada||"EIKO VIDA",
@@ -2907,7 +2919,7 @@ function finalizar(enviar){
     consumidorFinal:ped.consumidorFinal,dataEmissao:ped.dataEmissao,dataFat:ped.dataFat,previsao:ped.previsao,
     obsCli:ped.obsCli,obsEmp:ped.obsEmp,ordemCompra:ped.ordemCompra,transportadora:ped.transportadora,
     data:new Date().toISOString()
-  };
+  });
   if(editandoPedido){
     const alvo=pedidos.find(p=>p.id===editandoPedido.id)||{};
     pedido.data=alvo.data||pedido.data;
