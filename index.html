@@ -404,7 +404,7 @@ let repres=[], repEdit=null, catRepEdit="", filtroRepTab="", filtroRepProd="", l
 let agenda=[], agendaEdit=null, filtroAgenda="proximos";
 let fornecedores=[], fornEdit=null;
 let comissoesCfg={}, comPeriodo="mes";
-let promo={titulo:"",produtos:[],categoriaProd:"",destino:"todos",destCats:[],destCidades:[],volMin:0,representada:""};
+let promo={titulo:"",produtos:[],categoriaProd:"",destino:"todos",destCats:[],destCidades:[],volMin:0,representada:"",desconto:0,destCliente:""};
 let empresa={}, equipe=[], vendEdit=null, transfDe=null, codigoAtivacao="EIKO2026";
 let impTipo="produtos", impPreview=null;
 let plan=null; // {cabecalhos:[], linhas:[[...]], map:{campo:idxColuna}}
@@ -3386,21 +3386,45 @@ function clientesDaPromo(){
     lista=lista.filter(c=>promo.destCidades.includes(String(c.cidade||"").trim()));
   if(promo.destino==="volume"&&promo.volMin>0)
     lista=lista.filter(c=>volumeCliente(c.id)>=promo.volMin);
+  if(promo.destino==="cliente")
+    lista=promo.destCliente?lista.filter(c=>c.id===promo.destCliente):[];
   return lista;
 }
+function htmlPromoCliLista(q){
+  const termo=String(q||"").toLowerCase().trim();
+  let lista=clientes.slice();
+  if(termo)lista=lista.filter(c=>((c.nome||"")+" "+(c.fantasia||"")+" "+(c.cnpj||"")).toLowerCase().includes(termo));
+  lista=lista.slice(0,30);
+  if(!lista.length)return '<div style="font-size:12px;color:var(--cinza);padding:8px">Nenhum cliente.</div>';
+  return lista.map(c=>`<div onclick="promo.destCliente='${c.id}';render()" style="padding:9px;border:1px solid ${promo.destCliente===c.id?'var(--verde)':'var(--borda)'};border-radius:8px;margin-bottom:5px;cursor:pointer;background:${promo.destCliente===c.id?'#eaf6ee':'#fff'}">
+    <div style="font-weight:600;font-size:13px">${esc(c.nome||"")}</div>
+    ${c.cnpj?`<div style="font-size:11px;color:var(--cinza)">CNPJ: ${esc(c.cnpj)}</div>`:""}
+  </div>`).join("");
+}
+function filtrarPromoCli(q){const el=document.getElementById("promoCliLista");if(el)el.innerHTML=htmlPromoCliLista(q);}
+function precoPromoBase(p){return Number(p.atacado)||0;}
+function precoPromoDesc(p){const b=precoPromoBase(p);const d=Number(promo.desconto)||0;return d>0?b*(1-d/100):b;}
 function textoPromo(){
   const marca=promo.representada&&promo.representada!=="TODAS"?promo.representada:(empresa.razao||"EIKO VIDA");
   let prods=[];
   if(promo.categoriaProd)prods=produtos.filter(p=>p.categoria===promo.categoriaProd&&p.ativo!==false);
   else prods=produtos.filter(p=>promo.produtos.includes(p.id));
   const tit=promo.titulo||"Promoção especial para você!";
+  const desc=Number(promo.desconto)||0;
   let m="🔥 *"+tit+"* 🔥\n\n";
   m+="Olá! 👋 Separamos uma oferta imperdível na *"+marca+"* especialmente para você:\n\n";
-  prods.slice(0,20).forEach(p=>{ m+="✨ *"+p.nome+"*\n"; });
+  prods.slice(0,20).forEach(p=>{
+    if(desc>0){ m+="✨ *"+p.nome+"*\n   de ~"+brl(precoPromoBase(p))+"~ por *"+brl(precoPromoDesc(p))+"*\n"; }
+    else { m+="✨ *"+p.nome+"* — "+brl(precoPromoBase(p))+"\n"; }
+  });
   if(prods.length>20)m+="…e muito mais!\n";
-  m+="\n💰 *Preços de atacado* com margem para revenda.\n";
+  if(desc>0)m+="\n🏷️ *"+desc+"% OFF* já aplicado nos preços acima!\n";
+  m+="💰 *Preços de atacado* com margem para revenda.\n";
   m+="🚚 Peça já e garanta o seu!\n\n";
-  m+="👉 *Toque no link para aproveitar e montar seu pedido:*\n"+linkCatalogo(promo.representada,"")+(linkCatalogo(promo.representada,"").includes("?")?"&":"?")+"promo=1\n\n";
+  const base=linkCatalogo(promo.representada,"");
+  let link=base+(base.includes("?")?"&":"?")+"promo=1";
+  if(promo.categoriaProd)link+="&cat="+encodeURIComponent(promo.categoriaProd);
+  m+="👉 *Toque no link para aproveitar e montar seu pedido:*\n"+link+"\n\n";
   m+="Corra, é por tempo limitado! ⏰";
   return m;
 }
@@ -3417,6 +3441,9 @@ function viewPromocoes(){
     <div class="card">
       <label class="lb">Título da promoção</label>
       <input class="inp" value="${esc(promo.titulo)}" oninput="promo.titulo=this.value" placeholder="Ex: Semana do Óleo de Coco — 20% OFF">
+      <label class="lb" style="margin-top:10px">Desconto (%) sobre a tabela principal</label>
+      <input class="inp" inputmode="decimal" value="${promo.desconto||''}" oninput="promo.desconto=parseFloat(this.value.replace(',','.'))||0;render()" placeholder="Ex: 20 (deixe vazio para sem desconto)">
+      <div style="font-size:11px;color:var(--cinza);margin-top:3px">O preço com desconto aparece na mensagem e no catálogo, calculado sobre o preço de atacado (tabela matriz).</div>
       <label class="lb" style="margin-top:10px">Representada</label>
       <select class="inp" onchange="promo.representada=this.value;render()">
         <option value="">Todas</option>
@@ -3441,7 +3468,12 @@ function viewPromocoes(){
         <button class="chip ${promo.destino==='categoria'?'on':''}" onclick="promo.destino='categoria';render()">Por categoria</button>
         <button class="chip ${promo.destino==='cidade'?'on':''}" onclick="promo.destino='cidade';render()">Por localidade</button>
         <button class="chip ${promo.destino==='volume'?'on':''}" onclick="promo.destino='volume';render()">Por volume de compra</button>
+        <button class="chip ${promo.destino==='cliente'?'on':''}" onclick="promo.destino='cliente';render()">1 cliente específico</button>
       </div>
+      ${promo.destino==="cliente"?`<div style="margin-top:8px">
+        <input class="inp" id="promoBuscaCli" placeholder="Buscar cliente por nome ou CNPJ" oninput="filtrarPromoCli(this.value)" autocomplete="off">
+        <div id="promoCliLista" style="max-height:170px;overflow:auto;margin-top:6px">${htmlPromoCliLista('')}</div>
+      </div>`:""}
       ${promo.destino==="categoria"?`<div class="chips" style="flex-wrap:wrap;margin-top:8px">${catsCli.map(c=>`<button class="chip ${promo.destCats.includes(c)?'on':''}" onclick="togglePromoCat('${esc(c)}')">${esc(c)}</button>`).join("")}</div>`:""}
       ${promo.destino==="cidade"?`<div class="chips" style="flex-wrap:wrap;margin-top:8px;max-height:150px;overflow:auto">${cidades.map(c=>`<button class="chip ${promo.destCidades.includes(c)?'on':''}" onclick="togglePromoCidade('${esc(c)}')">${esc(c)}</button>`).join("")}</div>`:""}
       ${promo.destino==="volume"?`<div style="margin-top:8px"><label class="lb">Clientes que já compraram no mínimo (R$):</label><input class="inp" inputmode="decimal" value="${promo.volMin||''}" oninput="promo.volMin=parseFloat(this.value.replace(',','.'))||0;render()" placeholder="Ex: 5000"></div>`:""}
@@ -3467,7 +3499,7 @@ function dadosPromo(){
   let ids=[];
   if(promo.categoriaProd)ids=produtos.filter(p=>p.categoria===promo.categoriaProd&&p.ativo!==false).map(p=>p.id);
   else ids=promo.produtos.slice();
-  return {titulo:promo.titulo||"Promoção especial",produtos:ids,categoria:promo.categoriaProd||"",representada:promo.representada||"",em:new Date().toISOString()};
+  return {titulo:promo.titulo||"Promoção especial",produtos:ids,categoria:promo.categoriaProd||"",representada:promo.representada||"",desconto:Number(promo.desconto)||0,em:new Date().toISOString()};
 }
 function publicarPromo(){
   if(!ehAdmin){toast("Somente o administrador");return;}
@@ -3754,6 +3786,18 @@ function mudarSituacao(id,sit){
   const pr=pedidosRemoto.find(x=>x.id===id); if(pr)Object.assign(pr,dados);
   reconstruirPedidos();
   toast("Situa\u00e7\u00e3o: "+sit);render();
+  // pedido cancelado pelo admin: avisa o cliente no WhatsApp
+  if(ehAdmin&&/cancel/i.test(sit)){
+    const fone=soDig(p.whats||(clientes.find(c=>c.id===p.clienteId)||{}).whatsapp||"");
+    if(fone){
+      const msg="Ol\u00e1"+(p.contato?" "+p.contato:"")+"! Informamos que o seu pedido"+(p.numero?" n\u00ba "+p.numero:"")+" na "+(empresa.razao||"EIKO VIDA")+" foi *cancelado*."
+        +(p.total?"\nValor: "+brl(p.total):"")
+        +"\n\nSe tiver qualquer d\u00favida ou quiser refazer o pedido, \u00e9 s\u00f3 falar com a gente. Estamos \u00e0 disposi\u00e7\u00e3o!";
+      setTimeout(()=>window.open("https://wa.me/55"+fone.replace(/^55/,"")+"?text="+encodeURIComponent(msg),"_blank"),400);
+    }else{
+      toast("Cliente sem WhatsApp — aviso n\u00e3o enviado");
+    }
+  }
 }
 function marcarRecebidoPedido(id){
   fecharSheet();
