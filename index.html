@@ -3117,14 +3117,22 @@ function blocoItens(o){
     ${dif?`<div style="padding:7px 10px;font-size:11px;color:#b45309;background:#fffbeb;border-top:1px solid #ececea">Valor do pedido: <b>${brl(o.total)}</b> (h\u00e1 desconto ou acr\u00e9scimo)</div>`:""}
   </div>`;
 }
-function corSituacao(s){
+function estiloSituacao(s){
   const x=String(s||"");
-  if(/pago|conclu|recebid|quitad/i.test(x))return "var(--verde)";
-  if(/faturad/i.test(x))return "#C9A227";
-  if(/cancel|devolv/i.test(x))return "#b91c1c";
-  if(/aceit|confirmad/i.test(x))return "#2563eb";
-  return "#b45309";
+  // pago/concluído/quitado = VERDE com "✓"
+  if(/pago|conclu|quitad/i.test(x))return {cor:"#166534",fundo:"#eaf6ee",icone:"✅",rotulo:x};
+  // recebido = AMARELO com bolinha 🟡 (separado do pago)
+  if(/recebid/i.test(x))return {cor:"#a16207",fundo:"#fdf6e3",icone:"🟡",rotulo:x};
+  // faturado = dourado
+  if(/faturad/i.test(x))return {cor:"#9a7b1a",fundo:"#faf5e6",icone:"🧾",rotulo:x};
+  // cancelado/devolvido = VERMELHO com "⛔"
+  if(/cancel|devolv|recus/i.test(x))return {cor:"#b91c1c",fundo:"#fbeaea",icone:"⛔",rotulo:x};
+  // aceito/confirmado = azul
+  if(/aceit|confirmad/i.test(x))return {cor:"#2563eb",fundo:"#eaf1fc",icone:"🔵",rotulo:x};
+  // pendente/demais = laranja
+  return {cor:"#b45309",fundo:"#fdf1e3",icone:"⏳",rotulo:x||"Pendente"};
 }
+function corSituacao(s){return estiloSituacao(s).cor;}
 function htmlListaCentral(){
   const q=(buscaCentral||"").toLowerCase().trim();
   let arr=pedidosVis().slice().sort((a,b)=>(b._ts||(b._ts=+new Date(b.data||0)||0))-(a._ts||(a._ts=+new Date(a.data||0)||0)));
@@ -3136,7 +3144,8 @@ function htmlListaCentral(){
     const cli=cliDoPedido(o);
     const nv=o.id===destaqueId;
     const sit=o.situacao||(o.status==="enviado"?"Enviado":"Pendente");
-    const corSit=corSituacao(sit);
+    const est=estiloSituacao(sit);
+    const corSit=est.cor;
     const det=o.id===pedidoAberto?`<div class="det">
         ${blocoItens(o)}
         ${o.historico?'<div class="pag">📦 Pedido do histórico</div>':""}
@@ -3151,14 +3160,14 @@ function htmlListaCentral(){
           <button class="btn btn-v btn-sm" style="flex:1" onclick="toggleStatus('${o.id}')">✓ ${o.status==='aberto'?'Marcar enviado':'Reabrir'}</button>
           <button class="btn btn-r btn-sm" onclick="excluirPed('${o.id}')">🗑</button>
         </div></div>`:"";
-    return `<div class="pedcard ${nv?'novo':''}">
+    return `<div class="pedcard ${nv?'novo':''}" style="background:${est.fundo};border-left:5px solid ${est.cor}">
       <div onclick="${o._pendente?'':`abrirPed('${o.id}')`}">
         <div class="pcnum"><span onclick="event.stopPropagation();menuPedido('${o.id}')" style="float:right;font-size:20px;padding:0 4px;color:#666">⋮</span><span style="float:right">${selo(o.representada)}</span>Número: <b>${esc(o.numero||"—")}</b>${nv?'<span class="tagnovo">NOVO</span>':''}${o._pendente?'<span class="tagnovo" style="background:#b45309">⏳ OFFLINE</span>':''}</div>
         <div class="pccli">${esc(o.cliente||"")}</div>
         ${cli.fantasia?`<div class="pcsub">${esc(cli.fantasia)}</div>`:""}
         ${cli.cnpj?`<div class="pcsub">CNPJ: ${esc(cli.cnpj)}</div>`:""}
         <div class="pcrow"><span>${dataBr(o.data)}</span><b>${brl(o.total)}</b><span class="pcst">${esc(o.status==="Orçamento"||o.status==="Bonificação"||o.status==="Troca"?o.status:"Pedido")}</span></div>
-        <div class="pcrow2"><span>${o.dataFaturamento?"Faturamento: "+dataBr(o.dataFaturamento):(o.cidade?esc(o.cidade):"")}</span><span style="color:${corSit};font-weight:800">${esc(sit)}</span></div>
+        <div class="pcrow2"><span>${o.dataFaturamento?"Faturamento: "+dataBr(o.dataFaturamento):(o.cidade?esc(o.cidade):"")}</span><span style="color:${corSit};font-weight:800">${est.icone} ${esc(sit)}</span></div>
         <div class="pcrow2"><span>${o.cond?esc(o.cond):""}</span><span></span></div>
         <div class="pcrow2"><span>Vendedor: ${esc(o.vendedor||"")}</span><span style="color:#999">${esc(o.representada||"EIKO VIDA")}</span></div>
       </div>${o._pendente?'':det}</div>`;
