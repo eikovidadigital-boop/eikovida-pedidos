@@ -376,7 +376,7 @@ const ADMIN_USER="adm01eiko", ADMIN_SENHA_PADRAO="290412";
 let admSenha="290412";
 const ABAS=[["convites","Instalar p/ Vendedor"],["catalogoCfg","Editar Catálogo"],["representadas","Representadas"],["pix","Pix / Financeiro"],["catprod","Categorias de Produto"],["home","Início"],["novo","Novo Pedido"],["central","Central de Pedidos"],["relatorios","Relatórios"],["cobrancas","Cobranças"],["clientes","Clientes"],["produtos","Produtos"],["tabelas","Tabelas de Preço"],["transportadoras","Transportadoras"],["fornecedores","Fornecedores"],["agenda","Agenda / CRM"],["equipe","Minha Equipe"],["empresa","Minha Empresa"],["importacoes","Importações"],["sync","Sincronização"],["catalogo","Catálogo Online"]];
 const ABAS_PADRAO=["home","novo","central","clientes","produtos","agenda","sync"];
-function podeVer(v){if(v==="pix")return ehAdmin;return ehAdmin||!permissoes||permissoes.includes(v);}
+function podeVer(v){if(v==="pix"||v==="comissoes")return ehAdmin;return ehAdmin||!permissoes||permissoes.includes(v);}
 function podeEditarPed(o){
   if(!o)return false;
   if(ehAdmin)return true;                       // admin sempre pode
@@ -403,6 +403,7 @@ let transportadoras=[], transpEdit=null, filtroCobr="areceber", buscaCobr="";
 let repres=[], repEdit=null, catRepEdit="", filtroRepTab="", filtroRepProd="", logoTmp="";
 let agenda=[], agendaEdit=null, filtroAgenda="proximos";
 let fornecedores=[], fornEdit=null;
+let comissoesCfg={}, comPeriodo="mes";
 let empresa={}, equipe=[], vendEdit=null, transfDe=null, codigoAtivacao="EIKO2026";
 let impTipo="produtos", impPreview=null;
 let plan=null; // {cabecalhos:[], linhas:[[...]], map:{campo:idxColuna}}
@@ -619,6 +620,7 @@ function conectarFirebase(){
   db.ref("empresa").on("value",s=>{const v=s.val();if(!v&&Object.keys(empresa).length>0)return;empresa=v||{};LS.set("empresa",empresa);reRender(["empresa"]);});
   db.ref("catalogo").on("value",s=>{cfgCatalogo=s.val()||{};reRender(["catalogoCfg"]);});
   db.ref("config").on("value",s=>{const v=s.val()||{};if(v.codigoAtivacao)codigoAtivacao=v.codigoAtivacao;if(v.admSenha)admSenha=v.admSenha;reRender(["equipe"]);});
+  db.ref("comissoes").on("value",s=>{comissoesCfg=s.val()||{};if(viewAtual==="comissoes")render();});
   db.ref("vendedores").on("value",s=>{const a=toArr(s.val());if(a.length===0&&equipe.length>0)return;equipe=a;LS.set("equipe",a);reRender(["equipe"]);});
   db.ref("pedidos").on("value",s=>{const a=toArr(s.val());if(a.length===0&&pedidosRemoto.length>0)return;pedidosRemoto=a;LS.set("pedidos",a);reconstruirPedidos();reRender(["central","clientes","home"]);});
   db.ref("pedidos").on("child_added",s=>{
@@ -664,6 +666,7 @@ const MENU=[
   ["__s","GESTÃO"],
   ["📅","Agenda / CRM","agenda"],
   ["🧑‍💼","Minha Equipe","equipe"],
+  ["💰","Comissões Vendedores","comissoes"],
   ["🏢","Minha Empresa","empresa"],
   ["__s","ADMIN"],
   ["📲","Instalar p/ Vendedor","convites"],
@@ -853,7 +856,9 @@ function enviarCatalogo(rep,clienteId,tab){
   const escolhida=rep||(opts.length===1?opts[0]:(ehAdmin?"TODAS":(minhaRepresentada()||"TODAS")));
   // se a representada tem mais de uma tabela e ainda n\u00e3o escolheu, pergunta qual (matriz \u00e9 o padr\u00e3o)
   const tabs=(escolhida&&escolhida!=="TODAS")?tabelasDaRepres(escolhida):[];
-  if(tab===undefined&&tabs.length>=1){
+  // vendedor sempre envia na tabela padrão (matriz); só o admin escolhe tabela
+  if(!ehAdmin){tab="";}
+  if(ehAdmin&&tab===undefined&&tabs.length>=1){
     const linhasT=[["\ud83c\udfe0","Tabela matriz (padr\u00e3o)",`fecharSheet();enviarCatalogo('${escolhida.replace(/'/g,"")}'${clienteId?`,'${clienteId}'`:",null"},'')`]];
     tabs.forEach(tb=>linhasT.push(["\ud83d\udcb0",tb.nome,`fecharSheet();enviarCatalogo('${escolhida.replace(/'/g,"")}'${clienteId?`,'${clienteId}'`:",null"},'${esc(tb.nome).replace(/'/g,"")}')`]));
     const htmlT=`<div class="sheet-ov" onclick="fecharSheet()"></div>
@@ -2581,6 +2586,7 @@ function render(){
   else if(viewAtual==="fornecedores")c.innerHTML=viewFornecedores();
   else if(viewAtual==="empresa")c.innerHTML=viewEmpresa();
   else if(viewAtual==="pix")c.innerHTML=viewPix();
+  else if(viewAtual==="comissoes")c.innerHTML=viewComissoes();
   else if(viewAtual==="equipe")c.innerHTML=viewEquipe();
   else if(viewAtual==="importacoes")c.innerHTML=viewImportacoes();
   else if(viewAtual==="representadas")c.innerHTML=viewRepresentadas();
@@ -3319,6 +3325,155 @@ function pixCobranca(id){
   if(!ehAdmin){toast("Somente o administrador");return;}
   const o=pedidos.find(x=>x.id===id); if(!o)return;
   abrirPix(o.total||0,(o.cliente||"")+(o.numero?" · nº "+o.numero:""),"PED"+(o.numero||o.id));
+}
+function comCfgDe(cod){const c=comissoesCfg[cod]||{};return {tipo:c.tipo||"faturamento",percs:c.percs||{}};}
+function comPercDe(cod,rep){const c=comCfgDe(cod);const r=repNorm(rep);const p=c.percs[r];return p!=null&&p!==""?(parseFloat(p)||0):0;}
+function comPedidoConta(o,tipo){
+  // faturamento: pedidos faturados/aceitos/pagos (não cancelados). liquidez: só pagos/recebidos.
+  const st=String(o.situacao||"").toLowerCase();
+  if(/cancel|devolv/i.test(st))return false;
+  if(tipo==="liquidez")return /pago|quitad|conclu|recebid/i.test(st);
+  return true; // faturamento: todo pedido não cancelado
+}
+function calcComissao(cod,ini,fim){
+  const cfg=comCfgDe(cod);
+  const lista=pedidosRemoto.filter(o=>{
+    if(String(o.vendedorCodigo||"")!==String(cod))return false;
+    const ts=+new Date(o.data||0)||0;
+    if(ini&&ts<ini)return false;
+    if(fim&&ts>fim)return false;
+    return comPedidoConta(o,cfg.tipo);
+  });
+  const porRep={};let baseTotal=0,comTotal=0;
+  lista.forEach(o=>{
+    const r=repNorm(o.representada||"EIKO VIDA");
+    const perc=comPercDe(cod,r);
+    const base=Number(o.total)||0;
+    const com=base*perc/100;
+    if(!porRep[r])porRep[r]={base:0,com:0,perc,qtd:0};
+    porRep[r].base+=base;porRep[r].com+=com;porRep[r].qtd++;
+    baseTotal+=base;comTotal+=com;
+  });
+  return {cfg,lista,porRep,baseTotal,comTotal,qtd:lista.length};
+}
+function periodoComissao(){
+  const hoje=new Date();
+  if(comPeriodo==="mes"){const i=new Date(hoje.getFullYear(),hoje.getMonth(),1);return {ini:+i,fim:+hoje,label:"Este mês"};}
+  if(comPeriodo==="mespass"){const i=new Date(hoje.getFullYear(),hoje.getMonth()-1,1);const f=new Date(hoje.getFullYear(),hoje.getMonth(),0,23,59,59);return {ini:+i,fim:+f,label:"Mês passado"};}
+  if(comPeriodo==="ano"){const i=new Date(hoje.getFullYear(),0,1);return {ini:+i,fim:+hoje,label:"Este ano"};}
+  return {ini:0,fim:+hoje,label:"Tudo"};
+}
+function viewComissoes(){
+  if(!ehAdmin)return `<div class="vazio">Área exclusiva do administrador.</div>`;
+  const vends=equipe.filter(v=>!v.admin);
+  const reps=representadas();
+  const per=periodoComissao();
+  const pers=[["mes","Este mês"],["mespass","Mês passado"],["ano","Este ano"],["tudo","Tudo"]];
+  const chips=`<div class="chips" style="margin-bottom:12px">${pers.map(([v,l])=>`<button class="chip ${comPeriodo===v?'on':''}" onclick="comPeriodo='${v}';render()">${l}</button>`).join("")}</div>`;
+  if(!vends.length)return `<h2 class="tit">Comissões</h2><div class="vazio">Cadastre vendedores na aba Minha Equipe primeiro.</div>`;
+  const cards=vends.map(v=>{
+    const cod=v.codigo;
+    const cfg=comCfgDe(cod);
+    const rc=calcComissao(cod,per.ini,per.fim);
+    const linhasRep=reps.map(r=>{
+      const rn=repNorm(r);
+      const val=cfg.percs[rn]!=null?cfg.percs[rn]:"";
+      const res=rc.porRep[rn];
+      return `<div style="display:flex;align-items:center;gap:8px;margin-top:6px">
+        <div style="flex:1;font-size:13px">${esc(r)}</div>
+        <input class="inp" style="width:78px;margin:0;text-align:center" inputmode="decimal" placeholder="%" value="${esc(val)}" onchange="setComPerc('${cod}','${esc(rn)}',this.value)">
+        <div style="width:96px;text-align:right;font-size:12px;color:var(--cinza)">${res?brl(res.com):"—"}</div>
+      </div>`;
+    }).join("");
+    return `<div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div style="font-weight:800">${esc(v.nome)}</div>
+        <div style="font-size:11px;color:var(--cinza)">cód ${esc(cod)}</div>
+      </div>
+      <div style="display:flex;gap:6px;margin-top:8px">
+        <button class="chip ${cfg.tipo==='faturamento'?'on':''}" onclick="setComTipo('${cod}','faturamento')">Por faturamento</button>
+        <button class="chip ${cfg.tipo==='liquidez'?'on':''}" onclick="setComTipo('${cod}','liquidez')">Por liquidez (pago)</button>
+      </div>
+      <div style="font-size:11px;color:var(--cinza);margin-top:8px;display:flex;justify-content:space-between"><span>Representada</span><span>% · comissão</span></div>
+      ${linhasRep}
+      <div style="border-top:1px solid var(--borda);margin-top:10px;padding-top:8px;display:flex;justify-content:space-between">
+        <div style="font-size:12px;color:var(--cinza)">${rc.qtd} pedido(s) · base ${brl(rc.baseTotal)}</div>
+        <div style="font-weight:800;color:var(--verde)">${brl(rc.comTotal)}</div>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:10px">
+        <button class="btn btn-g btn-sm" style="flex:1" onclick="pdfComissao('${cod}')">📄 Relatório PDF</button>
+        <button class="btn btn-w btn-sm" style="flex:1" onclick="enviarComissao('${cod}')">📲 Enviar ao vendedor</button>
+      </div>
+    </div>`;
+  }).join("");
+  return `<h2 class="tit">Comissões dos Vendedores</h2>
+    <div style="font-size:13px;color:var(--cinza);margin-bottom:10px">Período: <b>${per.label}</b>. Faturamento conta todo pedido não cancelado; liquidez conta só os pagos.</div>
+    ${chips}
+    ${cards}`;
+}
+function setComTipo(cod,tipo){
+  const c=comissoesCfg[cod]||{};c.tipo=tipo;comissoesCfg[cod]=c;
+  db.ref("comissoes/"+cod+"/tipo").set(tipo);
+  render();
+}
+function setComPerc(cod,rep,val){
+  const v=parseFloat(String(val).replace(",","."))||0;
+  const c=comissoesCfg[cod]||{};if(!c.percs)c.percs={};c.percs[rep]=v;comissoesCfg[cod]=c;
+  db.ref("comissoes/"+cod+"/percs/"+rep.replace(/[.#$/\[\]]/g,"_")).set(v);
+  render();
+}
+function pdfComissao(cod){
+  const v=equipe.find(x=>String(x.codigo)===String(cod));if(!v)return;
+  if(!window.jspdf||!window.jspdf.jsPDF){toast("Conecte-se à internet para gerar o PDF");return;}
+  const per=periodoComissao();const rc=calcComissao(cod,per.ini,per.fim);
+  const jsPDF=window.jspdf.jsPDF;const doc=new jsPDF({unit:"mm",format:"a4"});
+  let y=18;
+  doc.setFontSize(16);doc.setFont(undefined,"bold");doc.text("Relatório de Comissão",14,y);
+  y+=7;doc.setFontSize(11);doc.setFont(undefined,"normal");
+  doc.text((empresa.razao||"EIKO VIDA"),14,y);
+  y+=6;doc.text("Vendedor: "+v.nome+"  (cód "+cod+")",14,y);
+  y+=6;doc.text("Período: "+per.label,14,y);
+  y+=6;doc.text("Base de cálculo: "+(rc.cfg.tipo==="liquidez"?"Liquidez (pedidos pagos)":"Faturamento (pedidos não cancelados)"),14,y);
+  y+=8;doc.setDrawColor(200);doc.line(14,y,196,y);y+=8;
+  doc.setFont(undefined,"bold");doc.text("Representada",14,y);doc.text("%",96,y);doc.text("Base",120,y);doc.text("Comissão",165,y);
+  doc.setFont(undefined,"normal");y+=6;
+  Object.keys(rc.porRep).forEach(r=>{
+    const x=rc.porRep[r];
+    doc.text(String(r).slice(0,32),14,y);doc.text(String(x.perc)+"%",96,y);
+    doc.text(brl(x.base),120,y);doc.text(brl(x.com),165,y);y+=6;
+    if(y>270){doc.addPage();y=20;}
+  });
+  y+=2;doc.setDrawColor(200);doc.line(14,y,196,y);y+=8;
+  doc.setFont(undefined,"bold");doc.setFontSize(13);
+  doc.text("Total de pedidos: "+rc.qtd,14,y);y+=7;
+  doc.text("Base total: "+brl(rc.baseTotal),14,y);y+=7;
+  doc.setTextColor(22,101,52);doc.text("Comissão total: "+brl(rc.comTotal),14,y);
+  doc.save("Comissao-"+String(v.nome).replace(/\s+/g,"_")+".pdf");
+  return doc;
+}
+async function enviarComissao(cod){
+  const v=equipe.find(x=>String(x.codigo)===String(cod));if(!v)return;
+  const per=periodoComissao();const rc=calcComissao(cod,per.ini,per.fim);
+  const doc=pdfComissao(cod);
+  let msg="*Relatório de comissão*\n"+(empresa.razao||"EIKO VIDA")+"\n\n";
+  msg+="Vendedor: "+v.nome+"\nPeríodo: "+per.label+"\n";
+  msg+="Base: "+(rc.cfg.tipo==="liquidez"?"liquidez (pago)":"faturamento")+"\n\n";
+  Object.keys(rc.porRep).forEach(r=>{const x=rc.porRep[r];msg+=r+": "+x.perc+"% → "+brl(x.com)+"\n";});
+  msg+="\nPedidos: "+rc.qtd+"\nBase total: "+brl(rc.baseTotal)+"\n*Comissão total: "+brl(rc.comTotal)+"*";
+  const fone=soDig(v.whatsapp||v.telefone||v.fone||"");
+  const url="https://wa.me/"+(fone?"55"+fone.replace(/^55/,""):"")+"?text="+encodeURIComponent(msg);
+  // tenta anexar o PDF; se não der, manda o texto
+  try{
+    if(doc&&navigator.canShare){
+      const blob=doc.output("blob");const file=new File([blob],"Comissao-"+v.nome+".pdf",{type:"application/pdf"});
+      if(navigator.canShare({files:[file]})){
+        try{await navigator.clipboard.writeText(msg);}catch(_){}
+        await navigator.share({files:[file],title:"Comissão "+v.nome,text:msg});
+        return;
+      }
+    }
+  }catch(e){if(e&&e.name==="AbortError")return;}
+  window.open(url,"_blank");
 }
 function viewPix(){
   if(!ehAdmin)return `<div class="vazio">Área exclusiva do administrador.</div>`;
