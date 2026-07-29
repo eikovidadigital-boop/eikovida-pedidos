@@ -148,6 +148,7 @@
 </div>
 
 <div id="destaques"></div>
+<div id="promoBanner"></div>
 
 <div class="barra">
   <input class="busca" id="busca" placeholder="🔍 Buscar por nome ou código…" oninput="filtrar()">
@@ -212,6 +213,8 @@ let produtos=[],empresa={},cfg={},cat="",carrinho={},prodAberto=null;
 const REPRES=(()=>{try{const r=new URLSearchParams(location.search).get("r");return r&&r.toUpperCase()!=="TODAS"?r.trim():"";}catch(e){return "";}})();
 let TABELA=(()=>{try{return (new URLSearchParams(location.search).get("t")||"").trim();}catch(e){return "";}})();
 const TABELA_LINK=TABELA;
+const VEIO_PROMO=(()=>{try{return new URLSearchParams(location.search).get("promo")==="1";}catch(e){return false;}})();
+let promoCfg=null, soPromo=false;
 let clienteReconhecido=null;
 let tabelas=[];
 function precoCat(p){
@@ -242,7 +245,7 @@ db.ref("produtos").on("value",s=>{
 });
 db.ref("empresa").on("value",s=>{empresa=s.val()||{};rodape();});
 db.ref("tabelas").on("value",s=>{const v=s.val()||{};tabelas=Object.keys(v).map(k=>({id:k,...v[k]}));filtrar();});
-db.ref("catalogo").on("value",s=>{cfg=s.val()||{};aplicarCfg();rodape();});
+db.ref("catalogo").on("value",s=>{cfg=s.val()||{};promoCfg=(cfg&&cfg.promo)?cfg.promo:null;aplicarCfg();rodape();montarPromoBanner();});
 }
 quandoAcesso(conectarNuvem);
 
@@ -304,9 +307,21 @@ function montarCats(){
     cs.map(c=>`<button class="cat ${cat===c?"on":""}" onclick="setCat(&quot;${esc(c)}&quot;)">${esc(c)}</button>`).join("");
 }
 function setCat(c){cat=c;montarCats();filtrar();}
+function montarPromoBanner(){
+  const el=document.getElementById("promoBanner");if(!el)return;
+  if(!VEIO_PROMO||!promoCfg||!(promoCfg.produtos&&promoCfg.produtos.length)){el.innerHTML="";return;}
+  el.innerHTML=`<div style="margin:0 12px 10px;background:linear-gradient(135deg,#166534,#16a34a);color:#fff;border-radius:14px;padding:14px 16px;box-shadow:0 6px 18px rgba(22,101,52,.25)">
+    <div style="font-size:12px;opacity:.9;font-weight:700">🔥 PROMOÇÃO ESPECIAL</div>
+    <div style="font-size:18px;font-weight:800;margin:2px 0 8px">${esc(promoCfg.titulo||"Ofertas para você")}</div>
+    <button onclick="toggleSoPromo()" style="border:none;background:#fff;color:#166534;font-weight:800;padding:9px 14px;border-radius:9px;cursor:pointer">${soPromo?"Ver todos os produtos":"Ver só os produtos em promoção"}</button>
+  </div>`;
+}
+function toggleSoPromo(){soPromo=!soPromo;montarPromoBanner();filtrar();window.scrollTo(0,0);}
+function ehProduto(p){return promoCfg&&promoCfg.produtos&&promoCfg.produtos.indexOf(p.id)>=0;}
 function filtrar(){
   const termo=(document.getElementById("busca").value||"").toLowerCase().trim();
   let lista=produtos.filter(p=>!cat||p.categoria===cat);
+  if(VEIO_PROMO&&soPromo&&promoCfg)lista=lista.filter(p=>ehProduto(p));
   if(termo)lista=lista.filter(p=>((p.nome||"")+" "+(p.codigo||"")+" "+(p.categoria||"")+" "+(p.descricao||"")+" "+(p.codbarras||"")).toLowerCase().includes(termo));
   lista.sort((a,b)=>(a.nome||"").localeCompare(b.nome||""));
   const el=document.getElementById("lista");

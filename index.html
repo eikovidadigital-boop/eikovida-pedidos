@@ -376,7 +376,7 @@ const ADMIN_USER="adm01eiko", ADMIN_SENHA_PADRAO="290412";
 let admSenha="290412";
 const ABAS=[["convites","Instalar p/ Vendedor"],["catalogoCfg","Editar Catálogo"],["representadas","Representadas"],["pix","Pix / Financeiro"],["catprod","Categorias de Produto"],["home","Início"],["novo","Novo Pedido"],["central","Central de Pedidos"],["relatorios","Relatórios"],["cobrancas","Cobranças"],["clientes","Clientes"],["produtos","Produtos"],["tabelas","Tabelas de Preço"],["transportadoras","Transportadoras"],["fornecedores","Fornecedores"],["agenda","Agenda / CRM"],["equipe","Minha Equipe"],["empresa","Minha Empresa"],["importacoes","Importações"],["sync","Sincronização"],["catalogo","Catálogo Online"]];
 const ABAS_PADRAO=["home","novo","central","clientes","produtos","agenda","sync"];
-function podeVer(v){if(v==="pix"||v==="comissoes")return ehAdmin;return ehAdmin||!permissoes||permissoes.includes(v);}
+function podeVer(v){if(v==="pix"||v==="comissoes"||v==="promocoes")return ehAdmin;return ehAdmin||!permissoes||permissoes.includes(v);}
 function podeEditarPed(o){
   if(!o)return false;
   if(ehAdmin)return true;                       // admin sempre pode
@@ -404,6 +404,7 @@ let repres=[], repEdit=null, catRepEdit="", filtroRepTab="", filtroRepProd="", l
 let agenda=[], agendaEdit=null, filtroAgenda="proximos";
 let fornecedores=[], fornEdit=null;
 let comissoesCfg={}, comPeriodo="mes";
+let promo={titulo:"",produtos:[],categoriaProd:"",destino:"todos",destCats:[],destCidades:[],volMin:0,representada:""};
 let empresa={}, equipe=[], vendEdit=null, transfDe=null, codigoAtivacao="EIKO2026";
 let impTipo="produtos", impPreview=null;
 let plan=null; // {cabecalhos:[], linhas:[[...]], map:{campo:idxColuna}}
@@ -667,6 +668,7 @@ const MENU=[
   ["📅","Agenda / CRM","agenda"],
   ["🧑‍💼","Minha Equipe","equipe"],
   ["💰","Comissões Vendedores","comissoes"],
+  ["📣","Enviar Promoções","promocoes"],
   ["🏢","Minha Empresa","empresa"],
   ["__s","ADMIN"],
   ["📲","Instalar p/ Vendedor","convites"],
@@ -2587,6 +2589,7 @@ function render(){
   else if(viewAtual==="empresa")c.innerHTML=viewEmpresa();
   else if(viewAtual==="pix")c.innerHTML=viewPix();
   else if(viewAtual==="comissoes")c.innerHTML=viewComissoes();
+  else if(viewAtual==="promocoes")c.innerHTML=viewPromocoes();
   else if(viewAtual==="equipe")c.innerHTML=viewEquipe();
   else if(viewAtual==="importacoes")c.innerHTML=viewImportacoes();
   else if(viewAtual==="representadas")c.innerHTML=viewRepresentadas();
@@ -3372,6 +3375,152 @@ function periodoComissao(){
   if(comPeriodo==="ano"){const i=new Date(hoje.getFullYear(),0,1);return {ini:+i,fim:+hoje,label:"Este ano"};}
   return {ini:0,fim:+hoje,label:"Tudo"};
 }
+function volumeCliente(cid){
+  return pedidosRemoto.filter(o=>o.clienteId===cid&&!/cancel|devolv/i.test(o.situacao||"")).reduce((s,o)=>s+(Number(o.total)||0),0);
+}
+function clientesDaPromo(){
+  let lista=clientes.slice();
+  if(promo.destino==="categoria"&&promo.destCats.length)
+    lista=lista.filter(c=>promo.destCats.includes(limpaCat(c.categoria)));
+  if(promo.destino==="cidade"&&promo.destCidades.length)
+    lista=lista.filter(c=>promo.destCidades.includes(String(c.cidade||"").trim()));
+  if(promo.destino==="volume"&&promo.volMin>0)
+    lista=lista.filter(c=>volumeCliente(c.id)>=promo.volMin);
+  return lista;
+}
+function textoPromo(){
+  const marca=promo.representada&&promo.representada!=="TODAS"?promo.representada:(empresa.razao||"EIKO VIDA");
+  let prods=[];
+  if(promo.categoriaProd)prods=produtos.filter(p=>p.categoria===promo.categoriaProd&&p.ativo!==false);
+  else prods=produtos.filter(p=>promo.produtos.includes(p.id));
+  const tit=promo.titulo||"Promoção especial para você!";
+  let m="🔥 *"+tit+"* 🔥\n\n";
+  m+="Olá! 👋 Separamos uma oferta imperdível na *"+marca+"* especialmente para você:\n\n";
+  prods.slice(0,20).forEach(p=>{ m+="✨ *"+p.nome+"*\n"; });
+  if(prods.length>20)m+="…e muito mais!\n";
+  m+="\n💰 *Preços de atacado* com margem para revenda.\n";
+  m+="🚚 Peça já e garanta o seu!\n\n";
+  m+="👉 *Toque no link para aproveitar e montar seu pedido:*\n"+linkCatalogo(promo.representada,"")+(linkCatalogo(promo.representada,"").includes("?")?"&":"?")+"promo=1\n\n";
+  m+="Corra, é por tempo limitado! ⏰";
+  return m;
+}
+function viewPromocoes(){
+  if(!ehAdmin)return `<div class="vazio">Área exclusiva do administrador.</div>`;
+  const catsCli=[...new Set(clientes.map(c=>limpaCat(c.categoria)).filter(Boolean))].sort();
+  const cidades=[...new Set(clientes.map(c=>String(c.cidade||"").trim()).filter(Boolean))].sort();
+  const catsProd=[...new Set(produtos.map(p=>p.categoria).filter(Boolean))].sort();
+  const reps=representadas();
+  const alvos=clientesDaPromo();
+  const prodChips=produtos.filter(p=>p.ativo!==false).slice(0,300).map(p=>
+    `<button class="chip ${promo.produtos.includes(p.id)?'on':''}" onclick="togglePromoProd('${p.id}')">${esc(p.nome)}</button>`).join("");
+  return `<h2 class="tit">Enviar Promoções</h2>
+    <div class="card">
+      <label class="lb">Título da promoção</label>
+      <input class="inp" value="${esc(promo.titulo)}" oninput="promo.titulo=this.value" placeholder="Ex: Semana do Óleo de Coco — 20% OFF">
+      <label class="lb" style="margin-top:10px">Representada</label>
+      <select class="inp" onchange="promo.representada=this.value;render()">
+        <option value="">Todas</option>
+        ${reps.map(r=>`<option ${promo.representada===r?"selected":""}>${esc(r)}</option>`).join("")}
+      </select>
+    </div>
+    <div class="card">
+      <div style="font-weight:700;margin-bottom:6px">Produtos da promoção</div>
+      <label class="lb">Categoria inteira (opcional)</label>
+      <select class="inp" onchange="promo.categoriaProd=this.value;render()">
+        <option value="">— escolher produtos abaixo —</option>
+        ${catsProd.map(c=>`<option ${promo.categoriaProd===c?"selected":""}>${esc(c)}</option>`).join("")}
+      </select>
+      ${promo.categoriaProd?`<div style="font-size:12px;color:var(--verde);margin-top:6px">Enviando a categoria inteira: <b>${esc(promo.categoriaProd)}</b></div>`:`
+      <div style="font-size:12px;color:var(--cinza);margin:8px 0 4px">Ou escolha produtos:</div>
+      <div class="chips" style="flex-wrap:wrap;max-height:160px;overflow:auto">${prodChips}</div>`}
+    </div>
+    <div class="card">
+      <div style="font-weight:700;margin-bottom:6px">Para quem enviar</div>
+      <div class="chips">
+        <button class="chip ${promo.destino==='todos'?'on':''}" onclick="promo.destino='todos';render()">Todos</button>
+        <button class="chip ${promo.destino==='categoria'?'on':''}" onclick="promo.destino='categoria';render()">Por categoria</button>
+        <button class="chip ${promo.destino==='cidade'?'on':''}" onclick="promo.destino='cidade';render()">Por localidade</button>
+        <button class="chip ${promo.destino==='volume'?'on':''}" onclick="promo.destino='volume';render()">Por volume de compra</button>
+      </div>
+      ${promo.destino==="categoria"?`<div class="chips" style="flex-wrap:wrap;margin-top:8px">${catsCli.map(c=>`<button class="chip ${promo.destCats.includes(c)?'on':''}" onclick="togglePromoCat('${esc(c)}')">${esc(c)}</button>`).join("")}</div>`:""}
+      ${promo.destino==="cidade"?`<div class="chips" style="flex-wrap:wrap;margin-top:8px;max-height:150px;overflow:auto">${cidades.map(c=>`<button class="chip ${promo.destCidades.includes(c)?'on':''}" onclick="togglePromoCidade('${esc(c)}')">${esc(c)}</button>`).join("")}</div>`:""}
+      ${promo.destino==="volume"?`<div style="margin-top:8px"><label class="lb">Clientes que já compraram no mínimo (R$):</label><input class="inp" inputmode="decimal" value="${promo.volMin||''}" oninput="promo.volMin=parseFloat(this.value.replace(',','.'))||0;render()" placeholder="Ex: 5000"></div>`:""}
+      <div style="margin-top:10px;font-size:13px;color:var(--verde);font-weight:700">🎯 ${alvos.length} cliente(s) selecionado(s)</div>
+    </div>
+    <div class="card" style="background:#f2f9f2;border:1px solid var(--verde)">
+      <div style="font-weight:700;margin-bottom:6px">Prévia da mensagem</div>
+      <div style="white-space:pre-wrap;font-size:13px;background:#fff;border:1px solid var(--borda);border-radius:8px;padding:10px;max-height:220px;overflow:auto">${esc(textoPromo())}</div>
+    </div>
+    <div class="card">
+      <button class="btn btn-v" style="width:100%" onclick="publicarPromo()">📢 Publicar promoção no catálogo</button>
+      <div style="font-size:12px;color:var(--cinza);margin-top:6px">Isso ativa a aba de Promoções no catálogo (só quem receber o link vê). Depois envie:</div>
+      <div class="row" style="margin-top:10px">
+        <button class="btn btn-w btn-sm" style="flex:1" onclick="enviarPromoWhats()">📲 Enviar no WhatsApp</button>
+        <button class="btn btn-o btn-sm" style="flex:1" onclick="enviarPromoEmail()">✉️ Enviar por e-mail</button>
+      </div>
+    </div>`;
+}
+function togglePromoProd(id){const i=promo.produtos.indexOf(id);if(i>=0)promo.produtos.splice(i,1);else promo.produtos.push(id);render();}
+function togglePromoCat(c){const i=promo.destCats.indexOf(c);if(i>=0)promo.destCats.splice(i,1);else promo.destCats.push(c);render();}
+function togglePromoCidade(c){const i=promo.destCidades.indexOf(c);if(i>=0)promo.destCidades.splice(i,1);else promo.destCidades.push(c);render();}
+function dadosPromo(){
+  let ids=[];
+  if(promo.categoriaProd)ids=produtos.filter(p=>p.categoria===promo.categoriaProd&&p.ativo!==false).map(p=>p.id);
+  else ids=promo.produtos.slice();
+  return {titulo:promo.titulo||"Promoção especial",produtos:ids,categoria:promo.categoriaProd||"",representada:promo.representada||"",em:new Date().toISOString()};
+}
+function publicarPromo(){
+  if(!ehAdmin){toast("Somente o administrador");return;}
+  const d=dadosPromo();
+  if(!d.produtos.length){toast("Escolha ao menos um produto ou uma categoria");return;}
+  db.ref("catalogo/promo").set(d);
+  toast("Promoção publicada no catálogo ✓");
+}
+function enviarPromoWhats(){
+  const alvos=clientesDaPromo();
+  const comFone=alvos.filter(c=>soDig(c.whatsapp||c.telefone||""));
+  if(!comFone.length){
+    // sem cliente com fone: abre só a mensagem para escolher o contato
+    window.open("https://wa.me/?text="+encodeURIComponent(textoPromo()),"_blank");return;
+  }
+  // envia um por vez: abre o primeiro; para lista grande, orienta
+  if(comFone.length===1){
+    const f=soDig(comFone[0].whatsapp||comFone[0].telefone);
+    window.open("https://wa.me/55"+f.replace(/^55/,"")+"?text="+encodeURIComponent(textoPromo()),"_blank");
+    return;
+  }
+  abrirEnvioLote(comFone);
+}
+function abrirEnvioLote(lista){
+  window._promoLote={lista,idx:0};
+  proximoEnvioLote();
+}
+function proximoEnvioLote(){
+  const L=window._promoLote;if(!L)return;
+  if(L.idx>=L.lista.length){fecharSheet();toast("Envios concluídos ✓");window._promoLote=null;return;}
+  const c=L.lista[L.idx];
+  const f=soDig(c.whatsapp||c.telefone);
+  const html=`<div class="sheet-ov" onclick="fecharSheet()"></div>
+    <div class="sheet" style="text-align:center;padding-bottom:18px">
+      <div class="sheet-h" style="justify-content:center">Envio ${L.idx+1} de ${L.lista.length}<small>${esc(c.nome)}</small></div>
+      <div style="font-size:13px;color:#555;padding:8px 16px">Toque para abrir o WhatsApp deste cliente. Depois volte e toque em "Próximo".</div>
+      <div style="padding:0 16px">
+        <button class="btn btn-w" style="width:100%" onclick="window.open('https://wa.me/55${f.replace(/^55/,"")}?text='+encodeURIComponent(textoPromo()),'_blank')">📲 Abrir WhatsApp de ${esc(c.nome.split(" ")[0])}</button>
+        <button class="btn btn-v" style="width:100%;margin-top:8px" onclick="window._promoLote.idx++;fecharSheet();proximoEnvioLote()">Próximo →</button>
+        <button class="btn btn-g btn-sm" style="width:100%;margin-top:8px" onclick="fecharSheet();window._promoLote=null">Parar</button>
+      </div>
+    </div>`;
+  const d=document.createElement("div");d.id="sheetWrap";d.innerHTML=html;document.body.appendChild(d);
+}
+function enviarPromoEmail(){
+  const alvos=clientesDaPromo();
+  const emails=alvos.map(c=>String(c.email||"").trim()).filter(e=>/@/.test(e));
+  if(!emails.length){toast("Nenhum cliente selecionado tem e-mail cadastrado");return;}
+  const assunto=encodeURIComponent(promo.titulo||"Promoção EikoVida");
+  const corpo=encodeURIComponent(textoPromo());
+  // usa BCC para preservar privacidade dos clientes
+  window.open("mailto:?bcc="+encodeURIComponent(emails.join(","))+"&subject="+assunto+"&body="+corpo,"_blank");
+}
 function viewComissoes(){
   if(!ehAdmin)return `<div class="vazio">Área exclusiva do administrador.</div>`;
   const vends=equipe.filter(v=>!v.admin);
@@ -3569,6 +3718,7 @@ function menuPedido(id){
     fone?["📞","Ligar",`window.open('tel:${fone}')`]:null,
     fone?["💬","WhatsApp",`window.open('https://wa.me/55${fone.replace(/^55/,"")}','_blank')`]:null,
     ["✉️",email?"Enviar e-mail":"Enviar e-mail (sem e-mail no cadastro)",`emailPedido('${id}')`],
+    ehAdmin?["🚫","Cancelar pedido (fica registrado)",`mudarSituacao('${id}','Cancelado')`]:null,
     ["🗑️","Excluir pedido",`excluirPed('${id}')`],
   ].filter(Boolean);
   const html=`<div class="sheet-ov" onclick="fecharSheet()"></div>
