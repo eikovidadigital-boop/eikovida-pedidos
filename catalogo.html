@@ -168,7 +168,8 @@
 
 <div class="barraCar" id="barraCar">
   <div class="top"><span id="resumo">0 itens</span><b id="totalCar">R$ 0,00</b></div>
-  <button class="btnV" style="margin-top:0" onclick="abrirCheckout()">Finalizar pedido →</button>
+  <div id="avisoMin" style="display:none;font-size:12px;color:#b45309;text-align:center;margin:2px 0 6px"></div>
+  <button class="btnV" id="btnFinaliza" style="margin-top:0" onclick="abrirCheckout()">Finalizar pedido →</button>
 </div>
 
 <div class="ov" id="ov" onclick="fecharTudo()"></div>
@@ -215,6 +216,7 @@ let TABELA=(()=>{try{return (new URLSearchParams(location.search).get("t")||"").
 const TABELA_LINK=TABELA;
 const VEIO_PROMO=(()=>{try{return new URLSearchParams(location.search).get("promo")==="1";}catch(e){return false;}})();
 let promoCfg=null, soPromo=false;
+const CAT_LINK=(()=>{try{return (new URLSearchParams(location.search).get("cat")||"").trim();}catch(e){return "";}})();
 let clienteReconhecido=null;
 let tabelas=[];
 function precoCat(p){
@@ -241,6 +243,7 @@ function conectarNuvem(){
 db.ref("produtos").on("value",s=>{
   const v=s.val()||{};
   produtos=Object.keys(v).map(k=>({id:k,...v[k]})).filter(p=>p.nome&&p.catalogo!==false&&p.ativo!==false&&daRepres(p));
+  if(CAT_LINK&&!window._catAplicada){const existe=produtos.some(p=>p.categoria===CAT_LINK);if(existe){cat=CAT_LINK;window._catAplicada=true;}}
   montarCats();filtrar();
 });
 db.ref("empresa").on("value",s=>{empresa=s.val()||{};rodape();});
@@ -318,6 +321,16 @@ function montarPromoBanner(){
 }
 function toggleSoPromo(){soPromo=!soPromo;montarPromoBanner();filtrar();window.scrollTo(0,0);}
 function ehProduto(p){return promoCfg&&promoCfg.produtos&&promoCfg.produtos.indexOf(p.id)>=0;}
+function descPromo(){return (VEIO_PROMO&&promoCfg&&Number(promoCfg.desconto)>0)?Number(promoCfg.desconto):0;}
+function precoFinal(p){
+  // se o produto está na promo e veio pelo link de promo, aplica desconto sobre o preço de atacado (matriz)
+  if(VEIO_PROMO&&promoCfg&&ehProduto(p)&&descPromo()>0){
+    const base=Number(p.atacado)||0;
+    return base*(1-descPromo()/100);
+  }
+  return precoCat(p);
+}
+function temDescontoNoProduto(p){return VEIO_PROMO&&promoCfg&&ehProduto(p)&&descPromo()>0;}
 function filtrar(){
   const termo=(document.getElementById("busca").value||"").toLowerCase().trim();
   let lista=produtos.filter(p=>!cat||p.categoria===cat);
@@ -333,7 +346,7 @@ function filtrar(){
       <div class="info">
         ${p.codigo?`<div class="cd">Cód. ${esc(p.codigo)}</div>`:""}
         <div class="nm" onclick="verProduto('${p.id}')">${esc(p.nome)}</div>
-        <div class="pr"><span class="l">Atacado</span><span class="v">${brl(precoCat(p))}</span></div>
+        <div class="pr"><span class="l">${temDescontoNoProduto(p)?'🔥 Promoção':'Atacado'}</span>${temDescontoNoProduto(p)?`<span class="v"><s style="color:#999;font-weight:400;font-size:.85em">${brl(precoCat(p))}</s> ${brl(precoFinal(p))}</span>`:`<span class="v">${brl(precoFinal(p))}</span>`}</div>
         ${q?`<div class="qtd"><button onclick="mudar('${p.id}',-1)">−</button><span>${q}</span><button onclick="mudar('${p.id}',1)">+</button></div>`
            :`<button class="add" onclick="mudar('${p.id}',1)">+ Adicionar</button>`}
       </div></div>`;
@@ -418,7 +431,7 @@ function verProduto(id){
         ${linha("Embalagem",p.embalagem||"UN/1")}
         ${linha("Estoque",p.estoque)}
       </div>
-      <div class="mpreco"><span class="l">Preço de atacado</span><span class="v">${brl(precoCat(p))}</span></div>
+      <div class="mpreco"><span class="l">${temDescontoNoProduto(p)?'🔥 Preço promocional':'Preço de atacado'}</span>${temDescontoNoProduto(p)?`<span class="v"><s style="color:#999;font-weight:400;font-size:.8em">${brl(precoCat(p))}</s> ${brl(precoFinal(p))}</span>`:`<span class="v">${brl(precoFinal(p))}</span>`}</div>
     </div>
     <div class="mrodape">
       ${q?`<div class="qtd" style="margin:0"><button onclick="mudar('${p.id}',-1,true)">−</button><span>${q} no pedido</span><button onclick="mudar('${p.id}',1,true)">+</button></div>
@@ -439,21 +452,36 @@ function mudar(id,d,noModal){
 function atualizarCarrinho(){
   const ids=Object.keys(carrinho);
   const itens=ids.reduce((s,id)=>s+carrinho[id],0);
-  const total=ids.reduce((s,id)=>{const p=produtos.find(x=>x.id===id);return s+(p?precoCat(p)*carrinho[id]:0);},0);
+  const total=ids.reduce((s,id)=>{const p=produtos.find(x=>x.id===id);return s+(p?precoFinal(p)*carrinho[id]:0);},0);
   document.getElementById("resumo").textContent=itens+(itens===1?" item":" itens");
   document.getElementById("totalCar").textContent=brl(total);
   document.getElementById("barraCar").classList.toggle("on",itens>0);
   document.getElementById("flut").style.display=itens>0?"none":"block";
+  const min=pedidoMinimo(),av=document.getElementById("avisoMin");
+  if(av){
+    if(min>0&&total<min){av.style.display="block";av.textContent="Faltam "+brl(min-total)+" para o pedido m\u00ednimo de "+brl(min);}
+    else av.style.display="none";
+  }
 }
 function itensPedido(){
   return Object.keys(carrinho).map(id=>{
     const p=produtos.find(x=>x.id===id);if(!p)return null;
-    return {codigo:p.codigo||"",nome:p.nome,qtd:carrinho[id],preco:Number(precoCat(p))||0,embalagem:p.embalagem||"UN/1",codbarras:p.codbarras||""};
+    return {codigo:p.codigo||"",nome:p.nome,qtd:carrinho[id],preco:Number(precoFinal(p))||0,embalagem:p.embalagem||"UN/1",codbarras:p.codbarras||""};
   }).filter(Boolean);
 }
+function pedidoMinimo(){return (cfg&&Number(cfg.pedidoMinimo)>0)?Number(cfg.pedidoMinimo):0;}
 function abrirCheckout(){
   const itens=itensPedido();
   if(!itens.length)return;
+  const min=pedidoMinimo();
+  if(min>0){
+    const total=itens.reduce((s,i)=>s+i.qtd*i.preco,0);
+    if(total<min){
+      const falta=min-total;
+      alert("O pedido m\u00ednimo \u00e9 de "+brl(min)+".\nSeu pedido est\u00e1 em "+brl(total)+".\nFaltam "+brl(falta)+" para fechar. Adicione mais itens \ud83d\ude09");
+      return;
+    }
+  }
   if(clienteReconhecido){cliIdent=clienteReconhecido;modoCad="confirma";}
   else{modoCad="escolha";cliIdent=null;}
   fecharTudo();abrir("mCheck");renderCheckout();

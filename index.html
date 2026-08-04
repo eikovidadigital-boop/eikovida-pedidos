@@ -1478,7 +1478,17 @@ function viewCatalogoCfg(){
       <button class="btn btn-g btn-sm" onclick="window.open(URL_CATALOGO,'_blank')">Ver</button>
     </div>`);
 
-  return `<h2 class="tit">Editar Catálogo Virtual</h2>${abas}${link}${contato}${banner}
+  const pedMin=(cfgCatalogo&&cfgCatalogo.pedidoMinimo)?cfgCatalogo.pedidoMinimo:0;
+  const boxMinimo=`<div class="card" style="border:1px solid var(--verde)">
+    <div style="font-weight:700;font-size:14px;margin-bottom:4px">💵 Pedido mínimo</div>
+    <div style="font-size:12px;color:var(--cinza);margin-bottom:8px">Valor mínimo para o cliente fechar o pedido. Vale para <b>todos os catálogos e tabelas</b>. Deixe 0 para não exigir.</div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <span style="font-weight:700">R$</span>
+      <input class="inp" id="ccPedMin" inputmode="decimal" style="margin:0" value="${pedMin||''}" placeholder="Ex: 500">
+      <button class="btn btn-v btn-sm" onclick="salvarPedidoMinimo()">Salvar</button>
+    </div>
+  </div>`;
+  return `<h2 class="tit">Editar Catálogo Virtual</h2>${abas}${boxMinimo}${link}${contato}${banner}
     <div style="font-weight:700;font-size:14px;margin:16px 0 8px">🔥 Destaques e promoções</div>${fdest}${listaDest}`;
 }
 function refDest(){return catRepEdit?("catalogo/reps/"+catRepEdit+"/destaques"):"catalogo/destaques";}
@@ -1508,6 +1518,13 @@ function salvarCatalogoCfg(){
     db.ref("catalogo").update(o);
     toast("Catálogo atualizado ✓");
   }
+}
+function salvarPedidoMinimo(){
+  if(!ehAdmin){toast("Somente o administrador");return;}
+  const v=parseFloat(String(val("ccPedMin")||"").replace(",","."))||0;
+  cfgCatalogo={...cfgCatalogo,pedidoMinimo:v};
+  db.ref("catalogo/pedidoMinimo").set(v);
+  toast(v>0?("Pedido mínimo: R$ "+v.toFixed(2).replace(".",",")):"Pedido mínimo removido");
 }
 async function mostrarNoCatalogo(rep){
   const alvo=produtos.filter(p=>(p.marca||"EIKO VIDA")===rep&&p.catalogo===false);
@@ -2639,6 +2656,14 @@ function upd(campo,valor){
     ped.tabela="";
   }
   ped[campo]=valor;
+  // ao trocar a tabela, recalcula o preço de todos os itens já no carrinho
+  if(campo==="tabela"){
+    Object.keys(carrinho).forEach(id=>{
+      const p=produtos.find(x=>x.id===id);
+      if(p)carrinho[id]={qtd:carrinho[id].qtd,preco:precoComTabela(p)};
+    });
+    render();
+  }
   if(campo==="representada")render();
 }
 function selecionarCliente(id){
