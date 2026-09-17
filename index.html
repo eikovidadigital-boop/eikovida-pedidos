@@ -411,7 +411,7 @@ let plan=null; // {cabecalhos:[], linhas:[[...]], map:{campo:idxColuna}}
 let baseCarregada=null, modoImport="add", importando=false;
 let carrinho={}, clienteSel="";
 let subAbaPedido="cab", buscaItem=false, buscaItemTxt="", filtroItemCat="";
-let itemEditando=null, itemQtd="", itemPreco=0, tabelas=[];
+let itemEditando=null, itemQtd="", itemPreco=0, itemDesc=0, itemBase=0, tabelas=[];
 let ped={status:"Pedido",representada:"EIKO VIDA",consumidorFinal:false,dataEmissao:new Date().toISOString().slice(0,10),dataFat:"",previsao:"",cond:"",forma:"",tabela:"",descTipo:"desc",descPerc:"",obsCli:"",obsEmp:"",ordemCompra:"",transportadora:""};
 let destaqueId=null, pedidoAberto=null;
 let filtroCli="", filtroProd="", filtroProdPedido="";
@@ -2660,7 +2660,10 @@ function upd(campo,valor){
   if(campo==="tabela"){
     Object.keys(carrinho).forEach(id=>{
       const p=produtos.find(x=>x.id===id);
-      if(p)carrinho[id]={qtd:carrinho[id].qtd,preco:precoComTabela(p)};
+      if(p){
+        const it=carrinho[id], d=Number(it.desc)||0, base=precoComTabela(p);
+        carrinho[id]={qtd:it.qtd,preco:precoComDesc(base,d),desc:d,base:base};
+      }
     });
     render();
   }
@@ -2776,6 +2779,12 @@ function viewCabecalho(){
           <datalist id="listaTransp">${transportadoras.map(t=>`<option value="${esc(t.nome)}">`).join("")}</datalist></div>
       </div>
     </div>
+
+    <div class="card" style="border:1px solid var(--verde)">
+      <div style="font-size:13px;color:var(--cinza);margin-bottom:10px">Cabeçalho preenchido? Salve o pedido por aqui mesmo.</div>
+      <button class="btn btn-v" style="width:100%" onclick="finalizar(false)">${editandoPedido?"✓ Salvar alterações":"✓ Salvar pedido"}</button>
+      <button class="btn btn-o" style="width:100%;margin-top:8px" onclick="subAbaPedido='itens';itemEditando=null;buscaItem=false;render()">← Voltar para os itens</button>
+    </div>
   `;
 }
 
@@ -2787,7 +2796,7 @@ function viewItens(){
   const itens=linhas.map(([id,it])=>{
     const p=produtos.find(x=>x.id===id); if(!p) return "";
     return `<div class="pitem" onclick="abrirEditor('${id}')" style="cursor:pointer">
-      <div class="nome"><b>${esc(p.nome)}</b><small>${it.qtd} × ${brl(it.preco)} = <b style="color:var(--verde)">${brl(it.qtd*it.preco)}</b></small></div>
+      <div class="nome"><b>${esc(p.nome)}</b><small>${it.qtd} × ${brl(it.preco)}${it.desc?` <span style="color:#b91c1c;font-weight:700">−${String(it.desc).replace('.',',')}%</span>`:''} = <b style="color:var(--verde)">${brl(it.qtd*it.preco)}</b></small></div>
       <div style="display:flex;gap:6px;align-items:center">
         <span class="editpen">✎</span>
         <button class="qbtn menos" onclick="event.stopPropagation();removerItem('${id}')">🗑</button>
@@ -2840,12 +2849,58 @@ function viewBuscaItem(){
     <div id="listaBuscaItem">${htmlListaBuscaItem()}</div>
   `;
 }
+function percDoPreco(base,preco){
+  if(!(base>0))return 0;
+  const d=(1-preco/base)*100;
+  if(d<=0.009)return 0;
+  // se um percentual redondo devolve exatamente este preco, usa o redondo
+  // (evita "12,01%" depois de arredondar o centavo de um desconto de 12%)
+  const r=Math.round(d);
+  if(r>0&&Math.abs(precoComDesc(base,r)-preco)<0.005)return r;
+  const m=Math.round(d*2)/2;
+  if(m>0&&Math.abs(precoComDesc(base,m)-preco)<0.005)return m;
+  return Math.round(d*100)/100;
+}
+function precoComDesc(base,perc){
+  return Math.round((Number(base)||0)*(1-(Number(perc)||0)/100)*100)/100;
+}
+function infoPrecoItem(){
+  const base=Number(itemBase)||0, pr=Number(itemPreco)||0, q=parseFloat(itemQtd)||0;
+  if(base<=0)return "";
+  let t="pre\u00e7o de tabela: "+brl(base);
+  const dif=(base-pr)*q;
+  if(dif>0.004)t+=' \u00b7 <span style="color:#b91c1c;font-weight:700">desconto de '+brl(dif)+'</span>';
+  else if(dif<-0.004)t+=' \u00b7 <span style="color:#b45309;font-weight:700">acr\u00e9scimo de '+brl(-dif)+'</span>';
+  return t;
+}
+function aplicarDescItem(v){
+  if(!(Number(itemBase)>0))itemBase=Number(itemPreco)||0;
+  let d=parseFloat(String(v).replace(',','.'));
+  if(isNaN(d)||d<0)d=0;
+  if(d>100)d=100;
+  itemDesc=Math.round(d*100)/100;
+  itemPreco=precoComDesc(itemBase,itemDesc);
+  const ip=document.getElementById("itPreco");
+  if(ip)ip.value=Number(itemPreco||0).toFixed(2).replace('.',',');
+  const ed=document.getElementById("itDesc");
+  if(ed&&(parseFloat(String(ed.value).replace(',','.'))||0)!==itemDesc)ed.value=itemDesc?String(itemDesc).replace('.',','):'';
+  calcItem();
+}
+function aplicarPrecoItem(v){
+  itemPreco=parseFloat(String(v).replace(/\./g,'').replace(',','.'))||0;
+  itemDesc=percDoPreco(itemBase,itemPreco);
+  const ed=document.getElementById("itDesc");
+  if(ed)ed.value=itemDesc?String(itemDesc).replace('.',','):'';
+  calcItem();
+}
 function abrirEditor(id){
   itemEditando=id;
   const it=carrinho[id];
   const p=produtos.find(x=>x.id===id);
+  itemBase = (it&&Number(it.base)>0)?Number(it.base):precoComTabela(p);
   itemQtd = it?it.qtd:"";
-  itemPreco = it?it.preco:precoComTabela(p);
+  itemPreco = it?it.preco:itemBase;
+  itemDesc = (it&&it.desc!=null)?(Number(it.desc)||0):percDoPreco(itemBase,itemPreco);
   buscaItem=false;
   render();
   setTimeout(()=>{const el=document.getElementById("itQtd");if(el){el.focus();el.select();}},60);
@@ -2875,11 +2930,18 @@ function viewEditarItem(){
           <input class="inp" id="itQtd" type="number" inputmode="numeric" value="${itemQtd}" oninput="itemQtd=this.value;calcItem()" style="font-size:20px;font-weight:800;text-align:center"/>
         </div>
         <div>
-          <label class="lb">Preço unitário (R$)</label>
-          <input class="inp" id="itPreco" type="text" inputmode="decimal" value="${Number(itemPreco||0).toFixed(2).replace('.',',')}" oninput="itemPreco=(parseFloat(this.value.replace(/\\./g,'').replace(',','.'))||0);calcItem()" style="font-size:20px;font-weight:800;text-align:center"/>
+          <label class="lb">Desconto só deste item (%)</label>
+          <input class="inp" id="itDesc" type="text" inputmode="decimal" placeholder="0" value="${itemDesc?String(itemDesc).replace('.',','):''}" oninput="aplicarDescItem(this.value)" style="font-size:20px;font-weight:800;text-align:center;color:#b91c1c"/>
         </div>
       </div>
-      <div style="text-align:center;margin-top:6px;font-size:12px;color:var(--cinza)">preço padrão: ${brl(p.atacado)}</div>
+      <div class="chips" style="margin-top:8px;justify-content:center">
+        ${[0,5,10,15,20,25].map(d=>`<button class="chip ${(Number(itemDesc)||0)===d?'on':''}" onclick="aplicarDescItem('${d}')">${d?d+'%':'sem desconto'}</button>`).join("")}
+      </div>
+      <div style="margin-top:12px">
+        <label class="lb">Preço unitário (R$)</label>
+        <input class="inp" id="itPreco" type="text" inputmode="decimal" value="${Number(itemPreco||0).toFixed(2).replace('.',',')}" oninput="aplicarPrecoItem(this.value)" style="font-size:20px;font-weight:800;text-align:center"/>
+      </div>
+      <div id="itInfo" style="text-align:center;margin-top:6px;font-size:12px;color:var(--cinza)">${infoPrecoItem()}</div>
       <div style="text-align:center;margin-top:14px;padding:12px;background:var(--verde);color:#fff;border-radius:12px">
         <div style="font-size:12px;opacity:.85">Total do item</div>
         <div id="itTotal" style="font-size:24px;font-weight:900">${brl(total)}</div>
@@ -2891,11 +2953,12 @@ function viewEditarItem(){
 function calcItem(){
   const t=(parseFloat(itemQtd)||0)*(parseFloat(itemPreco)||0);
   const el=document.getElementById("itTotal"); if(el) el.textContent=brl(t);
+  const inf=document.getElementById("itInfo"); if(inf) inf.innerHTML=infoPrecoItem();
 }
 function salvarItem(){
   const q=parseFloat(itemQtd)||0, pr=parseFloat(itemPreco)||0;
   if(q<=0){toast("Informe a quantidade");return;}
-  carrinho[itemEditando]={qtd:q,preco:pr};
+  carrinho[itemEditando]={qtd:q,preco:pr,desc:Number(itemDesc)||0,base:Number(itemBase)||pr};
   itemEditando=null; buscaItem=false; subAbaPedido="itens";
   toast("Item adicionado"); render();
 }
@@ -2904,7 +2967,7 @@ function addItem(id,d){ // ajuste rápido +/- (mantido por compatibilidade)
   const p=produtos.find(x=>x.id===id);
   const cur=carrinho[id]||{qtd:0,preco:p?p.atacado:0};
   const q=cur.qtd+d;
-  if(q<=0)delete carrinho[id];else carrinho[id]={qtd:q,preco:cur.preco};
+  if(q<=0)delete carrinho[id];else carrinho[id]={...cur,qtd:q,preco:cur.preco};
   render();
 }
 
@@ -2939,7 +3002,7 @@ function finalizar(enviar){
     const base=editandoPedido?(pedidos.find(p=>p.id===editandoPedido.id)||{}):{};
     cli={id:clienteSel||base.clienteId||"",nome:base.cliente||"Cliente",cidade:base.cidade||"",whatsapp:base.whats||"",categoria:base.categoria||""};
   }
-  const itens=linhas.map(([id,it])=>{const p=produtos.find(x=>x.id===id);return{nome:(p?p.nome:it.nome)||"",codigo:(p?p.codigo:it.codigo)||"",qtd:it.qtd,preco:it.preco};});
+  const itens=linhas.map(([id,it])=>{const p=produtos.find(x=>x.id===id);return{nome:(p?p.nome:it.nome)||"",codigo:(p?p.codigo:it.codigo)||"",qtd:it.qtd,preco:it.preco,desc:Number(it.desc)||0,precoBase:Number(it.base)||Number(it.preco)||0};});
   const {bruto,total}=calcTotais();
   const proximoNum=()=>pedidos.reduce((m,p)=>Math.max(m,Number(p.numero)||0),1000)+1;
   let numero=editandoPedido?editandoPedido.numero:proximoNum();
@@ -3000,7 +3063,7 @@ function textoPedido(o){
   if(o.cond)t+="Cond. pagto: "+o.cond+"\n";
   if(o.forma)t+="Forma: "+o.forma+"\n";
   t+="\n";
-  itensDe(o).forEach(i=>t+=i.qtd+"x "+i.nome+" — "+brl(i.qtd*i.preco)+"\n");
+  itensDe(o).forEach(i=>t+=i.qtd+"x "+i.nome+(i.desc?" (-"+String(i.desc).replace('.',',')+"%)":"")+" — "+brl(i.qtd*i.preco)+"\n");
   if(o.descPerc>0)t+="\n"+(o.descTipo==="desc"?"Desconto":"Acréscimo")+": "+o.descPerc+"%";
   t+="\n*TOTAL: "+brl(o.total)+"*";
   if(o.obsCli)t+="\n\nObs: "+o.obsCli;
@@ -3139,7 +3202,7 @@ function blocoItens(o){
     <div class="ithead"><span>${itens.length} ite${itens.length>1?"ns":"m"} \u00b7 ${un} un</span><span>Valor</span></div>
     ${itens.map(i=>`<div class="itlin">
       <span class="itq">${esc(String(i.qtd))}x</span>
-      <span class="itnome">${esc(i.nome||i.codigo||"")}<span class="itun">${i.codigo?esc(i.codigo)+" \u00b7 ":""}${brl(i.preco)} cada</span></span>
+      <span class="itnome">${esc(i.nome||i.codigo||"")}<span class="itun">${i.codigo?esc(i.codigo)+" \u00b7 ":""}${brl(i.preco)} cada${i.desc?` · <b style="color:#b91c1c">-${String(i.desc).replace('.',',')}%</b>`:""}</span></span>
       <span class="itval">${brl(i.qtd*i.preco)}</span></div>`).join("")}
     <div class="ittot"><span>Total dos itens</span><span>${brl(soma)}</span></div>
     ${dif?`<div style="padding:7px 10px;font-size:11px;color:#b45309;background:#fffbeb;border-top:1px solid #ececea">Valor do pedido: <b>${brl(o.total)}</b> (h\u00e1 desconto ou acr\u00e9scimo)</div>`:""}
@@ -3878,7 +3941,7 @@ function carregarItensNoCarrinho(o){
     const p=(cod&&produtos.find(x=>String(x.codigo||"").trim().toLowerCase()===cod))
           ||produtos.find(x=>String(x.nome||"").trim().toLowerCase()===nm)
           ||produtos.find(x=>String(x.nome||"").trim().toLowerCase().replace(/\s+/g," ")===nm.replace(/\s+/g," "));
-    if(p){carrinho[p.id]={qtd:i.qtd,preco:i.preco};achou++;}
+    if(p){carrinho[p.id]={qtd:i.qtd,preco:i.preco,desc:Number(i.desc)||0,base:Number(i.precoBase)||Number(i.preco)||0};achou++;}
     else perdidos.push(i.nome||i.codigo||"item");
   });
   return {total:itens.length,achou,perdidos};
@@ -3965,7 +4028,7 @@ function pdfMarkup(id){
       <td>${esc(prod.ncm||"")}</td>
       <td>${esc(prod.embalagem||"UN/1")}</td>
       <td class="r">${i.qtd}</td>
-      <td class="r">${brl(i.preco)}</td>
+      <td class="r">${brl(i.preco)}${i.desc?" (-"+String(i.desc).replace('.',',')+"%)":""}</td>
       <td class="r">${brl(i.qtd*i.preco)}</td>
       <td></td>
       <td>${esc(prod.codbarras||"")}</td>
@@ -4436,7 +4499,7 @@ function viewClienteDetalhe(){
         <div class="cli"><b>${dataBr(o.data)} · ${hora(o.data)}</b><small>${itensDe(o).reduce((s,i)=>s+i.qtd,0)} un${o.cond?" · "+esc(o.cond):""}</small></div>
         <div class="tot">${brl(o.total)}</div>
         <span class="badge ${o.status==='enviado'?'b-enviado':'b-aberto'}">${o.status}</span></div>
-        ${o.id===pedidoAberto?`<div class="det">${itensDe(o).map(i=>`<div class="li"><span>${i.qtd}x ${esc(i.nome)}</span><span>${brl(i.qtd*i.preco)}</span></div>`).join("")}</div>`:""}
+        ${o.id===pedidoAberto?`<div class="det">${itensDe(o).map(i=>`<div class="li"><span>${i.qtd}x ${esc(i.nome)}${i.desc?` <b style="color:#b91c1c">−${String(i.desc).replace('.',',')}%</b>`:''}</span><span>${brl(i.qtd*i.preco)}</span></div>`).join("")}</div>`:""}
       </div>`).join("");
   return `
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
