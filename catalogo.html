@@ -117,6 +117,14 @@
 </style>
 </head>
 <body>
+<div id="barraEdicao" style="display:none;position:fixed;top:0;left:0;right:0;z-index:60;background:#fff7e6;border-bottom:1px solid #f0d488;color:#92600a;padding:9px 12px;align-items:center;gap:10px">
+  <span style="font-size:18px">✏️</span>
+  <div style="flex:1;line-height:1.3">
+    <b id="barraEdicaoTxt">Alterando seu pedido</b>
+    <div style="font-size:11px">Inclua ou tire produtos e finalize para salvar.</div>
+  </div>
+  <button onclick="cancelarEdicaoCliente()" style="background:#fff;border:1px solid #e0c270;color:#92600a;border-radius:8px;padding:6px 10px;font-size:12px;font-weight:700;cursor:pointer">Cancelar</button>
+</div>
 <div id="boasvindas">
   <div class="bv-card">
     <div style="font-size:34px">🌿</div>
@@ -124,7 +132,8 @@
     <p id="bvSub">Você já compra com a gente? Assim mostramos seus preços certos.</p>
     <div id="bvEscolha">
       <button class="btnV" onclick="bvJaCliente()">✅ Já sou cliente</button>
-      <button class="btnV" style="background:#fff;color:var(--verde);border:2px solid var(--verde);margin-top:10px" onclick="bvVisitante()">👀 Só quero ver o catálogo</button>
+      <button class="btnV" style="background:#fff;color:var(--verde);border:2px solid var(--verde);margin-top:10px" onclick="bvCadastrar()">🆕 Primeira compra — quero me cadastrar</button>
+      <button class="btnV" style="background:#fff;color:#555;border:2px solid #ddd;margin-top:10px" onclick="bvVisitante()">👀 Só quero ver o catálogo</button>
     </div>
     <div id="bvBusca" style="display:none">
       <input class="bvIn" id="bvCampo" placeholder="CNPJ, nome ou nome fantasia" autocomplete="off">
@@ -234,6 +243,10 @@ function precoCat(p){
 }
 function daRepres(p){return !REPRES||String(p.marca||"EIKO VIDA").trim().toUpperCase()===REPRES.toUpperCase();}
 let clientes=[],cliIdent=null,modoCad="escolha",pedidoAtual=null,unsubPed=null;
+// cliente que escolheu "primeira compra" na entrada: o checkout ja abre no cadastro
+let querCadastrar=false;
+// pedido que o cliente esta alterando ({id, numero}) — null quando nao ha
+let editandoPedido=null;
 const brl=n=>"R$ "+(Number(n)||0).toFixed(2).replace(".",",").replace(/\B(?=(\d{3})+(?!\d))/g,".");
 const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const digitos=s=>String(s||"").replace(/\D/g,"");
@@ -483,6 +496,7 @@ function abrirCheckout(){
     }
   }
   if(clienteReconhecido){cliIdent=clienteReconhecido;modoCad="confirma";}
+  else if(querCadastrar){modoCad="novo";cliIdent=null;}
   else{modoCad="escolha";cliIdent=null;}
   fecharTudo();abrir("mCheck");renderCheckout();
 }
@@ -522,7 +536,7 @@ function renderCheckout(){
       <input class="campo" id="cNome" placeholder="Ex: Maria">
       <label class="lbl">Observação</label>
       <textarea class="campo" id="cObs" style="min-height:56px" placeholder="Alguma condição ou pedido especial?"></textarea>
-      <button class="btnW" style="margin-top:16px" onclick="enviarPedido()">✓ Enviar pedido</button>
+      <button class="btnW" style="margin-top:16px" onclick="enviarPedido()">${editandoPedido?"✓ Salvar alterações do pedido"+(editandoPedido.numero?" nº "+esc(String(editandoPedido.numero)):""):"✓ Enviar pedido"}</button>
       <div style="text-align:center;margin-top:10px;padding-bottom:10px"><span style="font-size:13px;color:var(--verde);text-decoration:underline;cursor:pointer" onclick="modoCad='cnpj';cliIdent=null;renderCheckout()">buscar outro cadastro</span></div>`;
   }else{
     corpo=`<div style="font-weight:700;font-size:15px;margin-top:18px">Cadastro da sua loja</div>
@@ -565,10 +579,113 @@ function bvJaCliente(){
   document.getElementById("bvSub").textContent="Digite seu CNPJ, nome ou nome fantasia:";
   setTimeout(function(){var c=document.getElementById("bvCampo");if(c)c.focus();},100);
 }
+function bvCadastrar(){
+  // primeira compra: entra no catalogo e, ao fechar, ja abre o formulario de cadastro
+  TABELA=TABELA_LINK;
+  clienteReconhecido=null;
+  cliIdent=null;
+  querCadastrar=true;
+  document.getElementById("boasvindas").classList.add("hide");
+  filtrar();
+}
+
+// Ate quando o cliente pode mexer no proprio pedido.
+// Devolve "" se pode alterar, ou o motivo do bloqueio.
+function bloqueadoParaCliente(o){
+  const st=String((o&&o.situacao)||"");
+  if(/aceit|confirmad|aprovad/i.test(st))
+    return "Este pedido ja foi confirmado pela nossa equipe e nao pode mais ser alterado por aqui.";
+  if(/cancel|devolv|recus/i.test(st))
+    return "Este pedido foi cancelado.";
+  if(/faturad|pago|quitad|conclu|separa|prepar|envi|transport|entreg/i.test(st))
+    return "Este pedido ja esta em andamento e nao pode mais ser alterado por aqui.";
+  return "";
+}
+function mostrarBarraEdicao(){
+  const b=document.getElementById("barraEdicao");
+  if(!b)return;
+  document.getElementById("barraEdicaoTxt").textContent=
+    "Alterando seu pedido"+(editandoPedido&&editandoPedido.numero?" n\u00ba "+editandoPedido.numero:"");
+  b.style.display="flex";
+  document.body.style.paddingTop="58px";
+}
+function esconderBarraEdicao(){
+  const b=document.getElementById("barraEdicao");
+  if(b)b.style.display="none";
+  document.body.style.paddingTop="";
+}
+function pararEdicao(){
+  editandoPedido=null;
+  esconderBarraEdicao();
+  if(unsubPed){try{unsubPed();}catch(e){}unsubPed=null;}
+}
+function cancelarEdicaoCliente(){
+  if(!editandoPedido)return;
+  if(!confirm("Cancelar a altera\u00e7\u00e3o? O pedido continua como estava."))return;
+  pararEdicao();
+  carrinho={};
+  filtrar();atualizarCarrinho();
+}
+// o administrador pode aceitar enquanto o cliente mexe: neste instante a
+// alteracao e interrompida, para o cliente nao perder tempo a toa
+function checarBloqueioEdicao(id,o){
+  if(!editandoPedido||editandoPedido.id!==id||!o)return;
+  const motivo=bloqueadoParaCliente(o);
+  if(!motivo)return;
+  pararEdicao();
+  carrinho={};
+  try{filtrar();atualizarCarrinho();}catch(e){}
+  alert(motivo+"\n\nO que voc\u00ea estava alterando N\u00c3O foi enviado. Se precisar mudar algo, fale com a gente pelo WhatsApp.");
+}
+function vigiarPedidoEditado(id){
+  if(unsubPed){try{unsubPed();}catch(e){}unsubPed=null;}
+  quandoAcesso(function(){
+    const ref=db.ref("pedidos/"+id);
+    const cb=ref.on("value",sn=>checarBloqueioEdicao(id,sn.val()));
+    unsubPed=()=>ref.off("value",cb);
+  });
+}
+function carregarPedidoNoCarrinho(o){
+  carrinho={};
+  const perdidos=[];
+  (o.itens||[]).forEach(i=>{
+    const cod=String(i.codigo||"").trim().toLowerCase();
+    const nm=String(i.nome||"").trim().toLowerCase();
+    const p=(cod&&produtos.find(x=>String(x.codigo||"").trim().toLowerCase()===cod))
+          ||produtos.find(x=>String(x.nome||"").trim().toLowerCase()===nm);
+    if(p)carrinho[p.id]=(carrinho[p.id]||0)+(Number(i.qtd)||0);
+    else perdidos.push(i.nome||i.codigo||"item");
+  });
+  return {total:(o.itens||[]).length,perdidos};
+}
+function editarMeuPedido(id){
+  const o=(pedidoAtual&&pedidoAtual.id===id)?pedidoAtual:null;
+  if(!o){alert("Abra o pedido de novo para alterar.");return;}
+  const motivo=bloqueadoParaCliente(o);
+  if(motivo){alert(motivo);return;}
+  if(Object.keys(carrinho).length&&
+     !confirm("Voc\u00ea tem itens no carrinho que ainda n\u00e3o foram enviados.\n\nEles ser\u00e3o substitu\u00eddos pelos itens do pedido"+(o.numero?" n\u00ba "+o.numero:"")+". Continuar?"))return;
+  const r=carregarPedidoNoCarrinho(o);
+  editandoPedido={id:id,numero:o.numero||""};
+  // usa os dados do proprio pedido, sem precisar buscar o cadastro de novo
+  cliIdent={id:o.clienteId||"",nome:o.cliente||"",fantasia:"",cnpj:o.cnpj||"",
+    cidade:o.cidade||"",endereco:o.endereco||"",whatsapp:o.whats||"",email:o.email||"",tabela:o.tabela||""};
+  clienteReconhecido=cliIdent;
+  querCadastrar=false;
+  if(o.tabela)TABELA=o.tabela;
+  vigiarPedidoEditado(id);
+  fecharTudo();
+  document.getElementById("boasvindas").classList.add("hide");
+  filtrar();atualizarCarrinho();mostrarBarraEdicao();
+  window.scrollTo(0,0);
+  if(r.perdidos.length)
+    alert("Aten\u00e7\u00e3o: "+r.perdidos.length+" item(ns) do seu pedido n\u00e3o est\u00e1(\u00e3o) mais no cat\u00e1logo e n\u00e3o foi(ram) carregado(s):\n\n\u2022 "+r.perdidos.join("\n\u2022 "));
+}
 function bvVisitante(){
   // visitante: usa a tabela do link (ou matriz) e entra no catálogo
   TABELA=TABELA_LINK;
   clienteReconhecido=null;
+  querCadastrar=false;
   document.getElementById("boasvindas").classList.add("hide");
   filtrar();
 }
@@ -585,6 +702,7 @@ async function bvBuscar(){
   }
   clienteReconhecido=cli;
   cliIdent=cli; // j\u00e1 deixa pronto para o checkout
+  querCadastrar=false;
   if(cli.tabela){TABELA=cli.tabela;}
   msg.innerHTML='<span style="color:var(--verde)">\u2705 Ol\u00e1, '+esc(cli.fantasia||cli.nome)+'! Mostrando seus pre\u00e7os.</span>';
   setTimeout(function(){
@@ -685,16 +803,33 @@ function enviarPedido(){
   Object.assign(dados,{itens:itens,bruto:total,total:total,status:"aberto",tipo:"Pedido",
     situacao:"Aguardando confirmação",origem:"catalogo",vendedor:"CATÁLOGO ONLINE",
     tabela:TABELA||"Padrão",cond:"",forma:"",data:new Date().toISOString()});
+  const alterando=editandoPedido?{id:editandoPedido.id,numero:editandoPedido.numero}:null;
   let chave="";
-  try{
-    if(cadastro){const rc=db.ref("clientes").push(cadastro);dados.clienteId=rc.key;}
-    const ref=db.ref("pedidos").push(dados);
-    chave=ref.key;
-  }catch(e){}
+  if(alterando){
+    // grava SOMENTE o que e do cliente. situacao e status ficam intactos:
+    // se o administrador aceitou neste instante, o aceite dele continua valendo.
+    const mud={itens:itens,bruto:total,total:total,obsCli:dados.obsCli||"",
+      contato:dados.contato||"",whats:dados.whats||"",
+      alteradoEm:new Date().toISOString(),alteradoPor:"cliente"};
+    try{db.ref("pedidos/"+alterando.id).update(mud);}catch(e){}
+    chave=alterando.id;
+    const ant=pedidoAtual||{};
+    dados.situacao=ant.situacao||"Aguardando confirmação";
+    dados.numero=ant.numero||alterando.numero||"";
+    dados.data=ant.data||dados.data;
+  }else{
+    try{
+      if(cadastro){const rc=db.ref("clientes").push(cadastro);dados.clienteId=rc.key;}
+      const ref=db.ref("pedidos").push(dados);
+      chave=ref.key;
+    }catch(e){}
+  }
   pedidoAtual={id:chave,...dados};
   try{localStorage.setItem("eiko_meupedido",chave);}catch(e){}
 
-  let txt="*NOVO PEDIDO — CATÁLOGO ONLINE*\n\n*Loja:* "+dados.cliente+"\n*Contato:* "+dados.contato+"\n*WhatsApp:* "+dados.whats;
+  let txt="*"+(alterando?"PEDIDO ALTERADO PELO CLIENTE":"NOVO PEDIDO — CATÁLOGO ONLINE")+"*\n"
+    +(alterando&&dados.numero?"_Pedido nº "+dados.numero+" — esta é a lista atualizada_\n":"")
+    +"\n*Loja:* "+dados.cliente+"\n*Contato:* "+dados.contato+"\n*WhatsApp:* "+dados.whats;
   if(dados.cnpj)txt+="\n*CNPJ:* "+dados.cnpj;
   if(dados.cidade)txt+="\n*Cidade:* "+dados.cidade;
   if(dados.endereco)txt+="\n*Entrega:* "+dados.endereco;
@@ -705,11 +840,13 @@ function enviarPedido(){
   if(dados.obsCli)txt+="\n\n*Obs:* "+dados.obsCli;
   window.open("https://wa.me/"+zap()+"?text="+encodeURIComponent(txt),"_blank");
 
+  pararEdicao();
+  querCadastrar=false;
   carrinho={};filtrar();atualizarCarrinho();
   document.getElementById("checkBody").innerHTML=`<div class="ok">
       <div class="ic">✅</div>
-      <h3 style="margin-top:10px">Pedido enviado!</h3>
-      <p style="color:var(--cinza);font-size:14px;margin-top:8px;line-height:1.5">${cadastro?"Seu cadastro foi criado e o pedido registrado.":"Pedido registrado."} Vamos confirmar as condições de pagamento pelo WhatsApp.</p>
+      <h3 style="margin-top:10px">${alterando?"Pedido atualizado!":"Pedido enviado!"}</h3>
+      <p style="color:var(--cinza);font-size:14px;margin-top:8px;line-height:1.5">${alterando?"Seu pedido foi alterado. Você ainda pode mexer nele enquanto não for confirmado pela nossa equipe.":(cadastro?"Seu cadastro foi criado e o pedido registrado.":"Pedido registrado.")} Vamos confirmar as condições de pagamento pelo WhatsApp.</p>
       <button class="btnV" onclick="baixarEspelho()">📄 Baixar cópia do pedido</button>
       <button class="btnV" style="background:#fff;color:var(--verde);border:2px solid var(--verde)" onclick="abrirStatus()">🔔 Acompanhar meu pedido</button>
       <button class="btnV" style="background:#eee;color:#555" onclick="fecharTudo()">Voltar ao catálogo</button></div>`;
@@ -803,6 +940,7 @@ function mostrarStatus(id){
     const o=sn.val();
     if(!o){document.getElementById("statusBody").innerHTML='<div class="ok">Pedido não encontrado.</div>';return;}
     pedidoAtual={id:id,...o};
+    checarBloqueioEdicao(id,o);
     const st=o.situacao||"Aguardando confirmação";
     const aceito=/aceit|confirmad|aprovad/i.test(st);
     if(aceito&&localStorage.getItem("eiko_avisado_"+id)!=="1"){
@@ -825,7 +963,11 @@ function mostrarStatus(id){
       ${passos.map(p=>`<div style="display:flex;align-items:center;gap:11px;padding:9px 0;border-bottom:1px solid #f2f1ed;opacity:${p[2]?1:.4}">
         <span style="font-size:20px">${p[0]}</span><b style="font-size:14px">${p[1]}</b>
         ${p[2]?'<span style="margin-left:auto;color:var(--verde);font-weight:800">✓</span>':""}</div>`).join("")}
-      <div style="margin-top:14px;font-size:13px;color:var(--cinza)">Pedido de <b>${esc(o.cliente||"")}</b> · ${brl(o.total)}</div>
+      <div style="margin-top:14px;font-size:13px;color:var(--cinza)">Pedido de <b>${esc(o.cliente||"")}</b> · ${brl(o.total)}${o.alteradoPor==="cliente"?' · <span style="color:#92600a">alterado por você</span>':""}</div>
+      ${bloqueadoParaCliente(o)
+        ? `<div style="background:#f2f9f2;border:1px solid #cfe6d5;border-radius:10px;padding:11px;font-size:12.5px;color:#2F6B4F;margin-top:12px">🔒 ${esc(bloqueadoParaCliente(o))}</div>`
+        : `<button class="btnV" style="margin-top:12px" onclick="editarMeuPedido('${id}')">✏️ Alterar este pedido</button>
+           <div style="font-size:12px;color:var(--cinza);text-align:center;margin-top:-6px;margin-bottom:4px">Inclua ou tire produtos enquanto o pedido não for confirmado.</div>`}
       ${permitir}
       <button class="btnV" style="background:#fff;color:var(--verde);border:2px solid var(--verde)" onclick="baixarEspelho()">📄 Baixar cópia do pedido</button>
       <button class="btnV" style="background:#eee;color:#555;margin-bottom:14px" onclick="fecharTudo()">Fechar</button>
