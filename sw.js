@@ -1,85 +1,86 @@
 // EikoVida Pedidos - service worker
-const CACHE = "eiko-pedidos-v8";          // arquivos do app (troca a cada atualizacao)
-const FOTOS = "eiko-fotos-v1";            // fotos dos produtos (permanece entre atualizacoes)
-const SHELL = ["./", "./index.html", "./instalar.html", "./manifest.json", "./icon-192.png", "./icon-512.png", "./logo.png", "./simbolo.png"];
+const CACHE = "eiko-pedidos-v6";
 
-const ehImagem = (url) =>
-  /\/(img|logos)\//.test(url.pathname) || /\.(png|jpe?g|webp|gif|svg)$/i.test(url.pathname);
+// Arquivos do próprio site (pré-carregados na instalação)
+const SHELL = [
+  "./", "./index.html", "./catalogo.html", "./manifest.json",
+  "./icon-192.png", "./icon-512.png", "./logo.png", "./simbolo.png"
+];
+
+// Bibliotecas externas que o app PRECISA para funcionar offline
+// (Firebase SDK e gerador de PDF). Ficam em cache "para sempre".
+const LIBS = [
+  "https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js",
+  "https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js",
+  "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"
+];
+
+// Domínios de DADOS em tempo real — nunca cachear (sempre rede)
+function ehDadoAoVivo(url) {
+  return url.hostname.endsWith("firebaseio.com") ||
+         url.hostname.endsWith("firebasedatabase.app") ||
+         url.hostname.endsWith("brasilapi.com.br") ||
+         url.hostname.endsWith("google.com") ||
+         url.hostname.endsWith("googleapis.com");
+}
 
 self.addEventListener("install", (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).catch(() => {}));
+  e.waitUntil((async () => {
+    const c = await caches.open(CACHE);
+    await Promise.all(SHELL.map((u) => c.add(u).catch(() => {})));
+    await Promise.all(LIBS.map((u) => c.add(u).catch(() => {})));
+  })());
   self.skipWaiting();
 });
 
 self.addEventListener("activate", (e) => {
-  e.waitUntil(
-    caches.keys().then((ks) =>
-      Promise.all(ks.filter((k) => k !== CACHE && k !== FOTOS).map((k) => caches.delete(k)))
-    )
-  );
-  self.clients.claim();
+  e.waitUntil((async () => {
+    const ks = await caches.keys();
+    await Promise.all(ks.filter((k) => k !== CACHE).map((k) => caches.delete(k)));
+    await self.clients.claim();
+  })());
 });
 
 self.addEventListener("fetch", (e) => {
-  const url = new URL(e.request.url);
-  if (url.origin !== location.origin) return;
   if (e.request.method !== "GET") return;
+  const url = new URL(e.request.url);
 
-  // Imagens: primeiro o que ja esta guardado (funciona sem internet), depois atualiza por tras
-  if (ehImagem(url)) {
-    e.respondWith(
-      caches.open(FOTOS).then((c) =>
-        c.match(e.request).then((guardada) => {
-          const rede = fetch(e.request)
-            .then((r) => {
-              if (r && r.ok) c.put(e.request, r.clone());
-              return r;
-            })
-            .catch(() => guardada);
-          return guardada || rede;
-        })
-      )
-    );
+  // 1) Dados em tempo real: sempre rede, nunca cache
+  if (ehDadoAoVivo(url)) return;
+
+  // 2) Bibliotecas externas (Firebase SDK, jsPDF): CACHE PRIMEIRO
+  if (url.origin !== location.origin) {
+    e.respondWith((async () => {
+      const cache = await caches.open(CACHE);
+      const hit = await cache.match(e.request);
+      if (hit) return hit;
+      try {
+        const r = await fetch(e.request);
+        if (r && r.ok) cache.put(e.request, r.clone());
+        return r;
+      } catch (err) {
+        return hit || Response.error();
+      }
+    })());
     return;
   }
 
-  // Arquivos do app: rede primeiro, cai no guardado se estiver sem internet
-  e.respondWith(
-    fetch(e.request)
-      .then((r) => {
-        const copia = r.clone();
-        caches.open(CACHE).then((c) => c.put(e.request, copia)).catch(() => {});
-        return r;
-      })
-      .catch(() => caches.match(e.request))
-  );
-});
-
-// Guarda as fotos em lote quando o app pede
-self.addEventListener("message", (e) => {
-  const d = e.data || {};
-  if (d.tipo !== "guardar-fotos" || !Array.isArray(d.urls)) return;
-  e.waitUntil(
-    caches.open(FOTOS).then(async (c) => {
-      let ok = 0, falhou = 0;
-      const lote = 6;
-      for (let i = 0; i < d.urls.length; i += lote) {
-        await Promise.all(
-          d.urls.slice(i, i + lote).map(async (u) => {
-            try {
-              if (!d.forcar && (await c.match(u))) { ok++; return; }
-              const r = await fetch(u, { cache: "reload" });
-              if (r && r.ok) { await c.put(u, r.clone()); ok++; } else falhou++;
-            } catch (_) { falhou++; }
-          })
-        );
-        avisar({ tipo: "fotos-progresso", feitas: Math.min(i + lote, d.urls.length), total: d.urls.length });
+  // 3) Arquivos do próprio site: rede primeiro, cai no cache offline
+  e.respondWith((async () => {
+    try {
+      const r = await fetch(e.request);
+      const copy = r.clone();
+      caches.open(CACHE).then((c) => c.put(e.request, copy));
+      return r;
+    } catch (err) {
+      const cache = await caches.open(CACHE);
+      const hit = await cache.match(e.request);
+      if (hit) return hit;
+      if (e.request.mode === "navigate") {
+        const home = await cache.match("./index.html");
+        if (home) return home;
       }
-      avisar({ tipo: "fotos-prontas", ok, falhou, total: d.urls.length });
-    })
-  );
+      return Response.error();
+    }
+  })());
 });
-
-function avisar(msg) {
-  self.clients.matchAll().then((cs) => cs.forEach((c) => c.postMessage(msg)));
-}

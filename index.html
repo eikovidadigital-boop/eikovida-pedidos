@@ -43,6 +43,7 @@
   @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
 
   main{max-width:900px;margin:0 auto;padding:14px 14px 40px}
+  main.compedido{padding-bottom:150px}
   .hbtn{background:none;border:none;color:#fff;font-size:24px;cursor:pointer;padding:0 6px 0 0;line-height:1}
   .cli-box{border:1px solid var(--borda);border-radius:10px;margin-top:6px;max-height:290px;overflow-y:auto;background:#fff}
   .cli-op{padding:10px 12px;border-bottom:1px solid #f2f2f0;cursor:pointer}
@@ -67,6 +68,31 @@
   .sheet-i.off{opacity:.45;cursor:not-allowed}
   .sheet-i span{font-size:19px;width:24px;text-align:center}
   @media(min-width:700px){.sheet{left:50%;right:auto;bottom:auto;top:50%;transform:translate(-50%,-50%);width:420px;border-radius:16px;animation:none}}
+
+  /* ====== LAYOUT DESKTOP ====== */
+  @media(min-width:1000px){
+    header{padding:14px 28px}
+    header .titulo{font-size:19px}
+    main{max-width:1180px;padding:22px 28px 60px}
+    main.compedido{padding-bottom:130px}
+    .fgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+    /* listas em 2 colunas */
+    #listaClientes,#listaCentral{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start}
+    #listaClientes>div,#listaCentral>div{margin-bottom:0}
+    #listaCentral>div[style*="text-align:center"],#listaClientes>div[style*="text-align:center"]{grid-column:1/-1}
+    .kpis{grid-template-columns:repeat(4,1fr)}
+    .tit{font-size:24px}
+    /* menu lateral fixo, sem sobreposição */
+    .drawer{width:300px}
+    #barraTotal .in{max-width:1180px}
+    .card{padding:16px}
+    .btn{font-size:15px}
+    .voltar{font-size:15px}
+  }
+  @media(min-width:1400px){
+    main{max-width:1320px}
+    #listaClientes,#listaCentral{grid-template-columns:1fr 1fr 1fr}
+  }
   .voltar:active{background:#eef6ef}
   .linkbox{margin-top:14px;text-align:center}
   .linkbox span{color:var(--verde);font-size:14px;font-weight:600;cursor:pointer;text-decoration:underline}
@@ -128,7 +154,7 @@
   .qbtn.menos{background:#eee;color:#333}
   .qnum{min-width:20px;text-align:center;font-weight:800}
 
-  #barraTotal{position:fixed;bottom:64px;left:0;right:0;background:#fff;border-top:1px solid var(--borda);padding:10px 14px;z-index:15}
+  #barraTotal{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--borda);padding:10px 14px calc(10px + env(safe-area-inset-bottom));z-index:40;box-shadow:0 -3px 14px rgba(0,0,0,.12)}
   #barraTotal .in{max-width:900px;margin:0 auto}
 
   .kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
@@ -521,7 +547,12 @@ function toArr(o){return o?Object.keys(o).map(k=>({id:k,...o[k]})):[];}
 function semear(){const u={};SEED.forEach(p=>{u[db.ref("produtos").push().key]=p;});db.ref("produtos").update(u);}
 
 /* ====== NAV ====== */
-function irPara(v){if(!podeVer(v)){toast("Você não tem acesso a esta área");return;}viewAtual=v;clienteDetalhe=null;editCli=null;tabEdit=null;prodEdit=null;const d=document.getElementById("drawer");if(d&&d.classList.contains("on"))toggleMenu();render();}
+function irPara(v){if(!podeVer(v)){toast("Você não tem acesso a esta área");return;}
+  if(viewAtual==="novo"&&v!=="novo"&&Object.keys(carrinho).length>0){
+    if(!confirm("Você tem um pedido em andamento que ainda NÃO foi salvo.\n\nSair mesmo assim? Os itens e descontos serão perdidos."))return;
+    carrinho={};clienteSel="";editandoPedido=null;
+  }
+  viewAtual=v;clienteDetalhe=null;editCli=null;tabEdit=null;prodEdit=null;const d=document.getElementById("drawer");if(d&&d.classList.contains("on"))toggleMenu();render();}
 const MENU=[
   ["__s","VENDAS"],
   ["🏠","Início","home"],
@@ -1493,7 +1524,10 @@ function sincronizarAgora(){
   if(filaPendentes.length===0){atualizarStatusRede();return;}
   const fila=[...filaPendentes];
   fila.forEach(f=>{
-    if(f.op==="update"&&f.id)db.ref(f.col+"/"+f.id).update(f.data);
+    const caminho=f.col+(f.id?"/"+f.id:"");
+    if(f.op==="remove")db.ref(caminho).remove();
+    else if(f.op==="set")db.ref(caminho).set(f.data);
+    else if(f.op==="update")db.ref(caminho).update(f.data);
     else db.ref(f.col).push(f.data);
   });
   filaPendentes=[];
@@ -1507,6 +1541,7 @@ function render(){
   const c=document.getElementById("conteudo");
   if(!podeVer(viewAtual)){viewAtual=podeVer("home")?"home":((permissoes&&permissoes[0])||"home");}
   document.getElementById("barraTotal").classList.add("hide");
+  if(c&&c.classList)c.classList.remove("compedido");
   if(viewAtual==="home")c.innerHTML=viewHome();
   else if(viewAtual==="novo"){c.innerHTML=viewNovo();renderBarra();}
   else if(viewAtual==="central")c.innerHTML=viewCentral();
@@ -1642,6 +1677,17 @@ function viewCabecalho(){
         <input class="inp" type="number" placeholder="% percentual" value="${ped.descPerc}" oninput="upd('descPerc',this.value)" onchange="renderBarra()"/>
       </div>
     </div>
+
+    ${Object.keys(carrinho).length?`<div class="card" style="border:2px solid var(--verde);background:#f2f9f2">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <span style="font-size:13px;color:#555">${Object.keys(carrinho).length} item(ns) no pedido</span>
+        <b style="font-size:19px;color:var(--verde)">${brl(calcTotais().total)}</b>
+      </div>
+      <div class="row">
+        <button class="btn btn-v" style="flex:1" onclick="finalizar(false)">${editandoPedido?"✓ Salvar alterações":"✓ Salvar pedido"}</button>
+        ${editandoPedido?`<button class="btn btn-r" onclick="cancelarEdicao()">Cancelar</button>`:`<button class="btn btn-w" style="flex:1" onclick="finalizar(true)">Salvar + WhatsApp</button>`}
+      </div>
+    </div>`:""}
 
     <div class="card">
       <label class="lb">Observação para o Cliente</label>
@@ -1802,6 +1848,7 @@ function renderBarra(){
   const {total,qtd,perc}=calcTotais();
   if(qtd===0)return;
   const b=document.getElementById("barraTotal");b.classList.remove("hide");
+  const mn=document.getElementById("conteudo"); if(mn&&mn.classList)mn.classList.add("compedido");
   const descTxt=perc>0?`<span style="font-size:11px;color:var(--cinza)"> (${ped.descTipo==='desc'?'-':'+'}${perc}%)</span>`:"";
   b.innerHTML=`<div class="in">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
@@ -1819,7 +1866,10 @@ function finalizar(enviar){
   const linhas=Object.entries(carrinho);
   if(linhas.length===0){toast("Adicione itens");subAbaPedido="itens";render();return;}
   const cli=clientes.find(c=>c.id===clienteSel);
-  const itens=linhas.map(([id,it])=>{const p=produtos.find(x=>x.id===id);return{nome:p.nome,codigo:p.codigo||"",qtd:it.qtd,preco:it.preco};});
+  const itens=linhas.map(([id,it])=>{const p=produtos.find(x=>x.id===id);
+    const o={nome:p.nome,codigo:p.codigo||"",qtd:it.qtd,preco:it.preco};
+    if(it.desc){o.desc=it.desc;o.precoBase=it.precoBase||p.atacado;}
+    return o;});
   const {bruto,total}=calcTotais();
   const numero=editandoPedido?editandoPedido.numero:(pedidos.reduce((m,p)=>Math.max(m,p.numero||0),1000)+1);
   const pedido={
@@ -1917,7 +1967,7 @@ function htmlListaCentral(){
     const sit=o.situacao||(o.status==="enviado"?"Enviado":"Pendente");
     const corSit=/pago|conclu/i.test(sit)?"var(--verde)":"#b45309";
     const det=o.id===pedidoAberto?`<div class="det">
-        ${(o.itens||[]).map(i=>`<div class="li"><span>${i.qtd}x ${esc(i.nome)}</span><span>${brl(i.qtd*i.preco)}</span></div>`).join("")}
+        ${(o.itens||[]).map(i=>`<div class="li"><span>${i.qtd}x ${esc(i.nome)}${i.desc?` <span style="color:#dc2626;font-weight:700">−${String(i.desc).replace('.',',')}%</span>`:''}</span><span>${brl(i.qtd*i.preco)}</span></div>`).join("")}
         ${o.historico?'<div class="pag">📦 Pedido do histórico</div>':""}
         ${o.origem==="catalogo"?'<div class="pag">🛍️ Veio do catálogo online'+(o.contato?" · contato: "+esc(o.contato):"")+'</div>':""}
         ${o.obs?`<div class="pag">📝 ${esc(o.obs)}</div>`:""}
@@ -2052,7 +2102,10 @@ function emailPedido(id){
 }
 function abrirPed(id){pedidoAberto=(pedidoAberto===id?null:id);render();}
 function toggleStatus(id){const p=pedidos.find(x=>x.id===id);db.ref("pedidos/"+id+"/status").set(p.status==="aberto"?"enviado":"aberto");}
-function excluirPed(id){if(confirm("Excluir este pedido?"))db.ref("pedidos/"+id).remove();}
+function excluirPed(id){if(!confirm("Excluir este pedido?"))return;
+  if(navigator.onLine)db.ref("pedidos/"+id).remove();
+  else{pedidosRemoto=pedidosRemoto.filter(x=>x.id!==id);filaPendentes.push({col:"pedidos",op:"remove",id});LS.set("pedidos",pedidosRemoto);LS.set("fila",filaPendentes);reconstruirPedidos();}
+  render();}
 function copiarPed(id){const o=pedidos.find(x=>x.id===id);navigator.clipboard?.writeText(textoPedido(o));toast("Copiado");}
 function whatsPed(id){const o=pedidos.find(x=>x.id===id);const alvo=soDig(o.whats)?("55"+soDig(o.whats).replace(/^55/,"")):WHATS_EMPRESA;window.open(`https://wa.me/${alvo}?text=${encodeURIComponent(textoPedido(o))}`,"_blank");}
 
@@ -2509,7 +2562,10 @@ async function buscarCNPJ(){
 }
 function val(id){const e=document.getElementById(id);return e?e.value.trim():"";}
 function editarCli(id){editCli=clientes.find(c=>c.id===id);clienteDetalhe=null;render();}
-function excluirCli(id){if(confirm("Excluir cliente?")){db.ref("clientes/"+id).remove();clienteDetalhe=null;render();}}
+function excluirCli(id){if(!confirm("Excluir cliente?"))return;
+  if(navigator.onLine)db.ref("clientes/"+id).remove();
+  else{clientes=clientes.filter(x=>x.id!==id);filaPendentes.push({col:"clientes",op:"remove",id});LS.set("clientes",clientes);LS.set("fila",filaPendentes);}
+  clienteDetalhe=null;render();}
 function verCliente(id){clienteDetalhe=id;render();}
 
 function viewClienteDetalhe(){
@@ -2648,8 +2704,15 @@ function salvarProduto(){
     catalogo:!!(document.getElementById("pCatalogo")||{}).checked
   };
   if(!o.nome){toast("Informe o nome");return;}
-  if(prodEdit){db.ref("produtos/"+prodEdit.id).update(o);prodEdit=null;toast("Produto atualizado");}
-  else{db.ref("produtos").push(o);toast("Produto adicionado");}
+  if(prodEdit){
+    if(navigator.onLine)db.ref("produtos/"+prodEdit.id).update(o);
+    else{const i=produtos.findIndex(x=>x.id===prodEdit.id);if(i>=0)produtos[i]={...produtos[i],...o};filaPendentes.push({col:"produtos",op:"update",id:prodEdit.id,data:o});LS.set("produtos",produtos);LS.set("fila",filaPendentes);}
+    prodEdit=null;toast(navigator.onLine?"Produto atualizado":"Salvo offline ✓");
+  }else{
+    if(navigator.onLine)db.ref("produtos").push(o);
+    else{const tempId="local_"+Date.now();produtos.push({id:tempId,...o});filaPendentes.push({col:"produtos",op:"push",data:o,tempId});LS.set("produtos",produtos);LS.set("fila",filaPendentes);}
+    toast(navigator.onLine?"Produto adicionado":"Salvo offline ✓");
+  }
   fotoTmp="";render();
 }
 function escolherFoto(camera){
@@ -2736,12 +2799,22 @@ function viewTabelas(){
 function salvarTabela(){
   const o={nome:val("tNome"),tipo:document.getElementById("tTipo").value,percentual:parseFloat(String(val("tPerc")).replace(',','.'))||0};
   if(!o.nome){toast("Informe o nome da tabela");return;}
-  if(tabEdit){db.ref("tabelas/"+tabEdit.id).update(o);tabEdit=null;toast("Tabela atualizada");}
-  else{db.ref("tabelas").push(o);toast("Tabela criada");}
+  if(tabEdit){
+    if(navigator.onLine)db.ref("tabelas/"+tabEdit.id).update(o);
+    else{const i=tabelas.findIndex(x=>x.id===tabEdit.id);if(i>=0)tabelas[i]={...tabelas[i],...o};filaPendentes.push({col:"tabelas",op:"update",id:tabEdit.id,data:o});LS.set("tabelas",tabelas);LS.set("fila",filaPendentes);}
+    tabEdit=null;toast(navigator.onLine?"Tabela atualizada":"Salvo offline ✓");
+  }else{
+    if(navigator.onLine)db.ref("tabelas").push(o);
+    else{const tempId="local_"+Date.now();tabelas.push({id:tempId,...o});filaPendentes.push({col:"tabelas",op:"push",data:o,tempId});LS.set("tabelas",tabelas);LS.set("fila",filaPendentes);}
+    toast(navigator.onLine?"Tabela criada":"Salvo offline ✓");
+  }
   render();
 }
 function editarTabela(id){tabEdit=tabelas.find(t=>t.id===id);render();window.scrollTo(0,0);}
-function excluirTabela(id){if(confirm("Excluir tabela?"))db.ref("tabelas/"+id).remove();}
+function excluirTabela(id){if(!confirm("Excluir tabela?"))return;
+  if(navigator.onLine)db.ref("tabelas/"+id).remove();
+  else{tabelas=tabelas.filter(x=>x.id!==id);filaPendentes.push({col:"tabelas",op:"remove",id});LS.set("tabelas",tabelas);LS.set("fila",filaPendentes);}
+  render();}
 
 /* ====== SESSÃO: mantém o vendedor logado ao recarregar/atualizar ====== */
 (function(){
