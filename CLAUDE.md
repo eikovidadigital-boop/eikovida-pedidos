@@ -23,14 +23,15 @@ Este arquivo é lido pelo Claude Code no início de toda sessão. Ele vale para 
 
 | Repositório | Visibilidade | Função | Hospedagem |
 |---|---|---|---|
-| `eikovida-pedidos` | Privado (após migração) | **App principal**: login de vendedor/usuário, catálogo, pedidos e gestão de clientes (PWA instalável) | Cloudflare Pages: `eikovida-pedidos.pages.dev` + domínio próprio |
+| `eikovida-pedidos` | Privado (após migração) | **App principal**: login de vendedor/usuário, catálogo, pedidos e gestão de clientes (PWA instalável) | Cloudflare Pages: `eikovida-pedidos.pages.dev` (sem domínio próprio) |
 | `pix` | Privado (após migração) | Página de pagamento via Pix (PWA) | Cloudflare Pages: `pix-37i.pages.dev` |
 | `atendimento` | Privado (após migração) | Página de atendimento | Cloudflare Pages: `atendimento-2nq.pages.dev` |
 | `imagens` | **Público** (de propósito) | Imagens usadas pelos apps e pelas redes sociais | Links diretos do GitHub |
 | `meu-agente-social` | Privado (após migração) | Automação de Instagram/Facebook em Python, roda por GitHub Actions | GitHub Actions |
 
 - O repositório `imagens` fica público porque os apps e o Instagram carregam as fotos por link direto. Se ficar privado, as imagens somem. Nunca colocar nada além de imagens de produto/marca nele.
-- O arquivo `CNAME` é do GitHub Pages, que será desativado. Não usar para configuração de domínio (o domínio passa a ser gerido no Cloudflare).
+- **Não existe domínio próprio.** O app rodava no endereço do GitHub Pages (`eikovidadigital-boop.github.io/...`) e passa a rodar no endereço `.pages.dev` do Cloudflare.
+- Existe um arquivo `CNAME` no `eikovida-pedidos`. Verificar o que ele contém e informar ao Paulo antes de remover (ele pode estar redirecionando o GitHub Pages para um domínio que não é usado).
 - **Não mexer no Worker `eikovida-dm`** (conta Cloudflare). Ele já existia antes da migração e não faz parte dos sites.
 - Cada sessão do Claude Code trabalha em um repositório. Se a tarefa exigir mudança em outro repositório, **avise o Paulo** e indique em qual repositório abrir a próxima sessão.
 
@@ -68,10 +69,12 @@ Este arquivo é lido pelo Claude Code no início de toda sessão. Ele vale para 
 Situação em 17/09/2026:
 
 - Feito: os 3 sites já estão no Cloudflare Pages (endereços na seção 3). O GitHub Pages ainda está ligado e os repositórios ainda estão públicos.
+- Não há domínio próprio. Os endereços oficiais passam a ser os `.pages.dev`.
 - Falta, nesta ordem:
-  1. **Trocar links antigos:** procurar em todos os arquivos qualquer endereço `github.io` ou `raw.githubusercontent.com` que aponte para `eikovida-pedidos`, `pix` ou `atendimento` e trocar pelo endereço novo do Cloudflare (ou pelo domínio próprio, quando estiver ativo). Links para o repositório `imagens` continuam como estão.
-  2. Paulo aponta o domínio próprio no Cloudflare.
-  3. Paulo desliga o GitHub Pages e torna os repositórios privados (exceto `imagens`). **Só depois dos passos 1 e 2**, senão os botões de Pix e atendimento quebram.
+  1. **Trocar links antigos:** procurar em todos os arquivos (incluindo `manifest.json`, `sw.js` e `pix-manifest.json`) qualquer endereço `github.io` ou `raw.githubusercontent.com` que aponte para `eikovida-pedidos`, `pix` ou `atendimento` e trocar pelo endereço novo do Cloudflare. Links para o repositório `imagens` continuam como estão.
+  2. **Aviso aos vendedores:** quem instalou o app no celular pelo endereço antigo do GitHub vai perder o acesso quando o GitHub Pages for desligado. Colocar no app publicado no endereço ANTIGO um aviso fixo com o link novo e a instrução para instalar de novo (sem redirecionar automaticamente sem avisar). Paulo também envia o link novo aos vendedores.
+  3. **Período de transição curto** (o Paulo define os dias). Durante esse período os dados continuam expostos no endereço antigo, então ele deve ser o menor possível.
+  4. Paulo desliga o GitHub Pages e torna os repositórios privados (exceto `imagens`). **Só depois dos passos 1 a 3**, senão os botões de Pix e atendimento e o app instalado dos vendedores quebram.
 
 ## 7. Proteção dos dados de clientes e do login
 
@@ -91,7 +94,7 @@ Tarefa:
 
 ## Tarefa inicial (primeira sessão)
 
-1. Executar o passo 1 da seção 6 (troca de links), via branch e PR.
+1. Executar os passos 1 e 2 da seção 6 (troca de links e aviso aos vendedores), via branch e PR.
 2. Executar o diagnóstico da seção 7 e relatar ao Paulo.
 3. Analisar o repositório inteiro e preencher a seção 8 (mapa técnico).
 4. Testar o fluxo completo: login → catálogo → pedido → gestão de clientes → pagamento (Pix) → atendimento.
@@ -111,5 +114,6 @@ Tarefa:
 ## 9. Histórico de decisões
 
 - 17/09/2026: sites publicados no Cloudflare Pages (eikovida-pedidos, pix, atendimento). Migração do GitHub Pages em andamento (seção 6).
+- 17/09/2026: sem domínio próprio; endereço oficial do app é `eikovida-pedidos.pages.dev`.
 - 17/09/2026: repositórios passam a privados após a migração, exceto `imagens`.
 - 17/09/2026: dados de clientes permanecem em JSON até o módulo de nota fiscal; acesso a ser protegido por Cloudflare Access.
