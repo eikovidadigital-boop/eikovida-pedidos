@@ -3941,7 +3941,15 @@ function carregarItensNoCarrinho(o){
     const p=(cod&&produtos.find(x=>String(x.codigo||"").trim().toLowerCase()===cod))
           ||produtos.find(x=>String(x.nome||"").trim().toLowerCase()===nm)
           ||produtos.find(x=>String(x.nome||"").trim().toLowerCase().replace(/\s+/g," ")===nm.replace(/\s+/g," "));
-    if(p){carrinho[p.id]={qtd:i.qtd,preco:i.preco,desc:Number(i.desc)||0,base:Number(i.precoBase)||Number(i.preco)||0};achou++;}
+    if(p){
+      // pedidos antigos nao gravavam o preco de tabela: busca na tabela de precos.
+      // usar o preco vendido como base faria todo desconto antigo virar 0%.
+      const base=Number(i.precoBase)>0?Number(i.precoBase):precoComTabela(p);
+      const preco=Number(i.preco)||0;
+      const d=(i.desc!==undefined&&i.desc!==null&&i.desc!=="")?(Number(i.desc)||0):percDoPreco(base,preco);
+      carrinho[p.id]={qtd:i.qtd,preco:preco,desc:d,base:base};
+      achou++;
+    }
     else perdidos.push(i.nome||i.codigo||"item");
   });
   return {total:itens.length,achou,perdidos};
@@ -3953,14 +3961,19 @@ function avisoItens(o,r){
 function editarPedido(id){
   const o=pedidos.find(x=>x.id===id); if(!o)return;
   if(!podeEditarPed(o)){toast("Pedido já sincronizado — só o administrador pode editar");return;}
-  const r=carregarItensNoCarrinho(o);
-  if(!r.total&&!confirm("Este pedido n\u00e3o tem a lista de produtos \u2014 s\u00f3 o total de "+brl(o.total)+".\n\nAbrir para montar os itens agora?"))return;
-  clienteSel=o.clienteId||(clientes.find(c=>c.nome===o.cliente)||{}).id||"";
+  // a tabela e a representada do pedido precisam valer ANTES de carregar os
+  // itens, senao o preco de tabela de cada item sai pela tabela do pedido anterior
+  const pedAnterior=ped, carrinhoAnterior=carrinho, clienteAnterior=clienteSel;
   ped={status:o.tipo||"Pedido",representada:o.representada||"EIKO VIDA",consumidorFinal:!!o.consumidorFinal,
     dataEmissao:o.dataEmissao||(o.data||"").slice(0,10),dataFat:o.dataFat||"",previsao:o.previsao||"",
     cond:o.cond||"",forma:o.forma||"",tabela:o.tabela||"",descTipo:o.descTipo||"desc",
     descPerc:o.descPerc||"",obsCli:o.obsCli||"",obsEmp:o.obsEmp||"",
     ordemCompra:o.ordemCompra||"",transportadora:o.transportadora||""};
+  const r=carregarItensNoCarrinho(o);
+  if(!r.total&&!confirm("Este pedido n\u00e3o tem a lista de produtos \u2014 s\u00f3 o total de "+brl(o.total)+".\n\nAbrir para montar os itens agora?")){
+    ped=pedAnterior;carrinho=carrinhoAnterior;clienteSel=clienteAnterior;return;
+  }
+  clienteSel=o.clienteId||(clientes.find(c=>c.nome===o.cliente)||{}).id||"";
   editandoPedido={id:o.id,numero:o.numero,pendente:!!o._pendente,tempId:o._tempId||null};
   subAbaPedido="itens";irPara("novo");window.scrollTo(0,0);
   toast("Editando pedido "+(o.numero||""));avisoItens(o,r);
