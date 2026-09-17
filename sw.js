@@ -1,5 +1,5 @@
 // EikoVida Pedidos - service worker
-const CACHE = "eiko-pedidos-v9";          // arquivos do app (troca a cada atualizacao)
+const CACHE = "eiko-pedidos-v10";          // arquivos do app (troca a cada atualizacao)
 const FOTOS = "eiko-fotos-v1";            // fotos dos produtos (permanece entre atualizacoes)
 const SHELL = ["./", "./index.html", "./instalar.html", "./manifest.json", "./icon-192.png", "./icon-512.png", "./logo.png", "./simbolo.png"];
 
