@@ -639,7 +639,10 @@ function conectarFirebase(){
 }
 function reRender(views){if(views.includes(viewAtual))render();}
 function reconstruirPedidos(){
-  const pend=filaPendentes.filter(f=>f.col==="pedidos").map(f=>({...f.data,id:f.tempId,_pendente:true}));
+  // so as entradas SEM "op" sao pedidos novos aguardando envio.
+  // as com op:"update" sao alteracoes de pedido ja existente e nao podem
+  // virar um cartao novo na lista.
+  const pend=filaPendentes.filter(f=>f.col==="pedidos"&&!f.op).map(f=>({...f.data,id:f.tempId,_pendente:true}));
   pedidos=[...pend,...pedidosRemoto].sort((a,b)=>(+new Date(b.data||0)||0)-(+new Date(a.data||0)||0));
 }
 function toArr(o){return o?Object.keys(o).map(k=>({id:k,...o[k]})):[];}
@@ -3864,15 +3867,37 @@ function cobrancaDoPedido(id){
   filtroCobr="todos";buscaCentral="";irPara("cobrancas");
   toast(o.recebido?"Pedido já recebido":"Pedido em aberto na lista");
 }
+// Altera um pedido de forma segura:
+// 1) vale na hora na tela e fica salvo no aparelho;
+// 2) entra na fila e so sai quando a nuvem confirma — se o app for fechado
+//    antes disso (acontece ao abrir o WhatsApp no celular), a alteracao e
+//    reenviada na proxima sincronizacao em vez de se perder.
+function gravarPedido(id,dados){
+  const pr=pedidosRemoto.find(x=>x.id===id);
+  if(pr)Object.assign(pr,dados);
+  LS.set("pedidos",pedidosRemoto);
+  const item={col:"pedidos",op:"update",id:id,data:dados};
+  filaPendentes.push(item);
+  LS.set("fila",filaPendentes);
+  const concluir=()=>{
+    const i=filaPendentes.indexOf(item);
+    if(i>=0){filaPendentes.splice(i,1);LS.set("fila",filaPendentes);}
+  };
+  if(navigator.onLine){
+    try{
+      const r=db.ref("pedidos/"+id).update(dados);
+      if(r&&typeof r.then==="function")r.then(concluir,()=>{});
+      else concluir();
+    }catch(e){}
+  }
+  reconstruirPedidos();
+}
 function mudarSituacao(id,sit){
   fecharSheet();
   const p=pedidos.find(x=>x.id===id); if(!p)return;
   if(p._pendente){toast("Pedido ainda n\u00e3o sincronizado");return;}
   const dados={situacao:sit,recebido:/pago/i.test(sit)};
-  if(navigator.onLine)db.ref("pedidos/"+id).update(dados);
-  else{filaPendentes.push({col:"pedidos",op:"update",id:id,data:dados});LS.set("fila",filaPendentes);}
-  const pr=pedidosRemoto.find(x=>x.id===id); if(pr)Object.assign(pr,dados);
-  reconstruirPedidos();
+  gravarPedido(id,dados);
   toast("Situa\u00e7\u00e3o: "+sit);render();
   // pedido cancelado pelo admin: avisa o cliente no WhatsApp
   if(ehAdmin&&/cancel/i.test(sit)){
@@ -3893,10 +3918,7 @@ function marcarRecebidoPedido(id){
   if(!ehAdmin){toast("Somente o administrador");return;}
   if(o._pendente){toast("Pedido ainda n\u00e3o sincronizado");return;}
   const upd={situacao:"Recebido",recebidoEm:new Date().toISOString(),recebidoPor:vendedor};
-  if(navigator.onLine)db.ref("pedidos/"+id).update(upd);
-  else{filaPendentes.push({col:"pedidos",op:"update",id:id,data:upd});LS.set("fila",filaPendentes);}
-  const pr=pedidosRemoto.find(x=>x.id===id); if(pr)Object.assign(pr,upd);
-  reconstruirPedidos();
+  gravarPedido(id,upd);
   toast("Pedido marcado como recebido \u2713");
   const fone=soDig(o.whats||(clientes.find(c=>c.id===o.clienteId)||{}).whatsapp||"");
   if(fone){
@@ -3909,10 +3931,10 @@ function marcarRecebidoPedido(id){
 function aceitarPedido(id){
   const o=pedidos.find(x=>x.id===id); if(!o)return;
   if(!ehAdmin){toast("Somente o administrador pode aceitar");return;}
+  if(o._pendente){toast("Pedido ainda n\u00e3o sincronizado");return;}
   if(!confirm("Aceitar o pedido de "+(o.cliente||"")+"?\n\nO cliente recebe o aviso no celular e você pode confirmar por WhatsApp."))return;
   const upd={situacao:"Aceito",aceitoEm:new Date().toISOString(),aceitoPor:vendedor};
-  if(navigator.onLine)db.ref("pedidos/"+id).update(upd);
-  else{filaPendentes.push({col:"pedidos",op:"update",id:id,data:upd});LS.set("fila",filaPendentes);}
+  gravarPedido(id,upd);
   toast("Pedido aceito ✓");
   const fone=soDig(o.whats||(clientes.find(c=>c.id===o.clienteId)||{}).whatsapp||"");
   if(fone){
