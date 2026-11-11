@@ -23,15 +23,15 @@ Este arquivo é lido pelo Claude Code no início de toda sessão. Ele vale para 
 
 | Repositório | Visibilidade | Função | Hospedagem |
 |---|---|---|---|
-| `eikovida-pedidos` | Privado (após migração) | **App principal**: login de vendedor/usuário, catálogo, pedidos e gestão de clientes (PWA instalável) | Cloudflare Pages: `eikovida-pedidos.pages.dev` (sem domínio próprio) |
+| `eikovida-pedidos` | Privado (após migração) | **App principal**: login de vendedor/usuário, catálogo, pedidos e gestão de clientes (PWA instalável) | Cloudflare Pages: `eikovida-pedidos.pages.dev`, com domínio próprio `app.eikovida.com` (endereço oficial) |
 | `pix` | Privado (após migração) | Página de pagamento via Pix (PWA) | Cloudflare Pages: `pix-37i.pages.dev` |
 | `atendimento` | Privado (após migração) | Página de atendimento | Cloudflare Pages: `atendimento-2nq.pages.dev` |
 | `imagens` | **Público** (de propósito) | Imagens usadas pelos apps e pelas redes sociais | Links diretos do GitHub |
 | `meu-agente-social` | Privado (após migração) | Automação de Instagram/Facebook em Python, roda por GitHub Actions | GitHub Actions |
 
 - O repositório `imagens` fica público porque os apps e o Instagram carregam as fotos por link direto. Se ficar privado, as imagens somem. Nunca colocar nada além de imagens de produto/marca nele.
-- **Não existe domínio próprio.** O app rodava no endereço do GitHub Pages (`eikovidadigital-boop.github.io/...`) e passa a rodar no endereço `.pages.dev` do Cloudflare.
-- Existe um arquivo `CNAME` no `eikovida-pedidos`. Verificar o que ele contém e informar ao Paulo antes de remover (ele pode estar redirecionando o GitHub Pages para um domínio que não é usado).
+- **Domínio próprio do app: `app.eikovida.com`** (domínio `eikovida.com` registrado na HostGator, DNS na HostGator; a raiz e o `www` apontam para a loja Shopify). O registro CNAME `app` aponta para `eikovida-pedidos.pages.dev`. O app rodava no GitHub Pages (desligado) e hoje roda no Cloudflare Pages. `pix` e `atendimento` continuam só nos endereços `.pages.dev`.
+- O arquivo `CNAME` no `eikovida-pedidos` contém `app.eikovida.com`. Só o GitHub Pages usa esse arquivo; no Cloudflare ele não tem efeito e o `_redirects` impede que seja aberto pelo site.
 - **Não mexer no Worker `eikovida-dm`** (conta Cloudflare). Ele já existia antes da migração e não faz parte dos sites.
 - Cada sessão do Claude Code trabalha em um repositório. Se a tarefa exigir mudança em outro repositório, **avise o Paulo** e indique em qual repositório abrir a próxima sessão.
 
@@ -40,9 +40,9 @@ Este arquivo é lido pelo Claude Code no início de toda sessão. Ele vale para 
 1. **Nunca fazer push direto na `main`.** O Cloudflare Pages publica a `main` na hora para os clientes. Sempre criar branch, fazer commit e abrir Pull Request. O Cloudflare gera um **link de teste** para cada branch. Informe esse link ao Paulo para ele conferir antes do merge.
 2. **Segredos:** nunca gravar senha, token, chave de API ou credencial em arquivo. Segredos ficam em GitHub Secrets (Actions) ou nas variáveis de ambiente do Cloudflare.
 3. **Dados de clientes e pedidos:**
-   - Hoje ficam em arquivos JSON (`clientes-seed.json`, `pedidos-seed.json`, `itens-pedidos.json`).
-   - Esses arquivos **não podem ser baixáveis por qualquer pessoa pelo site**. Ver seção 7.
-   - Não criar novos arquivos com dados de clientes fora dessa estrutura.
+   - Ficam no Firebase Realtime Database (projeto `eiko-vida-app`). Os arquivos `clientes-seed.json`, `pedidos-seed.json` e `itens-pedidos.json` foram **retirados do repositório em 11/11/2026** (ficavam baixáveis pelo site). O histórico do Git ainda guarda as versões antigas.
+   - **Nunca publicar arquivo com dados de clientes ou pedidos no repositório**: tudo que está no repositório abre pelo site. A ferramenta de itens do relatório lê o `itens-pedidos.json` escolhido no aparelho do administrador.
+   - Ver seção 7 para o que ainda falta proteger.
    - A migração para banco de dados será feita junto com o módulo de nota fiscal.
 4. **Não apagar nem reescrever arquivos de dados** (`*.json`) sem ordem explícita.
 5. **Preços e tabelas:** qualquer alteração em preço, pedido mínimo ou desconto precisa ser confirmada com o Paulo antes do commit, com o resumo "antes → depois".
@@ -103,13 +103,15 @@ Tarefa:
 
 ## 8. Mapa técnico (preenchido pelo Claude Code na primeira sessão)
 
-- **Tecnologias usadas:** _a preencher_
-- **Onde ficam os dados (produtos, clientes, pedidos):** _a preencher_
-- **Como o pedido chega ao Paulo (WhatsApp, e-mail, planilha etc.):** _a preencher_
-- **Serviços externos e integrações:** _a preencher_
-- **Arquivos principais e o que cada um faz:** _a preencher_
-- **Endereços no ar (domínio e links do Cloudflare Pages):** _a preencher_
-- **Rotas protegidas pelo Cloudflare Access:** _a preencher_
+- **Tecnologias usadas:** site estático (HTML + JavaScript puro, sem etapa de build), PWA com service worker, Firebase Realtime Database + login anônimo do Firebase. Bibliotecas ficam na pasta `lib/` (Firebase 10.12.2, jsPDF 2.5.1, SheetJS 0.18.5, qrcodejs 1.0.0) — não carregar de CDN, senão o app não abre offline.
+- **Onde ficam os dados (produtos, clientes, pedidos):** Firebase Realtime Database `eiko-vida-app` (nós `produtos`, `clientes`, `pedidos`, `vendedores`, `tabelas`, `representadas`, `transportadoras`, `fornecedores`, `agenda`, `empresa`, `catalogo`, `comissoes`, `config`, categorias). No aparelho: `localStorage` com prefixo `eiko_` (cópia para uso offline e a fila de envio `eiko_fila`).
+- **Como o pedido chega ao Paulo:** gravado em `pedidos` no Firebase (aparece na Central de Pedidos) e, se o vendedor/cliente quiser, mensagem pelo WhatsApp.
+- **Serviços externos e integrações:** Firebase, BrasilAPI (consulta de CNPJ), WhatsApp (`wa.me`).
+- **Arquivos principais e o que cada um faz:** `index.html` (app do vendedor e do administrador), `catalogo.html` (catálogo público onde o lojista faz pedido), `instalar.html` (página de instalação), `sw.js` (cache e funcionamento offline), `manifest.json` (dados do PWA), `lib/` (bibliotecas), `img/` e `logos/` (fotos), `fotos.json` (lista de fotos), `tabelas-mel-raiz.json` e `produtos-novos.json` (importações de preço/produto), `_redirects` (bloqueia arquivos internos no site).
+- **Endereços no ar:** `https://app.eikovida.com` (oficial) e `https://eikovida-pedidos.pages.dev` (mesmo conteúdo). Usar e divulgar só o oficial: app instalado por endereços diferentes vira aplicativos separados.
+- **Rotas protegidas pelo Cloudflare Access:** nenhuma.
+- **Como funciona o envio (não quebrar):** toda gravação de pedido passa pela fila `filaPendentes` e só sai dela quando a nuvem confirma (`processarFila`). Registro novo é enviado por chave gerada uma única vez, então reenviar não duplica. A numeração de pedido sai do contador `config/seqPedido` (transação). A senha do administrador fica só como hash em `config/admHash`.
+- **Pendência de segurança conhecida:** o login é conferido no navegador e o banco aceita o login anônimo do app; quem souber programar consegue ler os dados. A correção definitiva é login do Firebase com e-mail/senha + regras do banco por usuário (precisa do console do Firebase).
 
 ## 9. Histórico de decisões
 
@@ -117,3 +119,5 @@ Tarefa:
 - 17/09/2026: sem domínio próprio; endereço oficial do app é `eikovida-pedidos.pages.dev`.
 - 17/09/2026: repositórios passam a privados após a migração, exceto `imagens`.
 - 17/09/2026: dados de clientes permanecem em JSON até o módulo de nota fiscal; acesso a ser protegido por Cloudflare Access.
+- 11/11/2026: GitHub Pages já estava desligado; `app.eikovida.com` passou a apontar para o Cloudflare Pages (CNAME na HostGator) e é o endereço oficial do app.
+- 11/11/2026: varredura do app. Senha padrão do administrador retirada do código (senha vira hash na nuvem), fila de envio à prova de perda, numeração por contador central, bibliotecas dentro do app, cache corrigido, catálogo identifica cliente só por CNPJ/CPF completo, arquivos de dados retirados do repositório.

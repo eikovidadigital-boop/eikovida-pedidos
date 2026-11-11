@@ -1,0 +1,3 @@
+# Arquivos internos do repositorio que nao devem abrir pelo site
+/CLAUDE.md / 302
+/CNAME / 302

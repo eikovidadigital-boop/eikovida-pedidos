@@ -139,7 +139,7 @@
       <button class="btnV" style="background:#fff;color:#555;border:2px solid #ddd;margin-top:10px" onclick="bvVisitante()">👀 Só quero ver o catálogo</button>
     </div>
     <div id="bvBusca" style="display:none">
-      <input class="bvIn" id="bvCampo" placeholder="CNPJ, nome ou nome fantasia" autocomplete="off">
+      <input class="bvIn" id="bvCampo" inputmode="numeric" placeholder="CNPJ ou CPF da loja (só números)" autocomplete="off">
       <button class="btnV" style="margin-top:10px" onclick="bvBuscar()">Buscar meu cadastro</button>
       <div class="bvMsg" id="bvMsg"></div>
       <div style="margin-top:10px"><span style="font-size:13px;color:var(--cinza);text-decoration:underline;cursor:pointer" onclick="bvVoltarEscolha()">← voltar</span></div>
@@ -232,10 +232,10 @@
   <div id="checkBody"></div>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="lib/jspdf.umd.min.js"></script>
+<script src="lib/firebase-app-compat.js"></script>
+<script src="lib/firebase-database-compat.js"></script>
+<script src="lib/firebase-auth-compat.js"></script>
 <script>
 const CFG={apiKey:"AIzaSyCzl-w2jUWYGvMD2t5JfeW2l0iGjZt8cRw",authDomain:"eiko-vida-app.firebaseapp.com",databaseURL:"https://eiko-vida-app-default-rtdb.firebaseio.com",projectId:"eiko-vida-app",storageBucket:"eiko-vida-app.firebasestorage.app",messagingSenderId:"805340801526",appId:"1:805340801526:web:50e800c3a5ada35594ffd7"};
 const WHATS_PADRAO="558141410577";
@@ -811,7 +811,8 @@ function bvVisitante(){
 async function bvBuscar(){
   var termo=(document.getElementById("bvCampo").value||"").trim();
   var msg=document.getElementById("bvMsg");
-  if(termo.length<3){msg.innerHTML='<span style="color:#b45309">Digite ao menos 3 letras ou o CNPJ.</span>';return;}
+  var dg=digitos(termo);
+  if(dg.length!==11&&dg.length!==14){msg.innerHTML='<span style="color:#b45309">Digite o CNPJ (14 n\u00fameros) ou o CPF (11 n\u00fameros) completo da loja.</span>';return;}
   msg.style.color="#555";msg.textContent="Buscando\u2026";
   await aguardarAcesso(4000);
   var cli=await acharCliente(termo);
@@ -830,29 +831,11 @@ async function bvBuscar(){
   },900);
 }
 async function acharCliente(termo){
+  // identificação só por CNPJ ou CPF completo: digitar parte do nome de uma loja
+  // não pode dar acesso ao cadastro, aos preços e aos pedidos dela
   var d=digitos(termo);
-  if(d.length>=11){var porCnpj=await acharPorCnpj(d);if(porCnpj)return porCnpj;}
-  // busca por nome ou fantasia (case-insensitive, contém)
-  try{
-    var snap=await db.ref("clientes").once("value");
-    var alvo=termo.toLowerCase();
-    var achado=null;
-    snap.forEach(function(ch){
-      var c=ch.val()||{};
-      var nome=String(c.nome||"").toLowerCase();
-      var fant=String(c.fantasia||"").toLowerCase();
-      if(!achado&&(nome===alvo||fant===alvo)){achado={id:ch.key,...c};return true;}
-    });
-    if(achado)return achado;
-    // se não achou exato, tenta "contém"
-    snap.forEach(function(ch){
-      var c=ch.val()||{};
-      var nome=String(c.nome||"").toLowerCase();
-      var fant=String(c.fantasia||"").toLowerCase();
-      if(!achado&&(nome.indexOf(alvo)>=0||fant.indexOf(alvo)>=0)){achado={id:ch.key,...c};return true;}
-    });
-    return achado;
-  }catch(e){return null;}
+  if(d.length!==11&&d.length!==14)return null;
+  return await acharPorCnpj(d);
 }
 async function buscarCadastro(){
   const d=digitos(document.getElementById("bCnpj").value);
