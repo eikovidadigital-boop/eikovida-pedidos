@@ -9,12 +9,12 @@
 <link rel="apple-touch-icon" href="icon-192.png?v=6" />
 <title>EikoVida Pedidos</title>
 
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="lib/firebase-app-compat.js"></script>
+<script src="lib/firebase-database-compat.js"></script>
+<script src="lib/firebase-auth-compat.js"></script>
+<script src="lib/jspdf.umd.min.js"></script>
+<script src="lib/xlsx.full.min.js"></script>
+<script src="lib/qrcode.min.js"></script>
 
 <style>
   :root{
@@ -272,8 +272,8 @@
     <p>Atacado · óleos vegetais</p>
 
     <div id="formLogin">
-      <input id="loginCodigo" maxlength="12" placeholder="Código do vendedor ou usuário" autocapitalize="off" autocorrect="off" />
-      <input id="loginSenha" type="password" inputmode="numeric" maxlength="6" placeholder="Senha (6 dígitos)" onkeydown="if(event.key==='Enter')entrar()" />
+      <input id="loginCodigo" maxlength="12" placeholder="Código do vendedor ou usuário" autocapitalize="off" autocorrect="off" oninput="ajustarCampoSenha()" />
+      <input id="loginSenha" type="password" inputmode="numeric" maxlength="30" placeholder="Senha" onkeydown="if(event.key==='Enter')entrar()" />
       <button onclick="entrar()">Entrar</button>
       <div class="linkbox">
         <span onclick="mostrarAtivacao()">Primeiro acesso? Ativar meu app</span>
@@ -364,7 +364,8 @@ function galErr(img){
 }
 
 const WHATS_EMPRESA = "558141410577";
-const URL_CATALOGO = "https://app.eikovida.com/catalogo.html";
+// o link do catálogo acompanha o endereço em que o app está aberto (domínio próprio ou Cloudflare)
+const URL_CATALOGO = (()=>{try{if(/^https?:$/.test(location.protocol))return location.origin+location.pathname.replace(/[^\/]*$/,"")+"catalogo.html";}catch(e){}return "https://app.eikovida.com/catalogo.html";})();
 
 /* ====== ESTADO ====== */
 let produtos=[], clientes=[], pedidos=[], catCliente=[], catProduto=[];
@@ -372,8 +373,8 @@ let pedidosRemoto=[];
 const LS={get(k,def){try{const v=localStorage.getItem("eiko_"+k);return v?JSON.parse(v):def;}catch(e){return def;}},set(k,v){try{localStorage.setItem("eiko_"+k,JSON.stringify(v));}catch(e){}}};
 let vendedor="", viewAtual="home";
 let vendedorCodigo="", vendedorId="", ehAdmin=false, permissoes=null;
-const ADMIN_USER="adm01eiko", ADMIN_SENHA_PADRAO="290412";
-let admSenha="290412";
+const ADMIN_USER="adm01eiko";
+// a senha do administrador NÃO fica no código: é conferida na nuvem (config/admHash) — ver "SENHA DO ADMINISTRADOR"
 const ABAS=[["convites","Instalar p/ Vendedor"],["catalogoCfg","Editar Catálogo"],["representadas","Representadas"],["pix","Pix / Financeiro"],["catprod","Categorias de Produto"],["home","Início"],["novo","Novo Pedido"],["central","Central de Pedidos"],["relatorios","Relatórios"],["cobrancas","Cobranças"],["clientes","Clientes"],["produtos","Produtos"],["tabelas","Tabelas de Preço"],["transportadoras","Transportadoras"],["fornecedores","Fornecedores"],["agenda","Agenda / CRM"],["equipe","Minha Equipe"],["empresa","Minha Empresa"],["importacoes","Importações"],["sync","Sincronização"],["catalogo","Catálogo Online"]];
 const ABAS_PADRAO=["home","novo","central","clientes","produtos","agenda","sync"];
 function podeVer(v){if(v==="pix"||v==="comissoes"||v==="promocoes")return ehAdmin;return ehAdmin||!permissoes||permissoes.includes(v);}
@@ -479,6 +480,8 @@ const hora=(iso)=>new Date(iso).toLocaleTimeString("pt-BR",{hour:"2-digit",minut
 const dataBr=(iso)=>new Date(iso).toLocaleDateString("pt-BR");
 const soDig=(s)=>(s||"").replace(/\D/g,"");
 const esc=(s)=>(s||"").toString().replace(/[<>&"]/g,c=>({ "<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;"}[c]));
+// para texto que entra entre aspas simples dentro de um onclick="..."
+const escq=(s)=>esc((s||"").toString().replace(/\\/g,"\\\\").replace(/'/g,"\\'"));
 function toast(m){const t=document.getElementById("toast");t.textContent=m;t.classList.add("show");setTimeout(()=>t.classList.remove("show"),2200);}
 
 /* ====== LOGO (troca sozinho se existir logo.png no repositório) ====== */
@@ -505,11 +508,7 @@ async function entrar(){
   const bruto=String(val("loginCodigo")||"").trim();
   const senha=String(val("loginSenha")||"").trim();
   // administrador do sistema
-  if(bruto.toLowerCase()===ADMIN_USER){
-    if(senha!==admSenha&&senha!==ADMIN_SENHA_PADRAO){lmsg("Senha incorreta","erro");return;}
-    iniciarSessao({nome:"Administrador",codigo:"000",id:"admin",admin:true});
-    return;
-  }
+  if(bruto.toLowerCase()===ADMIN_USER){await entrarAdmin(senha);return;}
   const cod=padCod(bruto);
   if(!bruto||cod==="000"){lmsg("Digite o código do vendedor","erro");return;}
   if(!/^\d{4,6}$/.test(senha)){lmsg("A senha tem de 4 a 6 dígitos","erro");return;}
@@ -530,14 +529,72 @@ async function entrar(){
   if(!v){lmsg("Código não encontrado. Use 'Ativar meu cadastro'.","erro");return;}
   if(v.ativo===false){lmsg("Este vendedor está desativado. Fale com o administrador.","erro");return;}
   if(!v.senha){
-    // vendedor cadastrado antes do sistema de senha: define a senha neste primeiro acesso
-    if(!navigator.onLine){lmsg("Precisa de internet no primeiro acesso","erro");return;}
-    if(!confirm("Primeiro acesso de "+v.nome+".\n\nA senha digitada será cadastrada como a senha deste vendedor. Confirmar?"))return;
-    try{await db.ref("vendedores/"+v.id+"/senha").set(senha);v.senha=senha;}
-    catch(e){lmsg("Erro ao salvar a senha","erro");return;}
+    // sem senha cadastrada: só o código de ativação (enviado pelo administrador) pode criar a senha
+    lmsg("Este vendedor ainda não tem senha. Toque em \"Primeiro acesso? Ativar meu app\" e use o código de ativação enviado pelo administrador.","erro");return;
   }
   if(String(v.senha||"")!==senha){lmsg("Senha incorreta","erro");return;}
   iniciarSessao(v);
+}
+function ajustarCampoSenha(){
+  // administrador pode usar letras na senha; vendedor continua com teclado numérico
+  const c=document.getElementById("loginCodigo"),p=document.getElementById("loginSenha");
+  if(c&&p)p.setAttribute("inputmode",/[a-z]/i.test(c.value||"")?"text":"numeric");
+}
+
+/* ====== SENHA DO ADMINISTRADOR (guardada só como hash na nuvem; nunca no código) ====== */
+const ADM_ITER=150000;
+function hexDe(buf){return [...new Uint8Array(buf)].map(b=>b.toString(16).padStart(2,"0")).join("");}
+function bytesDe(hex){const a=new Uint8Array(hex.length/2);for(let i=0;i<a.length;i++)a[i]=parseInt(hex.substr(i*2,2),16);return a;}
+async function derivarSenha(senha,saltHex,iter){
+  const k=await crypto.subtle.importKey("raw",new TextEncoder().encode(senha),"PBKDF2",false,["deriveBits"]);
+  const bits=await crypto.subtle.deriveBits({name:"PBKDF2",hash:"SHA-256",salt:bytesDe(saltHex),iterations:iter},k,256);
+  return hexDe(bits);
+}
+async function gerarHashSenha(senha){
+  const salt=hexDe(crypto.getRandomValues(new Uint8Array(16)));
+  return "pbkdf2$"+ADM_ITER+"$"+salt+"$"+await derivarSenha(senha,salt,ADM_ITER);
+}
+async function confereHashSenha(senha,guardado){
+  const p=String(guardado||"").split("$");
+  if(p.length!==4||p[0]!=="pbkdf2")return false;
+  return (await derivarSenha(senha,p[2],Number(p[1])||ADM_ITER))===p[3];
+}
+async function entrarAdmin(senha){
+  if(!senha){lmsg("Digite a senha","erro");return;}
+  lmsg("Verificando…");
+  let cfg=null;
+  if(navigator.onLine){
+    await aguardarAcesso(9000);
+    try{cfg=(await comTempo(db.ref("config").once("value"),12000)).val()||{};}catch(e){cfg=null;}
+  }
+  try{
+    if(cfg){
+      if(cfg.admHash){
+        if(!(await confereHashSenha(senha,cfg.admHash))){lmsg("Senha incorreta","erro");return;}
+        LS.set("admh",cfg.admHash);
+      }else if(cfg.admSenha){
+        if(String(cfg.admSenha)!==senha){lmsg("Senha incorreta","erro");return;}
+        // migração: passa a guardar só o hash e apaga a senha em texto puro
+        const h=await gerarHashSenha(senha);
+        LS.set("admh",h);
+        try{await comTempo(db.ref("config").update({admHash:h,admSenha:null}),12000);}catch(e){}
+      }else{
+        // nenhuma senha cadastrada ainda: o primeiro acesso do administrador define
+        if(senha.length<6){lmsg("Defina uma senha com pelo menos 6 caracteres","erro");return;}
+        if(!confirm("Ainda não existe senha de administrador cadastrada.\n\nA senha digitada será gravada como a senha do administrador. Confirmar?")){lmsg("");return;}
+        const h=await gerarHashSenha(senha);
+        await comTempo(db.ref("config/admHash").set(h),12000);
+        LS.set("admh",h);
+      }
+    }else{
+      // sem nuvem: confere com a senha guardada (em hash) no último acesso deste aparelho
+      const h=LS.get("admh","");
+      if(!h){lmsg("Sem conexão com a nuvem. O primeiro acesso do administrador neste aparelho precisa de internet.","erro");return;}
+      if(!(await confereHashSenha(senha,h))){lmsg("Senha incorreta","erro");return;}
+    }
+  }catch(e){lmsg("Não foi possível verificar a senha. Tente de novo.","erro");return;}
+  lmsg("");
+  iniciarSessao({nome:"Administrador",codigo:"000",id:"admin",admin:true});
 }
 function iniciarSessao(v){
   vendedor=v.nome; vendedorCodigo=padCod(v.codigo); vendedorId=v.id||"";
@@ -604,11 +661,17 @@ function iniciar(){
   // 3) conecta a nuvem (o SDK reconecta sozinho quando a internet volta)
   conectarFirebase();
   // 4) se já tem internet, envia o que estiver na fila
-  if(navigator.onLine)setTimeout(sincronizarAgora,1500);
+  setTimeout(()=>processarFila(false),1500);
   irPara(viewAtual);
 }
 function conectarFirebase(){
   if(!acessoPronto){quandoAcesso(conectarFirebase);return;}
+  // estado REAL da ligação com a nuvem (navigator.onLine sozinho engana com sinal fraco)
+  db.ref(".info/connected").on("value",s=>{
+    fbConectado=s.val()===true;
+    if(fbConectado){processarFila(false);processarNumeracao();}
+    if(viewAtual==="sync")render();
+  });
   db.ref("produtos").on("value",s=>{const a=toArr(s.val());if(a.length===0){if(produtos.length===0&&navigator.onLine)semear();return;}produtos=a;LS.set("produtos",a);reRender(["produtos","novo"]);});
   db.ref("clientes").on("value",s=>{const a=toArr(s.val());if(a.length===0&&clientes.length>0)return;clientes=a;LS.set("clientes",a);_cliIdx=null;pedidos.forEach(p=>{p._cidade=undefined;p._categoria=undefined;});reRender(["clientes","novo","central"]);});
   db.ref("categorias_cliente").on("value",s=>{const a=toArr(s.val());if(a.length===0&&catCliente.length>0)return;catCliente=a;LS.set("catCliente",a);reRender(["clientes"]);});
@@ -620,16 +683,17 @@ function conectarFirebase(){
   db.ref("fornecedores").on("value",s=>{const a=toArr(s.val());if(a.length===0&&fornecedores.length>0)return;fornecedores=a;LS.set("fornecedores",a);reRender(["fornecedores"]);});
   db.ref("empresa").on("value",s=>{const v=s.val();if(!v&&Object.keys(empresa).length>0)return;empresa=v||{};LS.set("empresa",empresa);reRender(["empresa"]);});
   db.ref("catalogo").on("value",s=>{cfgCatalogo=s.val()||{};reRender(["catalogoCfg"]);});
-  db.ref("config").on("value",s=>{const v=s.val()||{};if(v.codigoAtivacao)codigoAtivacao=v.codigoAtivacao;if(v.admSenha)admSenha=v.admSenha;reRender(["equipe"]);});
+  db.ref("config").on("value",s=>{const v=s.val()||{};if(v.codigoAtivacao)codigoAtivacao=v.codigoAtivacao;if(ehAdmin&&v.admHash)LS.set("admh",v.admHash);reRender(["equipe"]);});
   db.ref("comissoes").on("value",s=>{comissoesCfg=s.val()||{};if(viewAtual==="comissoes")render();});
   db.ref("vendedores").on("value",s=>{const a=toArr(s.val());if(a.length===0&&equipe.length>0)return;equipe=a;LS.set("equipe",a);reRender(["equipe"]);});
-  db.ref("pedidos").on("value",s=>{const a=toArr(s.val());if(a.length===0&&pedidosRemoto.length>0)return;pedidosRemoto=a;LS.set("pedidos",a);reconstruirPedidos();reRender(["central","clientes","home"]);});
+  db.ref("pedidos").on("value",s=>{const a=toArr(s.val());pedidosCarregado=true;if(a.length===0&&pedidosRemoto.length>0){processarFila(false);return;}pedidosRemoto=a;LS.set("pedidos",a);reconstruirPedidos();reRender(["central","clientes","home"]);processarNumeracao();processarFila(false);});
   db.ref("pedidos").on("child_added",s=>{
     const p=s.val();
     // pedido novo (ex: do catálogo) sem número: o admin atribui o próximo da sequência
     if(ehAdmin&&p&&(!p.numero||Number(p.numero)<=0)){
-      const prox=pedidosRemoto.reduce((m,x)=>Math.max(m,Number(x.numero)||0),1000)+1;
-      db.ref("pedidos/"+s.key+"/numero").set(prox);
+      // a numeração sai do contador central, e só depois que a lista de pedidos carregou
+      if(!filaNumerar.includes(s.key))filaNumerar.push(s.key);
+      processarNumeracao();
     }
     if(p&&p.data&&(Date.now()-new Date(p.data).getTime())<8000){
       destaqueId=s.key; if(viewAtual==="central")render();
@@ -642,8 +706,11 @@ function reconstruirPedidos(){
   // so as entradas SEM "op" sao pedidos novos aguardando envio.
   // as com op:"update" sao alteracoes de pedido ja existente e nao podem
   // virar um cartao novo na lista.
-  const pend=filaPendentes.filter(f=>f.col==="pedidos"&&!f.op).map(f=>({...f.data,id:f.tempId,_pendente:true}));
-  pedidos=[...pend,...pedidosRemoto].sort((a,b)=>(+new Date(b.data||0)||0)-(+new Date(a.data||0)||0));
+  const novos=filaPendentes.filter(f=>f.col==="pedidos"&&ehRegistroNovo(f));
+  // enquanto a nuvem não confirma, vale a cópia da fila (evita o pedido aparecer duas vezes)
+  const chaves=new Set(novos.map(f=>f.key).filter(Boolean));
+  const pend=novos.map(f=>({...f.data,id:f.tempId||f.key,_pendente:true}));
+  pedidos=[...pend,...pedidosRemoto.filter(p=>!chaves.has(p.id))].sort((a,b)=>(+new Date(b.data||0)||0)-(+new Date(a.data||0)||0));
 }
 function toArr(o){return o?Object.keys(o).map(k=>({id:k,...o[k]})):[];}
 function itensDe(o){const i=o&&o.itens;if(Array.isArray(i))return i;if(i&&typeof i==="object")return Object.keys(i).sort((a,b)=>a-b).map(k=>i[k]);return [];}
@@ -800,10 +867,10 @@ function viewSync(){
   const pend=filaPendentes.length;
   return `<h2 class="tit">Sincronização</h2>
     <div class="card" style="text-align:center">
-      <div style="font-size:44px">${online?'☁️':'📴'}</div>
-      <div style="font-size:18px;font-weight:800;margin-top:6px">${online?'Conectado':'Sem internet'}</div>
+      <div style="font-size:44px">${online?(nuvemOk()?'☁️':'⏳'):'📴'}</div>
+      <div style="font-size:18px;font-weight:800;margin-top:6px">${online?(nuvemOk()?'Conectado':'Conectando à nuvem…'):'Sem internet'}</div>
       <div style="font-size:13px;color:var(--cinza);margin-top:4px">
-        ${online?'Seus pedidos sincronizam automaticamente.':'Você pode tirar pedidos normalmente. Eles serão enviados quando a internet voltar.'}
+        ${online?(nuvemOk()?'Seus pedidos sincronizam automaticamente.':'O sinal está fraco. Seus pedidos estão guardados no aparelho e sobem sozinhos assim que a nuvem responder.'):'Você pode tirar pedidos normalmente. Eles serão enviados quando a internet voltar.'}
       </div>
     </div>
     <div class="card">
@@ -931,7 +998,7 @@ function viewRepresentadas(){
     const nPed=pedidosVis().filter(p=>(p.representada||"EIKO VIDA")===nome).length;
     return `<div class="card" style="padding:12px">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
-        <div class="thumb" onclick="ampliarLogoRep('${esc(nome)}')" style="width:52px;height:52px;border-radius:10px;border:1px solid var(--borda);cursor:pointer;background:#fff;flex-shrink:0">
+        <div class="thumb" onclick="ampliarLogoRep('${escq(nome)}')" style="width:52px;height:52px;border-radius:10px;border:1px solid var(--borda);cursor:pointer;background:#fff;flex-shrink:0">
           ${imgLogo(nome,"width:100%;height:100%;object-fit:contain")}
         </div>
         <div style="flex:1;min-width:0">
@@ -942,8 +1009,8 @@ function viewRepresentadas(){
         ${ehAdmin&&r.id?`<button class="icbtn btn-g" onclick="editarRepres('${r.id}')">\u270e</button>`:""}
       </div>
       <div class="row" style="margin-top:8px">
-        <button class="btn btn-w btn-sm" style="flex:1" onclick="enviarCatalogo('${esc(nome)}')">\ud83d\udcf2 Enviar cat\u00e1logo</button>
-        <button class="btn btn-g btn-sm" onclick="window.open(linkCatalogo('${esc(nome)}'),'_blank')">Ver</button>
+        <button class="btn btn-w btn-sm" style="flex:1" onclick="enviarCatalogo('${escq(nome)}')">\ud83d\udcf2 Enviar cat\u00e1logo</button>
+        <button class="btn btn-g btn-sm" onclick="window.open(linkCatalogo('${escq(nome)}'),'_blank')">Ver</button>
       </div>
       ${ehAdmin&&r.id?`<button class="btn btn-r btn-sm" style="width:100%;margin-top:6px" onclick="excluirRepres('${r.id}')">\ud83d\uddd1 Excluir</button>`:""}
     </div>`;
@@ -1134,14 +1201,14 @@ function viewTransportadoras(){
 function salvarTransp(){
   const o={nome:val("trNome"),telefone:val("trTel"),cidade:val("trCid")};
   if(!o.nome){toast("Informe o nome");return;}
-  if(navigator.onLine){
+  if(nuvemOk()){
     if(transpEdit)db.ref("transportadoras/"+transpEdit.id).update(o);else db.ref("transportadoras").push(o);
   }else{
     if(transpEdit){const i=transportadoras.findIndex(t=>t.id===transpEdit.id);if(i>=0)transportadoras[i]={...transportadoras[i],...o};filaPendentes.push({col:"transportadoras",op:"update",id:transpEdit.id,data:o});}
     else{const tempId="local_"+Date.now();transportadoras.push({id:tempId,...o});filaPendentes.push({col:"transportadoras",op:"push",data:o,tempId});}
     LS.set("transportadoras",transportadoras);LS.set("fila",filaPendentes);
   }
-  transpEdit=null;toast(navigator.onLine?"Transportadora salva":"Salva offline ✓");render();
+  transpEdit=null;toast(nuvemOk()?"Transportadora salva":"Salva offline ✓");render();
 }
 function editarTransp(id){transpEdit=transportadoras.find(t=>t.id===id);render();window.scrollTo(0,0);}
 function excluirTransp(id){if(confirm("Excluir transportadora?"))db.ref("transportadoras/"+id).remove();}
@@ -1213,7 +1280,7 @@ async function marcarTodosPagos(valor){
 function marcarRecebido(id,val){
   const p=pedidos.find(x=>x.id===id);
   if(p&&p._pendente){toast("Pedido ainda não sincronizado");return;}
-  if(navigator.onLine)db.ref("pedidos/"+id+"/recebido").set(val);
+  if(nuvemOk())db.ref("pedidos/"+id+"/recebido").set(val);
   else{filaPendentes.push({col:"pedidos",op:"update",id:id,data:{recebido:val}});const pr=pedidosRemoto.find(x=>x.id===id);if(pr)pr.recebido=val;LS.set("fila",filaPendentes);reconstruirPedidos();render();}
 }
 
@@ -1271,11 +1338,11 @@ function viewAgenda(){
 function salvarAgenda(){
   const o={cliente:val("agCli"),tipo:val("agTipo"),data:val("agData"),hora:val("agHora"),obs:val("agObs"),feito:agendaEdit?!!agendaEdit.feito:false};
   if(!o.data){toast("Escolha a data");return;}
-  if(navigator.onLine){if(agendaEdit)db.ref("agenda/"+agendaEdit.id).update(o);else db.ref("agenda").push(o);}
+  if(nuvemOk()){if(agendaEdit)db.ref("agenda/"+agendaEdit.id).update(o);else db.ref("agenda").push(o);}
   else{if(agendaEdit){const i=agenda.findIndex(a=>a.id===agendaEdit.id);if(i>=0)agenda[i]={...agenda[i],...o};filaPendentes.push({col:"agenda",op:"update",id:agendaEdit.id,data:o});}else{const tempId="local_"+Date.now();agenda.push({id:tempId,...o});filaPendentes.push({col:"agenda",op:"push",data:o,tempId});}LS.set("agenda",agenda);LS.set("fila",filaPendentes);}
-  agendaEdit=null;toast(navigator.onLine?"Agendado":"Agendado offline ✓");render();
+  agendaEdit=null;toast(nuvemOk()?"Agendado":"Agendado offline ✓");render();
 }
-function marcarAgenda(id,v){if(navigator.onLine)db.ref("agenda/"+id+"/feito").set(v);else{const a=agenda.find(x=>x.id===id);if(a)a.feito=v;LS.set("agenda",agenda);filaPendentes.push({col:"agenda",op:"update",id,data:{feito:v}});LS.set("fila",filaPendentes);render();}}
+function marcarAgenda(id,v){if(nuvemOk())db.ref("agenda/"+id+"/feito").set(v);else{const a=agenda.find(x=>x.id===id);if(a)a.feito=v;LS.set("agenda",agenda);filaPendentes.push({col:"agenda",op:"update",id,data:{feito:v}});LS.set("fila",filaPendentes);render();}}
 function editarAgenda(id){agendaEdit=agenda.find(a=>a.id===id);render();window.scrollTo(0,0);}
 function excluirAgenda(id){if(confirm("Excluir compromisso?"))db.ref("agenda/"+id).remove();}
 
@@ -1308,9 +1375,9 @@ function viewFornecedores(){
 function salvarForn(){
   const o={nome:val("foNome"),cnpj:val("foCnpj"),telefone:val("foTel"),cidade:val("foCid"),obs:val("foObs")};
   if(!o.nome){toast("Informe o nome");return;}
-  if(navigator.onLine){if(fornEdit)db.ref("fornecedores/"+fornEdit.id).update(o);else db.ref("fornecedores").push(o);}
+  if(nuvemOk()){if(fornEdit)db.ref("fornecedores/"+fornEdit.id).update(o);else db.ref("fornecedores").push(o);}
   else{if(fornEdit){const i=fornecedores.findIndex(x=>x.id===fornEdit.id);if(i>=0)fornecedores[i]={...fornecedores[i],...o};filaPendentes.push({col:"fornecedores",op:"update",id:fornEdit.id,data:o});}else{const tempId="local_"+Date.now();fornecedores.push({id:tempId,...o});filaPendentes.push({col:"fornecedores",op:"push",data:o,tempId});}LS.set("fornecedores",fornecedores);LS.set("fila",filaPendentes);}
-  fornEdit=null;toast(navigator.onLine?"Fornecedor salvo":"Salvo offline ✓");render();
+  fornEdit=null;toast(nuvemOk()?"Fornecedor salvo":"Salvo offline ✓");render();
 }
 function editarForn(id){fornEdit=fornecedores.find(x=>x.id===id);render();window.scrollTo(0,0);}
 function excluirForn(id){if(confirm("Excluir fornecedor?"))db.ref("fornecedores/"+id).remove();}
@@ -1341,12 +1408,12 @@ function viewEmpresa(){
     </div>
     ${ehAdmin?`<div class="card" style="border:2px solid var(--dourado);background:#fffdf5">
       <div style="font-weight:700;font-size:14px;margin-bottom:2px">\ud83d\udd11 Senha do administrador</div>
-      <div style="font-size:12px;color:#555;margin-bottom:8px">Esta \u00e9 a senha do login <b>${esc(ADMIN_USER)}</b>. Use 6 d\u00edgitos.</div>
+      <div style="font-size:12px;color:#555;margin-bottom:8px">Esta \u00e9 a senha do login <b>${esc(ADMIN_USER)}</b>. M\u00ednimo de 6 caracteres; pode misturar letras e n\u00fameros (recomendado).</div>
       <div class="fgrid">
-        <div><label class="lb">Senha atual</label><input class="inp" id="asAtual" type="password" inputmode="numeric" maxlength="6" placeholder="\u2022\u2022\u2022\u2022\u2022\u2022"/></div>
-        <div><label class="lb">Nova senha</label><input class="inp" id="asNova" type="password" inputmode="numeric" maxlength="6" placeholder="6 d\u00edgitos"/></div>
+        <div><label class="lb">Senha atual</label><input class="inp" id="asAtual" type="password" maxlength="30" autocomplete="off" placeholder="\u2022\u2022\u2022\u2022\u2022\u2022"/></div>
+        <div><label class="lb">Nova senha</label><input class="inp" id="asNova" type="password" maxlength="30" autocomplete="off" placeholder="m\u00edn. 6 caracteres"/></div>
       </div>
-      <div style="margin-top:8px"><label class="lb">Repita a nova senha</label><input class="inp" id="asNova2" type="password" inputmode="numeric" maxlength="6" placeholder="6 d\u00edgitos" style="margin-top:2px"/></div>
+      <div style="margin-top:8px"><label class="lb">Repita a nova senha</label><input class="inp" id="asNova2" type="password" maxlength="30" autocomplete="off" placeholder="m\u00edn. 6 caracteres" style="margin-top:2px"/></div>
       <button class="btn btn-v" style="width:100%;margin-top:12px" onclick="trocarSenhaAdmin()">Trocar senha do administrador</button>
     </div>`:""}`;
 }
@@ -1354,13 +1421,16 @@ async function trocarSenhaAdmin(){
   if(!ehAdmin){toast("Somente o administrador");return;}
   const atual=String(val("asAtual")||"").trim();
   const n1=String(val("asNova")||"").trim(), n2=String(val("asNova2")||"").trim();
-  if(atual!==admSenha&&atual!==ADMIN_SENHA_PADRAO){toast("Senha atual incorreta");return;}
-  if(!/^\d{6}$/.test(n1)){toast("A nova senha deve ter 6 d\u00edgitos");return;}
+  if(n1.length<6){toast("A nova senha precisa de pelo menos 6 caracteres");return;}
   if(n1!==n2){toast("As senhas n\u00e3o conferem");return;}
-  if(!navigator.onLine){toast("Precisa de internet para trocar a senha");return;}
+  if(!nuvemOk()){toast("Precisa de internet para trocar a senha");return;}
   try{
-    await db.ref("config/admSenha").set(n1);
-    admSenha=n1;
+    const cfg=(await comTempo(db.ref("config").once("value"),12000)).val()||{};
+    const confere=cfg.admHash?await confereHashSenha(atual,cfg.admHash):(cfg.admSenha?String(cfg.admSenha)===atual:true);
+    if(!confere){toast("Senha atual incorreta");return;}
+    const h=await gerarHashSenha(n1);
+    await comTempo(db.ref("config").update({admHash:h,admSenha:null}),12000);
+    LS.set("admh",h);
     toast("Senha do administrador trocada \u2713");
     ["asAtual","asNova","asNova2"].forEach(id=>{const e=document.getElementById(id);if(e)e.value="";});
   }catch(e){toast("N\u00e3o foi poss\u00edvel salvar. Tente de novo.");}
@@ -1368,9 +1438,9 @@ async function trocarSenhaAdmin(){
 function salvarEmpresa(){
   const o={razao:val("emNome"),frase:val("emFrase"),cnpj:val("emCnpj"),ie:val("emIe"),telefone:val("emTel"),email:val("emEmail"),endereco:val("emEnd"),site:val("emSite")};
   empresa=o;LS.set("empresa",o);
-  if(navigator.onLine)db.ref("empresa").set(o);
+  if(nuvemOk())db.ref("empresa").set(o);
   else{filaPendentes.push({col:"empresa",op:"set",data:o});LS.set("fila",filaPendentes);}
-  toast(navigator.onLine?"Empresa salva":"Salvo offline ✓");render();
+  toast(nuvemOk()?"Empresa salva":"Salvo offline ✓");render();
 }
 
 /* ====== MINHA EQUIPE ====== */
@@ -1389,7 +1459,7 @@ function viewCatalogoCfg(){
     <div style="font-weight:700;font-size:13px;margin-bottom:6px">Editando o catálogo de:</div>
     <div class="chips">
       <button class="chip ${catRepEdit===""?"on":""}" onclick="catRepEdit='';destTmp=null;render()">🌐 Completo</button>
-      ${representadas().map(r=>`<button class="chip ${catRepEdit===r?"on":""}" onclick="catRepEdit='${esc(r)}';destTmp=null;render()">${esc(r)}</button>`).join("")}
+      ${representadas().map(r=>`<button class="chip ${catRepEdit===r?"on":""}" onclick="catRepEdit='${escq(r)}';destTmp=null;render()">${esc(r)}</button>`).join("")}
     </div>
     <div style="font-size:11px;color:var(--cinza);margin-top:6px">${catRepEdit?("Estas informações aparecem só no catálogo da "+esc(catRepEdit)+". Logotipo: envie a imagem com o nome <b>"+esc(nomeLogo(catRepEdit))+"</b>."):"Aparece no catálogo completo, com todos os produtos."}</div>
     ${catRepEdit?(()=>{const oc=produtos.filter(p=>(p.marca||"EIKO VIDA")===catRepEdit&&p.catalogo===false).length;
@@ -1474,7 +1544,7 @@ function viewCatalogoCfg(){
     <div style="font-size:12px;color:var(--cinza);margin-top:6px">Links por representada:</div>
     ${representadas().map(r=>`<div style="background:#f8f8f6;border-radius:8px;padding:7px 10px;font-size:12px;margin-top:4px;display:flex;justify-content:space-between;gap:8px;align-items:center">
       <span style="word-break:break-all">${esc(linkCatalogo(r))}</span>
-      <button class="btn btn-g btn-sm" onclick="copiar(linkCatalogo('${esc(r)}'),'Link copiado \u2713')">Copiar</button></div>`).join("")}
+      <button class="btn btn-g btn-sm" onclick="copiar(linkCatalogo('${escq(r)}'),'Link copiado \u2713')">Copiar</button></div>`).join("")}
     <div class="row" style="margin-top:8px">
       <button class="btn btn-v btn-sm" style="flex:1" onclick="copiar(URL_CATALOGO,'Link copiado ✓')">Copiar</button>
       <button class="btn btn-w btn-sm" style="flex:1" onclick="enviarCatalogo('')">📲 Enviar p/ lojista</button>
@@ -1837,9 +1907,9 @@ function salvarVend(){
   if(equipe.some(x=>padCod(x.codigo)===cod&&(!vendEdit||x.id!==vendEdit.id))){toast("Já existe vendedor com o código "+cod);return;}
   o.codigo=cod;
   if(!vendEdit)o.ativo=true;
-  if(navigator.onLine){if(vendEdit)db.ref("vendedores/"+vendEdit.id).update(o);else db.ref("vendedores").push(o);}
+  if(nuvemOk()){if(vendEdit)db.ref("vendedores/"+vendEdit.id).update(o);else db.ref("vendedores").push(o);}
   else{if(vendEdit){const i=equipe.findIndex(x=>x.id===vendEdit.id);if(i>=0)equipe[i]={...equipe[i],...o};filaPendentes.push({col:"vendedores",op:"update",id:vendEdit.id,data:o});}else{const tempId="local_"+Date.now();equipe.push({id:tempId,...o});filaPendentes.push({col:"vendedores",op:"push",data:o,tempId});}LS.set("equipe",equipe);LS.set("fila",filaPendentes);}
-  vendEdit=null;toast(navigator.onLine?"Vendedor salvo":"Salvo offline ✓");render();
+  vendEdit=null;toast(nuvemOk()?"Vendedor salvo":"Salvo offline ✓");render();
 }
 function gerarCodAtivacao(){
   const L="ABCDEFGHJKLMNPQRSTUVWXYZ23456789";let s="EK";
@@ -1986,9 +2056,32 @@ function selo(rep){
     <i style="display:none">${esc(iniciaisRep(r))}</i></span>`;
 }
 async function baixarJson(arq){
-  const r=await fetch(arq+"?v="+Date.now());
-  if(!r.ok)throw new Error("arquivo");
-  return await r.json();
+  try{
+    const r=await fetch(arq+"?v="+Date.now());
+    if(r.ok)return await r.json();
+  }catch(e){}
+  // arquivos com dados de pedidos não ficam mais publicados no site:
+  // o administrador escolhe a cópia guardada no próprio aparelho
+  if(arq==="itens-pedidos.json")return await escolherJsonDoAparelho();
+  throw new Error("arquivo");
+}
+function escolherJsonDoAparelho(){
+  return new Promise((ok,erro)=>{
+    const falhou=()=>erro(new Error("arquivo"));
+    const inp=document.createElement("input");
+    inp.type="file";inp.accept=".json,application/json";inp.style.display="none";
+    inp.onchange=()=>{
+      const f=inp.files&&inp.files[0];inp.remove();
+      if(!f){falhou();return;}
+      const fr=new FileReader();
+      fr.onload=()=>{try{ok(JSON.parse(String(fr.result)));}catch(e){falhou();}};
+      fr.onerror=falhou;
+      fr.readAsText(f);
+    };
+    inp.oncancel=()=>{inp.remove();falhou();};
+    document.body.appendChild(inp);
+    inp.click();
+  });
 }
 async function diagRelatorio(){
   const el=document.getElementById("relProg");
@@ -2000,7 +2093,7 @@ async function diagRelatorio(){
   let base=null;
   try{base=await baixarJson("itens-pedidos.json");}
   catch(e){
-    L.push('<span style="color:#b91c1c">\u274c N\u00e3o encontrei o arquivo <b>itens-pedidos.json</b>. Envie-o para a mesma pasta do aplicativo.</span>');
+    L.push('<span style="color:#b91c1c">\u274c N\u00e3o recebi o arquivo <b>itens-pedidos.json</b>. Toque de novo e escolha a c\u00f3pia guardada no seu aparelho (ele n\u00e3o fica mais publicado no site).</span>');
     if(el)el.innerHTML=L.join("<br>");return;
   }
   const chaves=Object.keys(base);
@@ -2526,7 +2619,7 @@ function atualizarStatusRede(){
   if(live)live.innerHTML=online?'<span class="dot"></span> Online':'<span class="dot" style="background:#ef4444"></span> Offline';
   if(["home","sync"].includes(viewAtual))render();
 }
-function aoVoltarOnline(){atualizarStatusRede();sincronizarAgora();}
+function aoVoltarOnline(){atualizarStatusRede();processarFila(false);}
 let autoSyncTimer=null, ultimaSync=0;
 function avisoSoCelular(){
   return `<div class="avisopc">
@@ -2548,44 +2641,141 @@ function aplicarModoPC(){
 function iniciarAutoSync(){
   if(autoSyncTimer)clearInterval(autoSyncTimer);
   autoSyncTimer=setInterval(()=>sincronizarSilencioso(),600000);
+  // enquanto houver item guardado, tenta de novo a cada minuto
+  setInterval(()=>{if(filaPendentes.length)processarFila(false);},60000);
   let tRe=null;
   window.addEventListener("resize",()=>{clearTimeout(tRe);tRe=setTimeout(()=>{const antes=document.body.classList.contains("pc");aplicarModoPC();if(antes!==document.body.classList.contains("pc"))render();},250);});
   document.addEventListener("visibilitychange",()=>{if(!document.hidden&&Date.now()-ultimaSync>600000)sincronizarSilencioso();});
   window.addEventListener("online",()=>sincronizarSilencioso());
 }
-async function sincronizarSilencioso(){
-  if(!navigator.onLine||!acessoPronto)return;
-  ultimaSync=Date.now();
+/* ====== FILA DURÁVEL ======
+   Nada sai da fila antes de a nuvem CONFIRMAR o recebimento.
+   - registro novo: a chave é gerada uma única vez e o envio é por chave -> reenviar não duplica;
+   - se o app for fechado no meio do envio (ex.: ao abrir o WhatsApp), o item continua
+     guardado no aparelho e é reenviado na próxima abertura;
+   - item que já pode ter chegado numa sessão anterior é conferido antes de reenviar,
+     para não passar por cima de alteração feita depois pelo administrador. */
+let fbConectado=false, pedidosCarregado=false, filaRodando=false, filaDeNovo=false, seqNegado=false;
+const tentouSessao=new Set(), filaNumerar=[];
+let numerando=false;
+const ESPERA_NUVEM=20000;
+function nuvemOk(){return navigator.onLine&&fbConectado&&acessoPronto;}
+function salvarFila(){LS.set("fila",filaPendentes);}
+function ehRegistroNovo(f){return !f.op||f.op==="push"||f.op==="create";}
+function tirarDaFila(f){const i=filaPendentes.indexOf(f);if(i>=0){filaPendentes.splice(i,1);salvarFila();}}
+function comTempo(p,ms){return new Promise((ok,erro)=>{const t=setTimeout(()=>erro(new Error("tempo")),ms);Promise.resolve(p).then(v=>{clearTimeout(t);ok(v);},e=>{clearTimeout(t);erro(e);});});}
+function maiorNumeroRemoto(){
+  const fora=new Set(filaPendentes.filter(f=>f.col==="pedidos"&&ehRegistroNovo(f)&&f.key).map(f=>f.key));
+  return pedidosRemoto.reduce((m,p)=>fora.has(p.id)?m:Math.max(m,Number(p.numero)||0),1000);
+}
+// contador central de numeração: dois aparelhos nunca recebem o mesmo número.
+// devolve 0 quando não foi possível usar o contador (aí vale a numeração local, como antes).
+async function alocarNumero(){
+  if(seqNegado)return 0;
   try{
-    if(filaPendentes.length){
-      const fila=[...filaPendentes];
-      fila.forEach(f=>{
-        if(f.op==="update"&&f.id)db.ref(f.col+"/"+f.id).update(f.data);
-        else if(f.op==="set")db.ref(f.col).set(f.data);
-        else db.ref(f.col).push(f.data);
-      });
-      filaPendentes=[];LS.set("fila",[]);reconstruirPedidos();
+    let n=0;
+    for(let i=0;i<3;i++){
+      const minimo=maiorNumeroRemoto();
+      const r=await comTempo(db.ref("config/seqPedido").transaction(cur=>Math.max(Number(cur)||0,minimo)+1),ESPERA_NUVEM);
+      if(!(r&&r.committed))return 0;
+      n=Number(r.snapshot.val())||0;
+      // a resposta da nuvem chega depois da lista de pedidos atualizada: confere de novo
+      // (protege contra aparelho ainda na versão antiga, que numera sem o contador)
+      if(n>maiorNumeroRemoto())break;
     }
-    LS.set("ultimaSync",ultimaSync);
+    return n;
+  }catch(e){
+    if(String(e&&e.message)==="tempo")throw e;   // sem resposta da nuvem: tenta de novo depois
+    seqNegado=true;return 0;                     // contador indisponível: segue com a numeração local
+  }
+}
+async function enviarItemFila(f){
+  if(f.op==="update"){await comTempo(db.ref(f.id?f.col+"/"+f.id:f.col).update(f.data),ESPERA_NUVEM);return;}
+  if(f.op==="set"){await comTempo(db.ref(f.col).set(f.data),ESPERA_NUVEM);return;}
+  // registro novo
+  if(!f.key){f.key=db.ref(f.col).push().key;salvarFila();}
+  const caminho=f.col+"/"+f.key, ref=db.ref(caminho);
+  if(f.t&&!tentouSessao.has(caminho)){
+    // já houve tentativa numa abertura anterior do app: confere se chegou
+    tentouSessao.add(caminho);
+    const snap=await comTempo(ref.once("value"),ESPERA_NUVEM);
+    if(snap.exists()){
+      if((f.rev||0)!==(f.revEnv||0)){f.revEnv=f.rev||0;salvarFila();await comTempo(ref.update(f.data),ESPERA_NUVEM);}
+      return;
+    }
+  }
+  if(f.col==="pedidos"&&f.numProv){
+    if(!pedidosCarregado)throw new Error("tempo");
+    const n=await alocarNumero();
+    if(n&&Number(f.data.numero)!==n){
+      const antes=f.data.numero;f.data.numero=n;
+      toast("Pedido "+antes+" passou a ser o Nº "+n+" (o número já estava em uso)");
+    }
+    f.numProv=false;salvarFila();
+  }
+  tentouSessao.add(caminho);
+  f.t=Date.now();f.revEnv=f.rev||0;salvarFila();
+  await comTempo(ref.set(f.data),ESPERA_NUVEM);
+}
+async function processarFila(avisar){
+  if(filaRodando){filaDeNovo=true;return;}
+  if(!filaPendentes.length||!nuvemOk())return;
+  filaRodando=true;
+  let enviados=0;const pulados=new Set();
+  try{
+    for(;;){
+      const f=filaPendentes.find(x=>!pulados.has(x));
+      if(!f||!nuvemOk())break;
+      const rev=f.rev||0;
+      try{
+        await enviarItemFila(f);
+        if((f.rev||0)!==rev)continue;            // foi editado durante o envio: manda a versão nova
+        tirarDaFila(f);enviados++;
+        if(f.col==="pedidos"&&ehRegistroNovo(f)&&f.data&&f.data.numero)toast("Pedido Nº "+f.data.numero+" confirmado na nuvem ✓");
+      }catch(e){
+        pulados.add(f);
+        if(String(e&&e.message)==="tempo")break; // nuvem não respondeu: para e tenta mais tarde
+        f.erro=String((e&&e.message)||e).slice(0,120);salvarFila();
+      }
+    }
+  }finally{filaRodando=false;}
+  ultimaSync=Date.now();LS.set("ultimaSync",ultimaSync);
+  reconstruirPedidos();
+  if(enviados){
+    if(avisar)toast(enviados+" item(ns) sincronizado(s) ✓");
     atualizarStatusRede();
     reRender(["central","home","sync","clientes","produtos","relatorios"]);
+  }
+  if(filaDeNovo){filaDeNovo=false;processarFila(false);}
+}
+// numera pedidos que chegam sem número (catálogo). Só o administrador faz, um de cada vez.
+async function processarNumeracao(){
+  if(numerando||!ehAdmin||!pedidosCarregado||!nuvemOk()||!filaNumerar.length)return;
+  numerando=true;
+  try{
+    while(filaNumerar.length){
+      const key=filaNumerar[0], p=pedidosRemoto.find(x=>x.id===key);
+      if(p&&(!p.numero||Number(p.numero)<=0)){
+        let n=await alocarNumero();
+        if(!n)n=maiorNumeroRemoto()+1;
+        // só grava se continuar sem número (outro aparelho do administrador pode ter numerado antes)
+        await comTempo(db.ref("pedidos/"+key+"/numero").transaction(cur=>(cur&&Number(cur)>0)?undefined:n),ESPERA_NUVEM);
+        const pr=pedidosRemoto.find(x=>x.id===key);if(pr&&!(Number(pr.numero)>0))pr.numero=n;
+      }
+      filaNumerar.shift();
+    }
   }catch(e){}
+  numerando=false;
+}
+async function sincronizarSilencioso(){
+  if(!navigator.onLine||!acessoPronto)return;
+  await processarFila(false);
 }
 function sincronizarAgora(){
   if(!navigator.onLine){toast("Sem internet ainda");return;}
-  if(!acessoPronto){quandoAcesso(sincronizarAgora);return;}
   if(filaPendentes.length===0){atualizarStatusRede();return;}
-  const fila=[...filaPendentes];
-  fila.forEach(f=>{
-    if(f.op==="update"&&f.id)db.ref(f.col+"/"+f.id).update(f.data);
-    else if(f.op==="set")db.ref(f.col).set(f.data);
-    else db.ref(f.col).push(f.data);
-  });
-  filaPendentes=[];
-  LS.set("fila",[]);
-  reconstruirPedidos();
-  toast(fila.length+" item(ns) sincronizado(s) ✓");
-  if(["home","sync","central"].includes(viewAtual))render();
+  if(!nuvemOk()){toast("Conectando à nuvem… os itens sobem sozinhos assim que ela responder");return;}
+  processarFila(true);
 }
 
 function render(){
@@ -2642,10 +2832,11 @@ function tabelasDaRepres(r){
   const alvo=r||"EIKO VIDA";
   return tabelas.filter(t=>!t.representada||t.representada===alvo);
 }
+function centavos(v){return Math.round((Number(v)||0)*100+1e-7)/100;}
 function calcTotais(){
-  const bruto=Object.entries(carrinho).reduce((s,[id,it])=>s+(it.qtd*it.preco),0);
+  const bruto=centavos(Object.entries(carrinho).reduce((s,[id,it])=>s+(it.qtd*it.preco),0));
   const perc=parseFloat(ped.descPerc)||0;
-  const total=ped.descTipo==="desc"?bruto*(1-perc/100):bruto*(1+perc/100);
+  const total=centavos(ped.descTipo==="desc"?bruto*(1-perc/100):bruto*(1+perc/100));
   const qtd=Object.values(carrinho).reduce((s,it)=>s+it.qtd,0);
   return {bruto,total,qtd,perc};
 }
@@ -2722,7 +2913,7 @@ function viewCabecalho(){
     <div class="card">
       <label class="lb" style="display:block">Representada *</label>
       <div class="chips" style="margin-top:6px">
-        ${representadas().map(r=>`<button class="chip ${(ped.representada||"EIKO VIDA")===r?"on":""}" onclick="upd('representada','${esc(r)}')">${esc(r)}</button>`).join("")}
+        ${representadas().map(r=>`<button class="chip ${(ped.representada||"EIKO VIDA")===r?"on":""}" onclick="upd('representada','${escq(r)}')">${esc(r)}</button>`).join("")}
       </div>
       <div style="font-size:11px;color:var(--cinza);margin-top:4px">${produtosDoPedido().length} produto(s) e ${tabelasDaRepres(ped.representada).length} tabela(s) dispon\u00edveis</div>
       <label class="lb" style="margin-top:12px;display:block">Cliente *</label>
@@ -3025,27 +3216,29 @@ function finalizar(enviar){
     pedido.data=alvo.data||pedido.data;
     pedido.editadoEm=new Date().toISOString();
     pedido.editadoPor=vendedor;
-    if(editandoPedido.pendente){
-      // ainda na fila: atualiza o item pendente
-      const f=filaPendentes.find(x=>x.tempId===editandoPedido.id||x.tempId===editandoPedido.tempId);
-      if(f)f.data={...f.data,...pedido};
-      LS.set("fila",filaPendentes);
+    const f=editandoPedido.pendente?filaPendentes.find(x=>ehRegistroNovo(x)&&(x.tempId===editandoPedido.id||x.key===editandoPedido.id||(editandoPedido.tempId&&x.tempId===editandoPedido.tempId))):null;
+    if(f){
+      // ainda na fila: atualiza o item pendente (e reenvia a versão nova se já estava a caminho)
+      f.data={...f.data,...pedido};f.rev=(f.rev||0)+1;
+      salvarFila();
       reconstruirPedidos();
-    }else if(navigator.onLine){
-      db.ref("pedidos/"+editandoPedido.id).update(pedido);
+      processarFila(false);
+    }else if(/^local_/.test(String(editandoPedido.id))){
+      // pedido antigo da fila que acabou de subir: o identificador mudou, é preciso reabrir
+      toast("Este pedido acabou de ser enviado. Abra-o de novo na Central para editar.");
+      editandoPedido=null;render();return;
     }else{
-      filaPendentes.push({col:"pedidos",op:"update",id:editandoPedido.id,data:pedido});
-      LS.set("fila",filaPendentes);
+      gravarPedido(editandoPedido.id,pedido);
     }
     toast("Pedido "+numero+" atualizado ✓");
     editandoPedido=null;
-  }else if(navigator.onLine){
-    db.ref("pedidos").push(pedido);
   }else{
-    const tempId="local_"+Date.now();
-    filaPendentes.push({col:"pedidos",data:pedido,tempId,quando:Date.now()});
-    LS.set("fila",filaPendentes);
+    // pedido novo: fica guardado no aparelho e só sai da fila quando a nuvem confirma
+    const chave=db.ref("pedidos").push().key;
+    filaPendentes.push({col:"pedidos",data:pedido,tempId:chave,key:chave,numProv:true,quando:Date.now()});
+    salvarFila();
     reconstruirPedidos();
+    processarFila(false);
   }
   if(enviar){const alvo=soDig(cli.whatsapp)?("55"+soDig(cli.whatsapp).replace(/^55/,"")):WHATS_EMPRESA;window.open(`https://wa.me/${alvo}?text=${encodeURIComponent(textoPedido(pedido))}`,"_blank");}
   // reset
@@ -3054,7 +3247,7 @@ function finalizar(enviar){
   document.body.classList.remove("com-barra");
   document.getElementById("barraTotal").classList.add("hide");
   ped={status:"Pedido",representada:"EIKO VIDA",consumidorFinal:false,dataEmissao:new Date().toISOString().slice(0,10),dataFat:"",previsao:"",cond:"",forma:"",tabela:"",descTipo:"desc",descPerc:"",obsCli:"",obsEmp:"",ordemCompra:"",transportadora:""};
-  toast(navigator.onLine?"Pedido enviado!":"Pedido salvo no celular — envia quando a internet voltar");render();
+  toast(nuvemOk()?"Pedido salvo ✓ — enviando para a nuvem…":"Pedido salvo no celular — envia sozinho quando a nuvem responder");render();
 }
 
 function textoPedido(o){
@@ -3805,7 +3998,7 @@ function salvarPix(){
   const dados={pixTipo:tipo,pixChave:chave,
     pixNome:String(val("pixNome")||"").trim(),pixCidade:String(val("pixCidade")||"").trim()};
   empresa=Object.assign({},empresa,dados);
-  if(navigator.onLine)db.ref("empresa").update(dados);
+  if(nuvemOk())db.ref("empresa").update(dados);
   else{filaPendentes.push({col:"empresa",op:"update",id:"",data:dados});LS.set("fila",filaPendentes);}
   toast("Chave Pix salva ✓");render();
 }
@@ -3876,20 +4069,9 @@ function gravarPedido(id,dados){
   const pr=pedidosRemoto.find(x=>x.id===id);
   if(pr)Object.assign(pr,dados);
   LS.set("pedidos",pedidosRemoto);
-  const item={col:"pedidos",op:"update",id:id,data:dados};
-  filaPendentes.push(item);
-  LS.set("fila",filaPendentes);
-  const concluir=()=>{
-    const i=filaPendentes.indexOf(item);
-    if(i>=0){filaPendentes.splice(i,1);LS.set("fila",filaPendentes);}
-  };
-  if(navigator.onLine){
-    try{
-      const r=db.ref("pedidos/"+id).update(dados);
-      if(r&&typeof r.then==="function")r.then(concluir,()=>{});
-      else concluir();
-    }catch(e){}
-  }
+  filaPendentes.push({col:"pedidos",op:"update",id:id,data:dados});
+  salvarFila();
+  processarFila(false);
   reconstruirPedidos();
 }
 function mudarSituacao(id,sit){
@@ -4464,21 +4646,21 @@ function salvarCli(){
     complemento:val("cCompl"),cidade:val("cCidade"),uf:val("cUf"),obs:val("cObs")};
   if(!o.nome){toast("Informe o nome");return;}
   if(!editCli){o.vendedorCodigo=vendedorCodigo||"";o.vendedorNome=vendedor||"";o.criadoEm=new Date().toISOString();}
-  if(navigator.onLine){
+  if(nuvemOk()){
     if(editCli){db.ref("clientes/"+editCli.id).update(o);}else db.ref("clientes").push(o);
   }else{
     if(editCli){
       const i=clientes.findIndex(c=>c.id===editCli.id);if(i>=0)clientes[i]={...clientes[i],...o};
       filaPendentes.push({col:"clientes",op:"update",id:editCli.id,data:o});
     }else{
-      const tempId="local_"+Date.now();
+      const tempId=db.ref("clientes").push().key;
       clientes.push({id:tempId,...o});
-      filaPendentes.push({col:"clientes",op:"push",data:o,tempId});
+      filaPendentes.push({col:"clientes",op:"push",data:o,tempId,key:tempId});
     }
     LS.set("clientes",clientes);LS.set("fila",filaPendentes);
   }
   editCli=null;
-  toast(navigator.onLine?"Cliente salvo":"Cliente salvo offline ✓");render();
+  toast(nuvemOk()?"Cliente salvo":"Cliente salvo offline ✓");render();
 }
 function setV(id,v){const e=document.getElementById(id);if(e&&v)e.value=v;}
 async function buscarCNPJ(){
@@ -4642,7 +4824,7 @@ function viewProdutos(){
   const daRep=p=>!filtroRepProd||(p.marca||"EIKO VIDA")===filtroRepProd;
   const chipsRep=reps.length>1?`<div class="chips">
       <button class="chip ${filtroRepProd===""?"on":""}" onclick="filtroRepProd='';filtroProd='';render()">Todas (${produtos.length})</button>
-      ${reps.map(r=>`<button class="chip ${filtroRepProd===r?"on":""}" onclick="filtroRepProd='${esc(r)}';filtroProd='';render()">${esc(r)} (${produtos.filter(p=>(p.marca||"EIKO VIDA")===r).length})</button>`).join("")}
+      ${reps.map(r=>`<button class="chip ${filtroRepProd===r?"on":""}" onclick="filtroRepProd='${escq(r)}';filtroProd='';render()">${esc(r)} (${produtos.filter(p=>(p.marca||"EIKO VIDA")===r).length})</button>`).join("")}
     </div>`:"";
   const visiveis=produtos.filter(daRep);
   const cats=[...new Set(visiveis.map(p=>p.categoria).filter(Boolean))];
@@ -4684,8 +4866,8 @@ function ampliarFotoProduto(){
   const html=`<div class="lbx-ov" onclick="if(event.target===this)fecharFoto()">
     <img src="${esc(url)}" data-resto="${esc(cadeia.slice(1).join("|"))}" onerror="lbxErr(this)" alt="">
     <div class="lbx-bar">
-      <button class="btn btn-v btn-sm" onclick="compartilharFoto('${esc(url)}','${esc(nome)}')">\ud83d\udce4 Compartilhar</button>
-      <button class="btn btn-o btn-sm" onclick="baixarFoto('${esc(url)}','${esc(nome)}')">\u2b07\ufe0f Baixar</button>
+      <button class="btn btn-v btn-sm" onclick="compartilharFoto('${esc(url)}','${escq(nome)}')">\ud83d\udce4 Compartilhar</button>
+      <button class="btn btn-o btn-sm" onclick="baixarFoto('${esc(url)}','${escq(nome)}')">\u2b07\ufe0f Baixar</button>
       <button class="btn btn-g btn-sm" onclick="fecharFoto()">Fechar</button>
     </div></div>`;
   const d=document.createElement("div");d.id="lbxWrap";d.innerHTML=html;document.body.appendChild(d);
@@ -4795,7 +4977,7 @@ function excluirProd(id){if(!ehAdmin){toast("Somente o administrador pode exclui
 /* ====== TABELAS DE PREÇO ====== */
 function viewTabelas(){
   const repAtiva=filtroRepTab||representadas()[0]||"EIKO VIDA";
-  const chips=`<div class="chips">${representadas().map(r=>`<button class="chip ${repAtiva===r?"on":""}" onclick="filtroRepTab='${esc(r)}';tabEdit=null;render()">${esc(r)}</button>`).join("")}</div>`;
+  const chips=`<div class="chips">${representadas().map(r=>`<button class="chip ${repAtiva===r?"on":""}" onclick="filtroRepTab='${escq(r)}';tabEdit=null;render()">${esc(r)}</button>`).join("")}</div>`;
   const info=`<div style="font-size:12px;color:var(--cinza);background:#f8f8f6;border-radius:10px;padding:10px;margin:10px 0">
     Cada representada tem as suas tabelas. A tabela pode ajustar o pre\u00e7o base por <b>percentual</b> ou ter <b>pre\u00e7o pr\u00f3prio por produto</b>.</div>`;
   if(!ehAdmin){
@@ -4903,7 +5085,6 @@ function instalarApp(){if(!deferredPrompt)return;deferredPrompt.prompt();deferre
 window.addEventListener("appinstalled",()=>document.getElementById("instalar").classList.add("hide"));
 if("serviceWorker" in navigator){window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));}
 
-try{const v=localStorage.getItem("eiko_vendedor");if(v)document.getElementById("nomeVendedor").value=v;}catch(e){}
 tentarLogo();
 </script>
 </body>

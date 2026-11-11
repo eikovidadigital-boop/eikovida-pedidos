@@ -110,9 +110,11 @@
   <footer>EikoVida Produtos Naturais · Uso interno da equipe de vendas</footer>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="lib/qrcode.min.js"></script>
 <script>
-var BASE=location.href.replace(/instalar\.html.*$/,"");
+// o servidor pode abrir esta página como "instalar.html" ou só "instalar"
+var BASE=location.origin+location.pathname.replace(/instalar(\.html)?\/?$/i,"");
+if(!/\/$/.test(BASE))BASE=BASE.replace(/[^\/]*$/,"");
 var APP=BASE+"index.html";
 document.getElementById("endereco").textContent=BASE.replace(/^https?:\/\//,"").replace(/\/$/,"");
 
