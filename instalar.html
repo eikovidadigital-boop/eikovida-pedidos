@@ -112,7 +112,9 @@
 
 <script src="lib/qrcode.min.js"></script>
 <script>
-var BASE=location.href.replace(/instalar\.html.*$/,"");
+// o servidor pode abrir esta página como "instalar.html" ou só "instalar"
+var BASE=location.origin+location.pathname.replace(/instalar(\.html)?\/?$/i,"");
+if(!/\/$/.test(BASE))BASE=BASE.replace(/[^\/]*$/,"");
 var APP=BASE+"index.html";
 document.getElementById("endereco").textContent=BASE.replace(/^https?:\/\//,"").replace(/\/$/,"");
 
