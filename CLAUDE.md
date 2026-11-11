@@ -9,7 +9,7 @@ Este arquivo é lido pelo Claude Code no início de toda sessão. Ele vale para 
 - **Empresa:** Eiko Vida, venda no **atacado** de cosméticos e óleos para a pele.
 - **Clientes:** lojistas e revendedores (B2B), não o consumidor final.
 - **Dono:** Paulo. Toca tudo sozinho.
-- **Marca parceira presente no código:** Mel Raiz (logos e tabela de preços próprias).
+- **Representadas:** a principal é a EIKO VIDA (fixa no código, não pode ser excluída). As outras existem enquanto tiverem cadastro ou produto. A Mel Raiz ainda tem logotipo e arquivo de tabela no repositório, mas o Paulo decidiu tirá-la do sistema (11/11/2026).
 
 ## 2. Quem dá os comandos (leia com atenção)
 
@@ -122,3 +122,4 @@ Tarefa:
 - 11/11/2026: GitHub Pages já estava desligado; `app.eikovida.com` passou a apontar para o Cloudflare Pages (CNAME na HostGator) e é o endereço oficial do app.
 - 11/11/2026: varredura do app. Senha padrão do administrador retirada do código (senha vira hash na nuvem), fila de envio à prova de perda, numeração por contador central, bibliotecas dentro do app, cache corrigido, catálogo identifica cliente só por CNPJ/CPF completo, arquivos de dados retirados do repositório.
 - 11/11/2026 (mesmo dia, decisão do Paulo): o catálogo volta a aceitar **nome fantasia e razão social**, além do CNPJ/CPF — muito cliente não sabe o CNPJ e isso travava a venda. Regras da busca por nome (função `procurarClientes` no `catalogo.html`): nome igual entra direto; nome que serve para mais de uma loja mostra lista curta (até 6) para o cliente escolher; termo genérico não lista ninguém e pede o nome mais completo. Não voltar a exigir CNPJ sem falar com o Paulo.
+- 11/11/2026: criado o botão **Excluir representada e produtos** (tela Representadas, só administrador). Apaga de uma vez os produtos, as tabelas de preço, a página de catálogo e a liberação dos vendedores daquela representada; **não apaga os pedidos** (histórico). Antes de apagar, guarda cópia no nó `lixeira` do Firebase e baixa um arquivo no aparelho; a mesma tela tem o botão de restaurar. A lista de representadas deixou de ser alimentada pelos pedidos antigos (`representadas()`); para relatório/comissão usar `representadasHist()`.

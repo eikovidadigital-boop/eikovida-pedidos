@@ -391,8 +391,14 @@ function pedidosVis(){
 let online=(typeof navigator!=="undefined"?navigator.onLine:true), filaPendentes=[];
 let periodoRel="30";
 let buscaCliRel="";
-const REPRES_FIXAS=["EIKO VIDA","MEL RAIZ"];
-function representadas(){return [...new Set(REPRES_FIXAS.concat(repres.filter(r=>r.ativa!==false).map(r=>r.nome).filter(Boolean)).concat(produtos.map(p=>p.marca).filter(Boolean)).concat(pedidos.map(p=>p.representada).filter(Boolean)))].sort();}
+const REP_PADRAO="EIKO VIDA";
+const REPRES_FIXAS=[REP_PADRAO];
+// representadas em uso: a principal, as cadastradas e as que têm produto.
+// (pedido antigo não mantém representada excluída na lista de escolha)
+function representadas(){return [...new Set(REPRES_FIXAS.concat(repres.filter(r=>r.ativa!==false).map(r=>r.nome).filter(Boolean)).concat(produtos.map(p=>p.marca).filter(Boolean)))].sort();}
+// inclui as que só existem no histórico de pedidos (para relatórios e comissões)
+function representadasHist(){return [...new Set(representadas().concat(pedidos.map(p=>p.representada).filter(Boolean)))].sort();}
+function normRep(n){return String(n||"").trim().toUpperCase();}
 function repDe(nome){return repres.find(r=>String(r.nome||"").trim().toUpperCase()===String(nome||"").trim().toUpperCase())||{};}
 function linkCatalogo(rep,tab){
   let u=URL_CATALOGO;const q=[];
@@ -402,6 +408,7 @@ function linkCatalogo(rep,tab){
 }
 let transportadoras=[], transpEdit=null, filtroCobr="areceber", buscaCobr="";
 let repres=[], repEdit=null, catRepEdit="", filtroRepTab="", filtroRepProd="", logoTmp="";
+let repExcluir=null, lixeiraRep=null, excluindoRep=false;
 let agenda=[], agendaEdit=null, filtroAgenda="proximos";
 let fornecedores=[], fornEdit=null;
 let comissoesCfg={}, comPeriodo="mes";
@@ -1012,12 +1019,12 @@ function viewRepresentadas(){
         <button class="btn btn-w btn-sm" style="flex:1" onclick="enviarCatalogo('${escq(nome)}')">\ud83d\udcf2 Enviar cat\u00e1logo</button>
         <button class="btn btn-g btn-sm" onclick="window.open(linkCatalogo('${escq(nome)}'),'_blank')">Ver</button>
       </div>
-      ${ehAdmin&&r.id?`<button class="btn btn-r btn-sm" style="width:100%;margin-top:6px" onclick="excluirRepres('${r.id}')">\ud83d\uddd1 Excluir</button>`:""}
+      ${ehAdmin&&normRep(nome)!==normRep(REP_PADRAO)?`<button class="btn btn-r btn-sm" style="width:100%;margin-top:6px" onclick="pedirExclusaoRepres('${escq(nome)}')">🗑 Excluir representada e produtos</button>`:""}
     </div>`;
   }).join("");
   return `<h2 class="tit">Representadas</h2>
     <div class="card" style="background:#f8f8f6"><div style="font-size:13px;color:#555">Cada produto e cada pedido pertence a uma representada. O cat\u00e1logo pode ser enviado com os produtos de uma s\u00f3.</div></div>
-    ${form}${lista}`;
+    ${cartaoExcluirRepres()}${form}${lista}${cartaoLixeiraRepres()}`;
 }
 function salvarRepres(){
   const o={nome:val("rpNome").trim(),fantasia:val("rpFant"),cnpj:val("rpCnpj"),contato:val("rpCont"),
@@ -1064,12 +1071,157 @@ function ampliarLogoRep(nome){
     </div></div>`;
   const d=document.createElement("div");d.id="lbxWrap";d.innerHTML=html;document.body.appendChild(d);
 }
-function excluirRepres(id){
-  const r=repres.find(x=>x.id===id); if(!r)return;
-  const nProd=produtos.filter(p=>(p.marca||"")===r.nome).length;
-  const nPed=pedidos.filter(p=>(p.representada||"")===r.nome).length;
-  if(!confirm("Excluir a representada "+r.nome+"?"+(nProd||nPed?"\n\n\u26a0\ufe0f "+nProd+" produto(s) e "+nPed+" pedido(s) continuam com esse nome gravado.":"")))return;
-  db.ref("representadas/"+id).remove().then(()=>{if(repEdit&&repEdit.id===id)repEdit=null;toast("Exclu\u00edda");render();}).catch(()=>toast("N\u00e3o foi poss\u00edvel concluir. Tente novamente."));
+/* ====== EXCLUIR REPRESENTADA (com produtos e tabelas) ======
+   - só o administrador, só com internet, nunca a representada principal;
+   - apaga tudo de uma vez: ou sai tudo, ou não sai nada;
+   - os pedidos já feitos NÃO são apagados (histórico, relatórios, comissões);
+   - antes de apagar, guarda uma cópia na lixeira da nuvem e baixa outra no aparelho. */
+function pedirExclusaoRepres(nome){
+  if(!ehAdmin){toast("Somente o administrador");return;}
+  if(normRep(nome)===normRep(REP_PADRAO)){toast("A "+REP_PADRAO+" é a representada principal e não pode ser excluída");return;}
+  repExcluir=nome;render();window.scrollTo(0,0);
+}
+function resumoExclusaoRepres(nome){
+  const alvo=normRep(nome);
+  return {
+    produtos:produtos.filter(p=>normRep(p.marca)===alvo).length,
+    tabelas:tabelas.filter(t=>normRep(t.representada)===alvo).length,
+    pedidos:pedidos.filter(p=>normRep(p.representada)===alvo).length,
+    vendedores:equipe.filter(v=>Array.isArray(v.representadas)&&v.representadas.some(r=>normRep(r)===alvo)).length
+  };
+}
+function cartaoExcluirRepres(){
+  if(!ehAdmin||!repExcluir)return "";
+  const r=resumoExclusaoRepres(repExcluir);
+  return `<div class="card" style="border:2px solid #d33;background:#fff7f6">
+    <div style="font-weight:800;font-size:15px;color:#d33">🗑 Excluir a representada ${esc(repExcluir)}</div>
+    <div style="font-size:13px;margin-top:8px"><b>Sai do sistema:</b> ${r.produtos} produto(s), ${r.tabelas} tabela(s) de preço e a página de catálogo dela${r.vendedores?", além da liberação dela para "+r.vendedores+" vendedor(es)":""}.</div>
+    <div style="font-size:13px;margin-top:6px"><b>Continua guardado:</b> ${r.pedidos} pedido(s) já feitos (histórico, relatórios e comissões).</div>
+    <div style="font-size:12px;color:var(--cinza);margin-top:6px">Uma cópia fica na lixeira do sistema e outra é baixada neste aparelho. Dá para restaurar depois.</div>
+    <label class="lb" style="margin-top:10px;display:block">Para confirmar, digite o nome da representada</label>
+    <input class="inp" id="rxNome" autocomplete="off" autocapitalize="characters" placeholder="${esc(repExcluir)}"/>
+    <div class="row" style="margin-top:10px">
+      <button class="btn btn-r" style="flex:1" id="rxBtn" onclick="excluirRepresCompleta()">Excluir definitivamente</button>
+      <button class="btn btn-g" onclick="repExcluir=null;render()">Cancelar</button>
+    </div></div>`;
+}
+function baixarJsonNoAparelho(nomeArq,obj){
+  const blob=new Blob([JSON.stringify(obj,null,1)],{type:"application/json"});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);a.download=nomeArq;a.style.display="none";
+  document.body.appendChild(a);a.click();
+  setTimeout(()=>{try{URL.revokeObjectURL(a.href);a.remove();}catch(e){}},4000);
+}
+async function excluirRepresCompleta(){
+  if(!ehAdmin||!repExcluir||excluindoRep)return;
+  const nome=repExcluir, alvo=normRep(nome);
+  if(alvo===normRep(REP_PADRAO)){toast("A "+REP_PADRAO+" não pode ser excluída");return;}
+  if(normRep(val("rxNome"))!==alvo){toast("Digite o nome da representada exatamente como aparece");return;}
+  if(!nuvemOk()){toast("Precisa de internet para excluir");return;}
+  excluindoRep=true;
+  const btn=document.getElementById("rxBtn");if(btn){btn.disabled=true;btn.textContent="Excluindo…";}
+  try{
+    // lê direto da nuvem: vale o que está gravado lá, não a cópia deste aparelho
+    const ler=async c=>(await comTempo(db.ref(c).once("value"),ESPERA_NUVEM)).val()||{};
+    const [P,T,R,V,C]=await Promise.all([ler("produtos"),ler("tabelas"),ler("representadas"),ler("vendedores"),ler("catalogo")]);
+    const copia={tipo:"representada",nome,em:new Date().toISOString(),por:vendedor||"",produtos:{},tabelas:{},representadas:{},catalogoReps:{},vendedores:{}};
+    const u={};
+    for(const id in P)if(normRep(P[id]&&P[id].marca)===alvo){copia.produtos[id]=P[id];u["produtos/"+id]=null;}
+    for(const id in T)if(normRep(T[id]&&T[id].representada)===alvo){copia.tabelas[id]=T[id];u["tabelas/"+id]=null;}
+    for(const id in R)if(normRep(R[id]&&R[id].nome)===alvo){copia.representadas[id]=R[id];u["representadas/"+id]=null;}
+    const cfgReps=(C&&C.reps)||{};
+    for(const k in cfgReps)if(normRep(k)===alvo){copia.catalogoReps[k]=cfgReps[k];u["catalogo/reps/"+k]=null;}
+    for(const id in V){
+      const l=V[id]&&V[id].representadas;
+      if(Array.isArray(l)&&l.some(r=>normRep(r)===alvo)){
+        copia.vendedores[id]=l;
+        const resto=l.filter(r=>normRep(r)!==alvo);
+        u["vendedores/"+id+"/representadas"]=resto.length?resto:null;
+      }
+    }
+    // promoção do catálogo que aponta para produto excluído
+    const pr=C&&C.promo;
+    if(pr){
+      const ids=Array.isArray(pr.produtos)?pr.produtos:[];
+      const resto=ids.filter(id=>!copia.produtos[id]);
+      if(normRep(pr.representada)===alvo||(ids.length&&!resto.length)){copia.promo=pr;u["catalogo/promo"]=null;}
+      else if(resto.length!==ids.length){copia.promo=pr;u["catalogo/promo/produtos"]=resto;}
+    }
+    if(!Object.keys(u).length){toast("Não há nada dessa representada gravado na nuvem");repExcluir=null;return;}
+    const nP=Object.keys(copia.produtos).length, nT=Object.keys(copia.tabelas).length;
+    try{baixarJsonNoAparelho("backup-representada-"+slugRep(nome)+"-"+copia.em.slice(0,10)+".json",copia);}catch(e){}
+    let naLixeira=true;
+    try{
+      const chave=db.ref("lixeira").push().key;
+      await comTempo(db.ref().update({...u,["lixeira/"+chave]:copia}),ESPERA_NUVEM);
+    }catch(e){
+      if(String(e&&e.message)==="tempo")throw e;
+      // a nuvem não aceitou a lixeira: exclui assim mesmo, com a cópia que foi baixada no aparelho
+      naLixeira=false;
+      await comTempo(db.ref().update(u),ESPERA_NUVEM);
+    }
+    repExcluir=null;lixeiraRep=null;
+    if(normRep(filtroRepProd)===alvo)filtroRepProd="";
+    if(normRep(filtroRepTab)===alvo)filtroRepTab="";
+    if(normRep(catRepEdit)===alvo)catRepEdit="";
+    if(normRep(ped.representada)===alvo)ped.representada=REP_PADRAO;
+    if(normRep(promo.representada)===alvo)promo.representada="";
+    toast(nome+" excluída: "+nP+" produto(s) e "+nT+" tabela(s). "+(naLixeira?"Cópia guardada na lixeira.":"Cópia só no arquivo baixado."));
+  }catch(e){
+    toast(String(e&&e.message)==="tempo"?"A nuvem não respondeu. Confira a lista antes de tentar de novo.":"Não foi possível excluir. Nada foi apagado.");
+  }finally{
+    excluindoRep=false;render();
+  }
+}
+/* lixeira: representadas excluídas que ainda podem voltar */
+async function abrirLixeiraRepres(){
+  if(!ehAdmin)return;
+  if(!nuvemOk()){toast("Precisa de internet para abrir a lixeira");return;}
+  try{
+    const v=(await comTempo(db.ref("lixeira").once("value"),ESPERA_NUVEM)).val()||{};
+    lixeiraRep=Object.entries(v).filter(([k,x])=>x&&x.tipo==="representada")
+      .map(([k,x])=>({id:k,nome:x.nome||"",em:x.em||"",nP:Object.keys(x.produtos||{}).length,nT:Object.keys(x.tabelas||{}).length}))
+      .sort((a,b)=>String(b.em).localeCompare(String(a.em)));
+  }catch(e){lixeiraRep=null;toast("Não consegui abrir a lixeira");}
+  render();
+}
+function cartaoLixeiraRepres(){
+  if(!ehAdmin)return "";
+  if(lixeiraRep===null)return `<button class="btn btn-g btn-sm" style="width:100%;margin-top:10px" onclick="abrirLixeiraRepres()">♻️ Ver representadas excluídas</button>`;
+  if(!lixeiraRep.length)return `<div class="card" style="font-size:13px;color:var(--cinza);text-align:center">♻️ Nenhuma representada na lixeira.</div>`;
+  return `<div class="card"><div style="font-weight:700;font-size:14px">♻️ Representadas excluídas</div>`+
+    lixeiraRep.map(x=>`<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:10px">
+      <div style="min-width:0"><b>${esc(x.nome)}</b><small style="display:block;color:var(--cinza)">excluída em ${esc(x.em?new Date(x.em).toLocaleDateString("pt-BR"):"")} · ${x.nP} produto(s) · ${x.nT} tabela(s)</small></div>
+      <button class="btn btn-v btn-sm" onclick="restaurarRepres('${escq(x.id)}')">Restaurar</button>
+    </div>`).join("")+`</div>`;
+}
+async function restaurarRepres(id){
+  if(!ehAdmin||excluindoRep)return;
+  if(!nuvemOk()){toast("Precisa de internet para restaurar");return;}
+  if(!confirm("Restaurar esta representada com os produtos e as tabelas de preço?"))return;
+  excluindoRep=true;
+  try{
+    const x=(await comTempo(db.ref("lixeira/"+id).once("value"),ESPERA_NUVEM)).val();
+    if(!x){toast("Esse item não está mais na lixeira");lixeiraRep=null;return;}
+    const u={["lixeira/"+id]:null};
+    for(const k in (x.produtos||{}))u["produtos/"+k]=x.produtos[k];
+    for(const k in (x.tabelas||{}))u["tabelas/"+k]=x.tabelas[k];
+    for(const k in (x.representadas||{}))u["representadas/"+k]=x.representadas[k];
+    for(const k in (x.catalogoReps||{}))u["catalogo/reps/"+k]=x.catalogoReps[k];
+    // devolve a liberação a quem tinha, sem mexer no que foi liberado depois
+    const V=(await comTempo(db.ref("vendedores").once("value"),ESPERA_NUVEM)).val()||{};
+    for(const k in (x.vendedores||{})){
+      const atual=V[k]&&V[k].representadas;
+      if(V[k]&&Array.isArray(atual)&&!atual.some(r=>normRep(r)===normRep(x.nome)))u["vendedores/"+k+"/representadas"]=atual.concat(x.nome);
+    }
+    await comTempo(db.ref().update(u),ESPERA_NUVEM);
+    lixeiraRep=null;
+    toast((x.nome||"Representada")+" restaurada ✓");
+  }catch(e){
+    toast(String(e&&e.message)==="tempo"?"A nuvem não respondeu. Tente de novo.":"Não foi possível restaurar.");
+  }finally{
+    excluindoRep=false;render();
+  }
 }
 function blocoConsultaCliente(lista){
   const q=txtSimples(buscaCliRel);
@@ -3840,7 +3992,7 @@ function enviarPromoEmail(){
 function viewComissoes(){
   if(!ehAdmin)return `<div class="vazio">Área exclusiva do administrador.</div>`;
   const vends=equipe.filter(v=>!v.admin);
-  const reps=representadas();
+  const reps=representadasHist();
   const per=periodoComissao();
   const pers=[["mes","Este mês"],["mespass","Mês passado"],["ano","Este ano"],["tudo","Tudo"]];
   const chips=`<div class="chips" style="margin-bottom:12px">${pers.map(([v,l])=>`<button class="chip ${comPeriodo===v?'on':''}" onclick="comPeriodo='${v}';render()">${l}</button>`).join("")}</div>`;
